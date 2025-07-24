@@ -5,13 +5,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:super_app/Layout/GeneralChat.dart';
 
 import '../Components/Constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignUp extends StatelessWidget {
 
    SignUp({super.key});
-  TextEditingController FirstName = TextEditingController();
+  TextEditingController FullName = TextEditingController();
+  TextEditingController email = TextEditingController();
+  TextEditingController password = TextEditingController();
+
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppCubit,AppCubitStates>(
@@ -37,7 +43,7 @@ class SignUp extends StatelessWidget {
                     width:MediaQuery.of(context).size.width*0.85,
                     child: defaultTextForm(
                       context,
-                      controller: FirstName,
+                      controller: FullName,
                       keyboardType: TextInputType.name,
                       hintText:"Full Name",
                     ),
@@ -49,7 +55,7 @@ class SignUp extends StatelessWidget {
                     width:MediaQuery.of(context).size.width*0.85,
                     child: defaultTextForm(
                       context,
-                      controller: FirstName,
+                      controller: email,
                       keyboardType: TextInputType.name,
                       hintText:"Email Address",
                     ),
@@ -61,7 +67,7 @@ class SignUp extends StatelessWidget {
                     width:MediaQuery.of(context).size.width*0.85,
                     child: defaultTextForm(
                       context,
-                      controller: FirstName,
+                      controller: password,
                       keyboardType: TextInputType.name,
                       hintText:"Password",
                       IsPassword: true,
@@ -187,7 +193,19 @@ class SignUp extends StatelessWidget {
                     child: MaterialButton(
                       elevation:0,
                       color: HexColor("#dae7f7"),
-                      onPressed: (){},
+                      onPressed: () async {
+                        // await supabase.auth.signUp(
+                        //   email: email.text,
+                        //     password: password.text,
+                        //   data:{
+                        //     "FullName":FullName.text,
+                        //    "role":AppCubit.get(context).RoleName,
+                        //   }
+                        // );
+                      await supabase.auth.signInWithPassword(
+                          email: "nouradawy@hotmail.com",
+                          password: "b7102543756330");
+                      },
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(40),
                       ),

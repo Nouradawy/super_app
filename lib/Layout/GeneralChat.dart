@@ -1,17 +1,22 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart' show FilePicker, FileType;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flyer_chat_image_message/flyer_chat_image_message.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+
+
+final supabase = Supabase.instance.client;
 
 class Generalchat extends StatefulWidget {
   const Generalchat({super.key});
@@ -21,9 +26,63 @@ class Generalchat extends StatefulWidget {
 }
 
 class _GeneralchatState extends State<Generalchat> {
-  final _chatController = InMemoryChatController();
+  late final Stream<List<types.Message>> _messagesStream;
+
+  final _chatController = types.InMemoryChatController();
+  final _currentUser = types.User(id: supabase.auth.currentUser!.id, name: "John");
 
 
+  @override
+  void initState() {
+    // 2. Map the Supabase stream to a stream of `types.Message`
+    _messagesStream = supabase
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((maps) => maps
+        .map((map) => _mapToMessage(map))
+        .toList());
+    super.initState();
+  }
+
+  types.Message _mapToMessage(Map<String, dynamic> map) {
+    final messageType = map['type'];
+    final author = types.User(id: map['author_id'] ?? 'unknown');
+
+    switch (messageType) {
+      case 'image':
+        final metadata = map['metadata'] as Map<String, dynamic>?;
+        return types.ImageMessage(
+          createdAt: DateTime.parse(map['created_at']),
+          id: map['id'],
+          text:metadata?['name'] ?? 'Image',
+          authorId:  map['author_id'],
+          size: metadata?['size'] ?? 0,
+          height: metadata?['height']?.toDouble(),
+          width: metadata?['width']?.toDouble(),
+          source: map['source'],
+        );
+      case 'file':
+        final metadata = map['metadata'] as Map<String, dynamic>?;
+        return types.FileMessage(
+          createdAt: DateTime.parse(map['created_at']),
+          id: map['id'],
+          authorId:  map['author_id'],
+          name: metadata?['name'] ?? 'File',
+          size: metadata?['size'] ?? 0,
+          mimeType: metadata?['mimeType'],
+          source: map['source'],
+        );
+      default: // 'text'
+        return types.TextMessage(
+
+          createdAt: DateTime.parse(map['created_at']),
+          id: map['id'],
+          authorId:  map['author_id'],
+          text: map['text'] ?? '',
+        );
+    }
+  }
 
   void _handleImageSelection() async {
     final result = await ImagePicker().pickImage(
@@ -32,22 +91,37 @@ class _GeneralchatState extends State<Generalchat> {
       source: ImageSource.gallery,
     );
 
-    if (result != null) {
-      final bytes = await result.readAsBytes();
-      final image = await decodeImageFromList(bytes);
+    if (result == null) return;
 
-      final message = ImageMessage(
-        createdAt: DateTime.now(),
-        height: image.height.toDouble(),
-        id: const Uuid().v4(),
-        size: bytes.length,
-        width: image.width.toDouble(),
-        authorId: 'user1',
-        source: result.path,
-      );
+    final bytes = await result.readAsBytes();
+    final image = await decodeImageFromList(bytes);
+    final fileExt = result.path.split('.').last;
+    final fileName = '${const Uuid().v4()}.$fileExt';
 
-    _chatController.insertMessage(message);
-    }
+    // Upload to Supabase Storage
+    await supabase.storage.from('chat_attachments').uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(contentType: result.mimeType),
+    );
+
+    // Get the public URL
+    final imageUrl = supabase.storage.from('chat_attachments').getPublicUrl(fileName);
+
+    // Insert message record into the database
+    await supabase.from('messages').insert({
+      'id': const Uuid().v4(),
+      'author_id': _currentUser.id,
+      'uri': imageUrl,
+      'type': 'image',
+      'created_at': DateTime.now().toIso8601String(),
+      'metadata': {
+        'name': result.name,
+        'size': bytes.length,
+        'height': image.height.toDouble(),
+        'width': image.width.toDouble(),
+      }
+    });
   }
 
   void _handleAttachmentPressed() {
@@ -94,25 +168,47 @@ class _GeneralchatState extends State<Generalchat> {
   }
 
   void _handleFileSelection() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
+    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+
+    if (result == null || result.files.single.path == null) return;
+
+    final file = result.files.single;
+    final fileBytes = await File(file.path!).readAsBytes();
+    final fileName = '${const Uuid().v4()}_${file.name}';
+
+    // Upload to Supabase Storage
+    await supabase.storage.from('chat_attachments').uploadBinary(
+      fileName,
+      fileBytes,
+      fileOptions: FileOptions(contentType: lookupMimeType(file.path!)),
     );
 
-    if (result != null && result.files.single.path != null) {
-      final message = FileMessage(
+    // Get public URL
+    final fileUrl = supabase.storage.from('chat_attachments').getPublicUrl(fileName);
 
-        createdAt: DateTime.now(),
-        id: const Uuid().v4(),
-        mimeType: lookupMimeType(result.files.single.path!),
-        name: result.files.single.name,
-        size: result.files.single.size,
-        source: result.files.single.path!,
-        authorId: 'user1',
+    // Insert message record
+    await supabase.from('messages').insert({
+      'id': const Uuid().v4(),
+      'author_id': _currentUser.id,
+      'uri': fileUrl,
+      'type': 'file',
+      'created_at': DateTime.now().toIso8601String(),
+      'metadata': {
+        'name': file.name,
+        'size': file.size,
+        'mimeType': lookupMimeType(file.path!),
+      }
+    });
+  }
 
-      );
-
-      _chatController.insertMessage(message);
-    }
+  void _handleSendPressed(text) async {
+    await supabase.from('messages').insert({
+      'id': const Uuid().v4(),
+      'author_id': _currentUser.id,
+      'text': text,
+      'type': 'text',
+      'created_at': DateTime.now().toIso8601String(),
+    });
   }
 
   @override
@@ -124,40 +220,45 @@ class _GeneralchatState extends State<Generalchat> {
           appBar:AppBar(
               title:Text("General Chat"),
           ),
-          body: Chat(
+          body: StreamBuilder<List<types.Message>>(
+            stream: _messagesStream,
+            builder: (context,snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
 
-              currentUserId: 'user1',
-            resolveUser: (id) async{
-                return User(
-                    id:id,
-                    name: "John",
-                createdAt: DateTime.now());
-            },
+              _chatController.insertAllMessages(snapshot.data ?? []);
 
-            onMessageSend: (text) {
-              _chatController.insertMessage(
-                TextMessage(
-                  // Better to use UUID or similar for the ID - IDs must be unique.
-                  id: '${Random().nextInt(1000) + 1}',
-                  authorId: 'user1',
-                  createdAt: DateTime.now().toUtc(),
-                  text: text,
+              return Chat(
+                chatController: _chatController,
+                currentUserId: supabase.auth.currentUser!.id,
+                resolveUser: (id) async{
+                    return types.User(
+                        id:id,
+                        name: "John",
+                    createdAt: DateTime.now());
+                },
 
+                onMessageSend: (text) {
+                  _handleSendPressed(text);
+                },
+
+                onAttachmentTap:_handleAttachmentPressed,
+                builders: types.Builders(
+
+                  imageMessageBuilder: (context, message, index, {
+                    required bool isSentByMe,
+                    types.MessageGroupStatus? groupStatus,
+                  }) =>
+                      FlyerChatImageMessage(message: message, index: index),
                 ),
+
+
               );
-            },
-            chatController: _chatController,
-              onAttachmentTap:_handleAttachmentPressed,
-            builders: Builders(
-
-              imageMessageBuilder: (context, message, index, {
-                required bool isSentByMe,
-                MessageGroupStatus? groupStatus,
-              }) =>
-                  FlyerChatImageMessage(message: message, index: index),
-            ),
-
-
+            }
           ),
         );
       },

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:super_app/Layout/GeneralChat.dart';
 
 class Social extends StatelessWidget {
   const Social({super.key});
@@ -161,11 +162,7 @@ class Social extends StatelessWidget {
             ),
             Column(
               children: [
-                Row(
-                  children: [
-                    Container(child: Text("chat"),),
-                  ],
-                ),
+                Expanded(child: Generalchat()),
               ],
             ),
           ],
