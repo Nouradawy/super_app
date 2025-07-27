@@ -1,7 +1,15 @@
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
+
+import '../sevices/GoogleDriveService.dart';
+
+final GoogleDriveService driveService = GoogleDriveService();
+GoogleSignInAccount? googleUser;
+
+
 
 Widget defaultTextForm(
     context,{

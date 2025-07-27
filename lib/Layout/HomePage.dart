@@ -1,4 +1,3 @@
-import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -9,6 +8,7 @@ import 'package:super_app/Layout/Cubit/states.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
+import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
   TextEditingController Search = TextEditingController();
@@ -50,6 +50,12 @@ class HomePage extends StatelessWidget {
           appBar: AppBar(
             backgroundColor:Colors.white,
             title:Text("Community Hub",style: GoogleFonts.plusJakartaSans(),),
+            actions:[IconButton(onPressed: (){
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => Profile()),
+              );
+            }, icon: Icon(Icons.settings))],
           ),
           body: NestedScrollView(
               headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled){

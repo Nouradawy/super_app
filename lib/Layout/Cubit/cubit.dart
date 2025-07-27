@@ -1,7 +1,11 @@
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+
+import '../../Components/Constants.dart';
+import '../../sevices/GoogleDriveService.dart';
 
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
@@ -25,5 +29,18 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   void SendChatMessage(){
     emit(MessageSentState());
+  }
+
+  void googleSignin()async{
+    if (googleUser == null) {
+      final user = await driveService.signIn();
+      if (user != null) {
+        googleUser = user;
+      }
+    } else {
+      await driveService.signOut();
+      googleUser = null;
+    }
+    emit(GoogleSigninStates());
   }
 }

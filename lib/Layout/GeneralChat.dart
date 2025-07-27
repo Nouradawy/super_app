@@ -1,19 +1,25 @@
 import 'dart:io';
-import 'dart:math';
-
-import 'package:file_picker/file_picker.dart' show FilePicker, FileType;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flyer_chat_image_message/flyer_chat_image_message.dart';
+import 'package:flyer_chat_text_message/flyer_chat_text_message.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
+
+
 
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+
+import '../Components/Constants.dart';
+import '../sevices/GoogleDriveService.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -26,24 +32,110 @@ class Generalchat extends StatefulWidget {
 }
 
 class _GeneralchatState extends State<Generalchat> {
-  late final Stream<List<types.Message>> _messagesStream;
 
-  final _chatController = types.InMemoryChatController();
+  types.Message? _repliedMessage;
+  late types.InMemoryChatController _chatController;
+  late final ScrollController _scrollController;
+  // late final ReactionsController _reactionsController;
+
+  final int _pageSize = 20;
+  int _currentPage = 0;
+  bool _isLoading = false;
+  bool _hasMore = true;
   final _currentUser = types.User(id: supabase.auth.currentUser!.id, name: "John");
-
+  String? _lastMessageId;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
-    // 2. Map the Supabase stream to a stream of `types.Message`
-    _messagesStream = supabase
-        .from('messages')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .map((maps) => maps
-        .map((map) => _mapToMessage(map))
-        .toList());
     super.initState();
+    _chatController = types.InMemoryChatController();
+    _scrollController = ScrollController();
+    // _reactionsController = ReactionsController(currentUserId: _currentUser.id);
+    _loadMessages();
+    _subscribeToRealtime();
+
+    // Add this to try and sign in silently on start
+    driveService.signInSilently().then((_) {
+      if (driveService.currentUser != null) {
+        setState(() {
+          googleUser = driveService.currentUser;
+        });
+      }
+    });
+
   }
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    _chatController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  String? _extractDriveFileId(String url) {
+    try {
+      final uri = Uri.parse(url);
+      // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
+      if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
+        return uri.pathSegments[2];
+      }
+    } catch (e) {
+      print("Error parsing Drive URL: $e");
+    }
+    return null;
+  }
+
+  void _subscribeToRealtime() {
+    _realtimeChannel = supabase
+        .channel('public:messages')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'messages',
+      callback: (payload) {
+        final newMessage = _mapToMessage(payload.newRecord);
+        if (!_chatController.messages.any((m) => m.id == newMessage.id)) {
+
+          _chatController.insertMessage(newMessage);
+        }
+      },
+    )
+        .subscribe();
+  }
+
+
+  Future<void> _loadMessages() async {
+    if (_isLoading || !_hasMore) return;
+    setState(() => _isLoading = true);
+
+    // Fetch messages using _lastMessageId for pagination
+    final response = await supabase
+        .from('messages')
+        .select()
+        .order('created_at', ascending: false)
+        .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize - 1);
+
+
+    final List<types.Message> newMessages = (response as List)
+        .map((map) => _mapToMessage(map as Map<String, dynamic>))
+        .toList();
+    if (newMessages.isEmpty) {
+      _hasMore = false;
+    } else {
+
+      final existingIds = _chatController.messages.map((m) => m.id).toSet();
+      final uniqueNewMessages = newMessages.where((m) => !existingIds.contains(m.id)).toList().reversed.toList();
+
+      if (uniqueNewMessages.isNotEmpty) {
+        await _chatController.insertAllMessages(uniqueNewMessages, index: 0);
+        _currentPage++;
+        _lastMessageId = uniqueNewMessages.first.id;
+      }
+    }
+    setState(() => _isLoading = false);
+  }
+
 
   types.Message _mapToMessage(Map<String, dynamic> map) {
     final messageType = map['type'];
@@ -60,7 +152,8 @@ class _GeneralchatState extends State<Generalchat> {
           size: metadata?['size'] ?? 0,
           height: metadata?['height']?.toDouble(),
           width: metadata?['width']?.toDouble(),
-          source: map['source'],
+          source: map['uri'],
+          metadata: map['metadata'],
         );
       case 'file':
         final metadata = map['metadata'] as Map<String, dynamic>?;
@@ -72,6 +165,7 @@ class _GeneralchatState extends State<Generalchat> {
           size: metadata?['size'] ?? 0,
           mimeType: metadata?['mimeType'],
           source: map['source'],
+          metadata: map['metadata'],
         );
       default: // 'text'
         return types.TextMessage(
@@ -80,11 +174,15 @@ class _GeneralchatState extends State<Generalchat> {
           id: map['id'],
           authorId:  map['author_id'],
           text: map['text'] ?? '',
+          metadata: map['metadata'],
         );
     }
   }
 
+
   void _handleImageSelection() async {
+
+
     final result = await ImagePicker().pickImage(
       imageQuality: 70,
       maxWidth: 1440,
@@ -93,38 +191,53 @@ class _GeneralchatState extends State<Generalchat> {
 
     if (result == null) return;
 
-    final bytes = await result.readAsBytes();
-    final image = await decodeImageFromList(bytes);
-    final fileExt = result.path.split('.').last;
-    final fileName = '${const Uuid().v4()}.$fileExt';
+    final file = File(result.path);
+    final fileName = '${const Uuid().v4()}.${result.path.split('.').last}';
+    // TODO: Consider showing a loading indicator to the user here
 
-    // Upload to Supabase Storage
-    await supabase.storage.from('chat_attachments').uploadBinary(
-      fileName,
-      bytes,
-      fileOptions: FileOptions(contentType: result.mimeType),
-    );
+    // 2. Upload the file to Google Drive
+    final driveLink = await driveService.uploadFile(file, fileName);
 
-    // Get the public URL
-    final imageUrl = supabase.storage.from('chat_attachments').getPublicUrl(fileName);
+    if (driveLink != null) {
 
-    // Insert message record into the database
-    await supabase.from('messages').insert({
-      'id': const Uuid().v4(),
-      'author_id': _currentUser.id,
-      'uri': imageUrl,
-      'type': 'image',
-      'created_at': DateTime.now().toIso8601String(),
-      'metadata': {
-        'name': result.name,
-        'size': bytes.length,
-        'height': image.height.toDouble(),
-        'width': image.width.toDouble(),
+      final bytes = await file.readAsBytes();
+      final image = await decodeImageFromList(bytes);
+
+      // 4. Insert one message record with the Google Drive link
+      await supabase.from('messages').insert({
+        'id': const Uuid().v4(),
+        'author_id': _currentUser.id,
+        'uri': driveLink, // The link from Google Drive
+        'type': 'image',
+        'created_at': DateTime.now().toIso8601String(),
+        'metadata': {
+          'name': result.name, // Use the original file name for display
+          'size': bytes.length,
+          'height': image.height.toDouble(),
+          'width': image.width.toDouble(),
+        }
+      });
+    } else {
+      // Handle the upload failure
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to upload image. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    });
+    }
   }
 
   void _handleAttachmentPressed() {
+    if (googleUser == null) {
+      // Prompt user to sign in if they haven't already
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please link your Google Drive account first.')),
+      );
+      return;
+    }
     showModalBottomSheet<void>(
       context: context,
       builder: (BuildContext context) => SafeArea(
@@ -202,66 +315,218 @@ class _GeneralchatState extends State<Generalchat> {
   }
 
   void _handleSendPressed(text) async {
+
     await supabase.from('messages').insert({
       'id': const Uuid().v4(),
       'author_id': _currentUser.id,
       'text': text,
       'type': 'text',
-      'created_at': DateTime.now().toIso8601String(),
+      'metadata': {
+        if (_repliedMessage != null) 'reply_to': _repliedMessage!.id,
+      },
+
+    });
+    setState(() {
+      _repliedMessage = null; // Clear after sending
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar:AppBar(
+          title:Text("General Chat"),
+      ),
+      body: Column(
+        children: [
+          if (_repliedMessage != null)
+            Container(
+              color: Colors.grey[200],
+              padding: EdgeInsets.all(8),
+              child: Text(
+                'Replying to: ' +
+                    (_repliedMessage is types.TextMessage
+                        ? (_repliedMessage as types.TextMessage).text
+                        : _repliedMessage is types.ImageMessage
+                        ? 'Image'
+                        : _repliedMessage is types.FileMessage
+                        ? 'File: ' + (_repliedMessage as types.FileMessage).name
+                        : 'Message'),
+              ),
+            ),
+          Expanded(
+            child: Chat(
+              chatController: _chatController,
+              currentUserId: supabase.auth.currentUser!.id,
+              resolveUser: (id) async{
+                return types.User(
+                    id:id,
+                    name: "John");
+              },
 
-    return BlocBuilder<AppCubit, AppCubitStates>(
-      builder: (context, states) {
-        return Scaffold(
-          appBar:AppBar(
-              title:Text("General Chat"),
-          ),
-          body: StreamBuilder<List<types.Message>>(
-            stream: _messagesStream,
-            builder: (context,snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
+              onMessageSend: (text) {
+                _handleSendPressed(text);
+              },
 
-              _chatController.insertAllMessages(snapshot.data ?? []);
+              onAttachmentTap:_handleAttachmentPressed,
+              builders: types.Builders(
+                textMessageBuilder:
+                    (
+                    context,
+                    message,
+                    index, {
+                  required bool isSentByMe,
+                  types.MessageGroupStatus? groupStatus,
+                }) {
+                      final replyToId = message.metadata?['reply_to'];
+                      final repliedMessage = _chatController.messages
+                          .where((m) => m.id == replyToId)
+                          .cast<types.Message?>()
+                          .firstOrNull;
 
-              return Chat(
-                chatController: _chatController,
-                currentUserId: supabase.auth.currentUser!.id,
-                resolveUser: (id) async{
-                    return types.User(
-                        id:id,
-                        name: "John",
-                    createdAt: DateTime.now());
+                      return GestureDetector(
+                      onLongPress: (){
+                        setState(() {
+                          _repliedMessage = message;
+                        });
+                      },
+                  child: Stack(
+                    children: [
+                      FlyerChatTextMessage(
+                        message: message,
+                        index: index,
+                        showTime: true,
+                        showStatus: true,
+
+                      ),
+                      if (repliedMessage != null && repliedMessage is types.TextMessage)
+                      Container(
+                        margin: EdgeInsets.only(bottom: 4),
+                        padding: EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          (repliedMessage).text,
+                          style: TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                    },
+                chatAnimatedListBuilder: (context,itemBuilder){
+                  return ChatAnimatedList(
+                    itemBuilder: itemBuilder,
+                    onEndReached: _loadMessages,
+                    scrollController: _scrollController,
+                      initialScrollToEndMode:InitialScrollToEndMode.none,
+
+                  );
                 },
+                imageMessageBuilder: (
+                    context,
+                    message,
+                    index, {
+                      required bool isSentByMe,
+                      types.MessageGroupStatus? groupStatus,
+                    }) {
+                  // 1. Extract the file ID from the message's URI
+                  final fileId = _extractDriveFileId((message).source);
 
-                onMessageSend: (text) {
-                  _handleSendPressed(text);
+                  if (fileId == null) {
+                    // Show an error icon if the URL is invalid
+                    return const Center(child: Icon(Icons.error_outline, color: Colors.red));
+                  }
+
+                  // 2. Use a FutureBuilder to download and display the image
+                  return DriveImageMessage(
+                    fileId: fileId,
+                    driveService: driveService, // Pass your drive service instance
+                  );
                 },
-
-                onAttachmentTap:_handleAttachmentPressed,
-                builders: types.Builders(
-
-                  imageMessageBuilder: (context, message, index, {
-                    required bool isSentByMe,
-                    types.MessageGroupStatus? groupStatus,
-                  }) =>
-                      FlyerChatImageMessage(message: message, index: index),
-                ),
+              ),
 
 
-              );
-            }
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
+
+class DriveImageMessage extends StatefulWidget {
+  final String fileId;
+  final GoogleDriveService driveService;
+
+  const DriveImageMessage({
+    super.key,
+    required this.fileId,
+    required this.driveService,
+  });
+
+  @override
+  State<DriveImageMessage> createState() => _DriveImageMessageState();
+}
+
+class _DriveImageMessageState extends State<DriveImageMessage> {
+  // This Future will be created only once.
+  late final Future<Uint8List?> _downloadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Call the download method here in initState, so it only runs once.
+    _downloadFuture = widget.driveService.downloadFile(widget.fileId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250, maxHeight: 250),
+      // Use the Future that was created in initState.
+      child: FutureBuilder<Uint8List?>(
+        future: _downloadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return const Center(child: Icon(Icons.error, color: Colors.red));
+          }
+          return GestureDetector(
+            onTap:(){
+
+              FullScreenImageViewer( snapshot.data! , context);
+
+
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                  snapshot.data ?? Uint8List(0),
+              fit: BoxFit.cover,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+Future FullScreenImageViewer (imageData , context) {
+    return showDialog(
+      builder: (BuildContext context)=> Center(
+        child: InteractiveViewer(
+          panEnabled: true,
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.memory(imageData),
+        ),
+      ), context: context,
+    );
+  }

@@ -160,11 +160,7 @@ class Social extends StatelessWidget {
                   );
                 }
             ),
-            Column(
-              children: [
-                Expanded(child: Generalchat()),
-              ],
-            ),
+            Generalchat(),
           ],
         ),
       ),
