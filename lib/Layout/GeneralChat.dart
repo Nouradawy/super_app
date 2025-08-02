@@ -2,24 +2,19 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
+import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:flyer_chat_image_message/flyer_chat_image_message.dart';
-import 'package:flyer_chat_text_message/flyer_chat_text_message.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
-
-
-
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
-
+import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
+import '../Confg/supabase.dart';
 import '../sevices/GoogleDriveService.dart';
+import 'chatWidget/MessageWidget.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -36,13 +31,13 @@ class _GeneralchatState extends State<Generalchat> {
   types.Message? _repliedMessage;
   late types.InMemoryChatController _chatController;
   late final ScrollController _scrollController;
-  // late final ReactionsController _reactionsController;
+  late final ReactionsController _reactionsController;
 
   final int _pageSize = 20;
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
-  final _currentUser = types.User(id: supabase.auth.currentUser!.id, name: "John");
+  final _currentUser = types.User(id: supabase.auth.currentUser!.id, name: UserData?.userMetadata?['display_name'].toString());
   String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
 
@@ -51,7 +46,7 @@ class _GeneralchatState extends State<Generalchat> {
     super.initState();
     _chatController = types.InMemoryChatController();
     _scrollController = ScrollController();
-    // _reactionsController = ReactionsController(currentUserId: _currentUser.id);
+    _reactionsController = ReactionsController(currentUserId: _currentUser.id);
     _loadMessages();
     _subscribeToRealtime();
 
@@ -104,6 +99,16 @@ class _GeneralchatState extends State<Generalchat> {
         .subscribe();
   }
 
+  void _markMessageAsSeen(String messageId) async {
+    // We don't need to await this, it can run in the background.
+    // Using upsert with 'ignoreDuplicates: true' is efficient.
+    // It attempts an INSERT, and if it conflicts (violates the primary key), it does nothing.
+    supabase.from('message_receipts').upsert({
+      'message_id': messageId,
+      'user_id': _currentUser.id,
+      'seen_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'message_id, user_id'); // Use the primary key for conflict resolution
+  }
 
   Future<void> _loadMessages() async {
     if (_isLoading || !_hasMore) return;
@@ -111,10 +116,11 @@ class _GeneralchatState extends State<Generalchat> {
 
     // Fetch messages using _lastMessageId for pagination
     final response = await supabase
-        .from('messages')
-        .select()
-        .order('created_at', ascending: false)
-        .range(_currentPage * _pageSize, (_currentPage + 1) * _pageSize - 1);
+        .rpc('get_messages_with_seen_status', params: {
+          'page_size': _pageSize,
+          'page_num': _currentPage,
+        });
+
 
 
     final List<types.Message> newMessages = (response as List)
@@ -138,6 +144,9 @@ class _GeneralchatState extends State<Generalchat> {
 
 
   types.Message _mapToMessage(Map<String, dynamic> map) {
+    final seenAtTimestamp = map['latest_seen_at'] != null
+        ? DateTime.parse(map['latest_seen_at'])
+        : null;
     final messageType = map['type'];
     final author = types.User(id: map['author_id'] ?? 'unknown');
 
@@ -169,12 +178,16 @@ class _GeneralchatState extends State<Generalchat> {
         );
       default: // 'text'
         return types.TextMessage(
-
           createdAt: DateTime.parse(map['created_at']),
           id: map['id'],
           authorId:  map['author_id'],
           text: map['text'] ?? '',
           metadata: map['metadata'],
+          replyToMessageId: (map['metadata'] as Map<String, dynamic>?)?['reply_to'],
+          deliveredAt: DateTime.parse(map['created_at']),
+          seenAt: seenAtTimestamp,
+
+
         );
     }
   }
@@ -323,6 +336,7 @@ class _GeneralchatState extends State<Generalchat> {
       'type': 'text',
       'metadata': {
         if (_repliedMessage != null) 'reply_to': _repliedMessage!.id,
+
       },
 
     });
@@ -331,126 +345,174 @@ class _GeneralchatState extends State<Generalchat> {
     });
   }
 
+  Widget replyTopBar(){
+    if (_repliedMessage != null) {
+      return Container(
+          width: MediaQuery.sizeOf(context).width*0.7,
+          decoration: BoxDecoration(
+              color:HexColor("#E8E8E8"),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(5),topRight: Radius.circular(5))
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text("UserName"),
+                  IconButton(
+                    iconSize:20,
+                    padding: EdgeInsets.zero,
+                    onPressed: (){
+                      _repliedMessage = null;
+                      setState(() {
+                      });
+                    },
+                    icon: Icon(Icons.close ),
+                  ),
+                ],
+              ),
+              Container(
+                width: MediaQuery.sizeOf(context).width*0.6,
+                padding: EdgeInsets.symmetric(horizontal: 10,vertical: 2),
+                decoration: BoxDecoration(
+                    color:Colors.black12,
+                    border: BoxBorder.fromLTRB(left: BorderSide(color:Colors.greenAccent , width: 2)),
+                    borderRadius: BorderRadius.circular(5)
+                ),
+                child: Text(
+                  (_repliedMessage is types.TextMessage
+                      ? (_repliedMessage as types.TextMessage).text
+                      : _repliedMessage is types.ImageMessage
+                      ? 'Image'
+                      : _repliedMessage is types.FileMessage
+                      ? 'File: ' + (_repliedMessage as types.FileMessage).name
+                      : 'Message'),
+                ),),
+            ],
+          )
+      );
+    }
+    return Container();
+
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar:AppBar(
           title:Text("General Chat"),
       ),
-      body: Column(
+      body: Stack(
+        alignment: AlignmentDirectional.bottomCenter,
         children: [
-          if (_repliedMessage != null)
-            Container(
-              color: Colors.grey[200],
-              padding: EdgeInsets.all(8),
-              child: Text(
-                'Replying to: ' +
-                    (_repliedMessage is types.TextMessage
-                        ? (_repliedMessage as types.TextMessage).text
-                        : _repliedMessage is types.ImageMessage
-                        ? 'Image'
-                        : _repliedMessage is types.FileMessage
-                        ? 'File: ' + (_repliedMessage as types.FileMessage).name
-                        : 'Message'),
-              ),
-            ),
-          Expanded(
-            child: Chat(
-              chatController: _chatController,
-              currentUserId: supabase.auth.currentUser!.id,
-              resolveUser: (id) async{
-                return types.User(
-                    id:id,
-                    name: "John");
-              },
+          Chat(
+            chatController: _chatController,
+            currentUserId: supabase.auth.currentUser!.id,
+            resolveUser: (id) async{
+              return types.User(
+                  id:id,
+                  name: "John");
+            },
 
-              onMessageSend: (text) {
-                _handleSendPressed(text);
-              },
+            onMessageSend: (text) {
+              _handleSendPressed(text);
+            },
 
-              onAttachmentTap:_handleAttachmentPressed,
-              builders: types.Builders(
-                textMessageBuilder:
-                    (
-                    context,
-                    message,
-                    index, {
-                  required bool isSentByMe,
-                  types.MessageGroupStatus? groupStatus,
-                }) {
-                      final replyToId = message.metadata?['reply_to'];
-                      final repliedMessage = _chatController.messages
-                          .where((m) => m.id == replyToId)
-                          .cast<types.Message?>()
-                          .firstOrNull;
+            onAttachmentTap:_handleAttachmentPressed,
+            builders: types.Builders(
+              textMessageBuilder:
+                  (
+                  context,
+                  message,
+                  index,
 
-                      return GestureDetector(
-                      onLongPress: (){
-                        setState(() {
-                          _repliedMessage = message;
-                        });
-                      },
-                  child: Stack(
-                    children: [
-                      FlyerChatTextMessage(
-                        message: message,
-                        index: index,
-                        showTime: true,
-                        showStatus: true,
+                  {
+                required bool isSentByMe,
+                types.MessageGroupStatus? groupStatus,
+              }) {
+                    final replyToId = message.metadata?['reply_to'];
+                    final repliedMessage = _chatController.messages
+                        .where((m) => m.id == replyToId)
+                        .cast<types.Message?>()
+                        .firstOrNull;
 
-                      ),
-                      if (repliedMessage != null && repliedMessage is types.TextMessage)
-                      Container(
-                        margin: EdgeInsets.only(bottom: 4),
-                        padding: EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(6),
+                    return Stack(
+                      children: [
+                        VisibilityDetector(
+                          key: Key(message.id),
+                          onVisibilityChanged: (VisibilityInfo info) {
+                            if (info.visibleFraction == 1 && !isSentByMe) {
+                              // Call a function to mark the message as seen
+                              _markMessageAsSeen(message.id);
+                            }
+                          },
+                          child: ChatMessageWrapper(
+                              messageId: message.id,
+                              controller: _reactionsController,
+                              onMenuItemTapped: (item){
+                                if(item.label == "Reply") {
+                                  setState(() {
+                                    _repliedMessage = message;
+                                  });
+                                }
+                              },
+                              child: MessageWidget(message: message,controller: _reactionsController,messageIndex:index , chatController: _chatController,)),
                         ),
-                        child: Text(
-                          (repliedMessage).text,
-                          style: TextStyle(fontSize: 12, color: Colors.black87),
-                        ),
-                      ),
-                    ],
-                  ),
+                        // if (repliedMessage != null && repliedMessage is types.TextMessage)
+                        // Container(
+                        //   margin: EdgeInsets.only(bottom: 4),
+                        //   padding: EdgeInsets.all(6),
+                        //   decoration: BoxDecoration(
+                        //     color: Colors.grey[300],
+                        //     borderRadius: BorderRadius.circular(6),
+                        //   ),
+                        //   child: Text(
+                        //     (repliedMessage).text,
+                        //     style: TextStyle(fontSize: 12, color: Colors.black87),
+                        //   ),
+                        // ),
+                      ],
+                    );
+                  },
+              chatAnimatedListBuilder: (context,itemBuilder){
+                return ChatAnimatedList(
+                  itemBuilder: itemBuilder,
+                  onEndReached: _loadMessages,
+                  scrollController: _scrollController,
+                  initialScrollToEndMode:InitialScrollToEndMode.none,
                 );
-                    },
-                chatAnimatedListBuilder: (context,itemBuilder){
-                  return ChatAnimatedList(
-                    itemBuilder: itemBuilder,
-                    onEndReached: _loadMessages,
-                    scrollController: _scrollController,
-                      initialScrollToEndMode:InitialScrollToEndMode.none,
+              },
+              imageMessageBuilder: (
+                  context,
+                  message,
+                  index, {
+                    required bool isSentByMe,
+                    types.MessageGroupStatus? groupStatus,
+                  }) {
+                // 1. Extract the file ID from the message's URI
+                final fileId = _extractDriveFileId((message).source);
 
-                  );
-                },
-                imageMessageBuilder: (
-                    context,
-                    message,
-                    index, {
-                      required bool isSentByMe,
-                      types.MessageGroupStatus? groupStatus,
-                    }) {
-                  // 1. Extract the file ID from the message's URI
-                  final fileId = _extractDriveFileId((message).source);
+                if (fileId == null) {
+                  // Show an error icon if the URL is invalid
+                  return const Center(child: Icon(Icons.error_outline, color: Colors.red));
+                }
 
-                  if (fileId == null) {
-                    // Show an error icon if the URL is invalid
-                    return const Center(child: Icon(Icons.error_outline, color: Colors.red));
-                  }
-
-                  // 2. Use a FutureBuilder to download and display the image
-                  return DriveImageMessage(
-                    fileId: fileId,
-                    driveService: driveService, // Pass your drive service instance
-                  );
-                },
-              ),
-
-
+                // 2. Use a FutureBuilder to download and display the image
+                return DriveImageMessage(
+                  fileId: fileId,
+                  driveService: driveService, // Pass your drive service instance
+                );
+              },
             ),
+
+
           ),
+          //Used to render Replay toBar in case you click and hold the message
+          Transform.translate(
+
+              offset: Offset(0, -70),
+              child: replyTopBar()),
         ],
       ),
     );

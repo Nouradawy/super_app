@@ -5,6 +5,7 @@ import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
 import 'package:super_app/Layout/Maintenance.dart';
 
+import 'Confg/supabase.dart';
 import 'Layout/GeneralChat.dart';
 import 'Layout/Profile.dart';
 import 'Layout/SignUp.dart';
@@ -19,10 +20,13 @@ void main() async{
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrd2RhdnJzY2h0aXNpZ214d215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNzIxMDQsImV4cCI6MjA2ODg0ODEwNH0.RYmu2jeNU-0yTbtVpBWMni1eUeQUksdbdpFrBBrEAx4',
   );
 
+
+
   runApp(const MyApp());
 }
 
-final Session? session = Supabase.instance.client.auth.currentSession;
+Session? session = Supabase.instance.client.auth.currentSession;
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -30,6 +34,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    UserData = session?.user;
     return BlocProvider(
       create:(context) => AppCubit(),
       child: MaterialApp(

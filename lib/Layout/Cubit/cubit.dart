@@ -14,6 +14,8 @@ class AppCubit extends Cubit<AppCubitStates> {
   String? RoleName ;
 
   IconData? suffixIcon = Icons.visibility;
+  bool ActivateDropdown = false;
+  int AccountIndex = 0;
 
 
   void Passon(){
@@ -29,6 +31,12 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   void SendChatMessage(){
     emit(MessageSentState());
+  }
+
+  void AccountSettingsDropdown(index){
+    AccountIndex = index;
+    ActivateDropdown = !ActivateDropdown;
+    emit(AccountSettingsExpandStates());
   }
 
   void googleSignin()async{

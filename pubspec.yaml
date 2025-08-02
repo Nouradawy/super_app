@@ -47,7 +47,7 @@ dependencies:
   flutter_svg: ^2.2.0
 #  carousel_slider: ^5.1.1
   dotted_border: ^3.1.0
-  flutter_chat_ui: ^2.8.1
+  flutter_chat_ui: ^2.9.0
   flutter_chat_core: ^2.7.1
   flyer_chat_text_message: ^2.5.0
   flyer_chat_image_message: ^2.2.0
@@ -56,8 +56,10 @@ dependencies:
   file_picker: ^10.2.0
   mime: ^2.0.0
   supabase_flutter: ^2.9.1
-#  flutter_chat_reactions: ^0.2.6
+  flutter_chat_reactions: ^0.2.6
   googleapis: ^14.0.0
+  flutter_chat_bubble: ^2.0.2
+  visibility_detector: ^0.4.0+2
   googleapis_auth: ^2.0.0
   google_sign_in: ^6.1.4
   flutter_polls: ^0.1.6
