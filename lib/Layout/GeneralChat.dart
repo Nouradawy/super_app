@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -5,16 +6,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
+import 'package:ntp/ntp.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
 import '../Confg/supabase.dart';
 import '../sevices/GoogleDriveService.dart';
+import 'chatWidget/ImageMessageWidget.dart';
 import 'chatWidget/MessageWidget.dart';
+import 'chatWidget/UploadProgressMessage.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -27,7 +33,8 @@ class Generalchat extends StatefulWidget {
 }
 
 class _GeneralchatState extends State<Generalchat> {
-
+  final Map<String, types.User> _userCache = {};
+  final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
   late types.InMemoryChatController _chatController;
   late final ScrollController _scrollController;
@@ -37,18 +44,20 @@ class _GeneralchatState extends State<Generalchat> {
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
-  final _currentUser = types.User(id: supabase.auth.currentUser!.id, name: UserData?.userMetadata?['display_name'].toString());
+
   String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
+  static const String _messagesCacheKey = 'chat_messages';
 
   @override
   void initState() {
     super.initState();
     _chatController = types.InMemoryChatController();
     _scrollController = ScrollController();
-    _reactionsController = ReactionsController(currentUserId: _currentUser.id);
-    _loadMessages();
+    _reactionsController = ReactionsController(currentUserId: Userid);
+    _loadMessagesFromCacheAndFetchLatest();
     _subscribeToRealtime();
+
 
     // Add this to try and sign in silently on start
     driveService.signInSilently().then((_) {
@@ -65,21 +74,11 @@ class _GeneralchatState extends State<Generalchat> {
     _realtimeChannel?.unsubscribe();
     _chatController.dispose();
     _scrollController.dispose();
+    _saveMessagesToCache(_chatController.messages);
     super.dispose();
   }
 
-  String? _extractDriveFileId(String url) {
-    try {
-      final uri = Uri.parse(url);
-      // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
-      if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
-        return uri.pathSegments[2];
-      }
-    } catch (e) {
-      print("Error parsing Drive URL: $e");
-    }
-    return null;
-  }
+
 
   void _subscribeToRealtime() {
     _realtimeChannel = supabase
@@ -89,25 +88,112 @@ class _GeneralchatState extends State<Generalchat> {
       schema: 'public',
       table: 'messages',
       callback: (payload) {
-        final newMessage = _mapToMessage(payload.newRecord);
+        final newMessageMap = payload.newRecord;
+        final localId = newMessageMap['metadata']?['localId'];
+
+        // --- Replacement Logic ---
+        if (localId != null) {
+          // Find and remove the placeholder message
+          try {
+            final placeholder = _chatController.messages
+                .firstWhere((m) => m.id == localId);
+            _chatController.removeMessage(placeholder);
+            _uploadProgress.remove(localId); // Clean up progress tracking
+          } catch (e) {
+            // Placeholder might not be found if the user scrolled away and it was disposed
+            print('Could not find placeholder to remove: $e');
+          }
+        }
+
+        final newMessage = _mapToMessage(newMessageMap);
+
         if (!_chatController.messages.any((m) => m.id == newMessage.id)) {
 
           _chatController.insertMessage(newMessage);
+
+          // Save updated list to cache
+          _saveMessagesToCache(_chatController.messages);
         }
       },
     )
         .subscribe();
   }
 
+  Future<void> _saveMessagesToCache(List<types.Message> messages) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> encodedMessages = messages.map((msg) {
+      // First, convert the message to a Map that flutter_chat_ui can work with
+      // Unfortunately, flutter_chat_types doesn't have a built-in toJson for all message types.
+      // We need to handle this manually.
+      final messageMap = {
+        'author_id': msg.authorId,
+        'created_at':msg.createdAt?.toIso8601String(),
+        'id': msg.id,
+        'metadata': msg.metadata,
+        'replyToMessageId': msg.replyToMessageId ,
+        'type': msg is types.TextMessage
+            ? 'text'
+            : msg is types.ImageMessage
+            ? 'image'
+            : 'file',
+        'uri': msg is types.FileMessage ? msg.source : (msg is types.ImageMessage ? msg.source : null),
+        'text': msg is types.TextMessage ? msg.text : null,
+        'name': msg is types.FileMessage ? msg.name : null,
+        'size': msg is types.FileMessage ? msg.size : (msg is types.ImageMessage ? msg.size : null),
+        'height': msg is types.ImageMessage ? msg.height : null,
+        'width': msg is types.ImageMessage ? msg.width : null,
+      };
+      return jsonEncode(messageMap);
+    }).toList();
+    await prefs.setStringList(_messagesCacheKey, encodedMessages);
+  }
+
+  Future<List<types.Message>> _loadMessagesFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encodedMessages = prefs.getStringList(_messagesCacheKey);
+    if (encodedMessages == null) {
+      return [];
+    }
+    return encodedMessages.map((encodedMsg) {
+      final messageMap = jsonDecode(encodedMsg) as Map<String, dynamic>;
+      return _mapToMessage(messageMap); // Reuse your existing mapping function
+    }).toList();
+  }
+
+  // Modified and new loading methods
+  Future<void> _loadMessagesFromCacheAndFetchLatest() async {
+    // Load from cache first for instant UI
+    final cachedMessages = await _loadMessagesFromCache();
+    if (cachedMessages.isNotEmpty) {
+      _chatController.insertAllMessages(cachedMessages);
+    }
+
+    // Now, fetch from Supabase to get the latest
+    _loadMessages();
+  }
+
   void _markMessageAsSeen(String messageId) async {
-    // We don't need to await this, it can run in the background.
-    // Using upsert with 'ignoreDuplicates: true' is efficient.
-    // It attempts an INSERT, and if it conflicts (violates the primary key), it does nothing.
-    supabase.from('message_receipts').upsert({
-      'message_id': messageId,
-      'user_id': _currentUser.id,
-      'seen_at': DateTime.now().toIso8601String(),
-    }, onConflict: 'message_id, user_id'); // Use the primary key for conflict resolution
+    // Add a print statement to be certain of the data being sent.
+    print('Attempting to mark message as seen. User ID: ${UserData!.id}, Message ID: $messageId');
+
+    try {
+      // Await the future to ensure the operation completes and to catch errors.
+      await supabase.from('message_receipts').upsert(
+        {
+          'message_id': messageId,
+          'user_id': UserData!.id,
+          'seen_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'message_id, user_id',
+      );
+
+      // Optional: A success message to confirm the upsert worked.
+      print('Successfully upserted seen status for message: $messageId');
+
+    } catch (error) {
+      // This will catch and print any error from the upsert operation.
+      print('Error marking message as seen: $error');
+    }
   }
 
   Future<void> _loadMessages() async {
@@ -137,6 +223,9 @@ class _GeneralchatState extends State<Generalchat> {
         await _chatController.insertAllMessages(uniqueNewMessages, index: 0);
         _currentPage++;
         _lastMessageId = uniqueNewMessages.first.id;
+
+        // Save updated list to cache
+        _saveMessagesToCache(_chatController.messages);
       }
     }
     setState(() => _isLoading = false);
@@ -148,7 +237,7 @@ class _GeneralchatState extends State<Generalchat> {
         ? DateTime.parse(map['latest_seen_at'])
         : null;
     final messageType = map['type'];
-    final author = types.User(id: map['author_id'] ?? 'unknown');
+
 
     switch (messageType) {
       case 'image':
@@ -173,7 +262,7 @@ class _GeneralchatState extends State<Generalchat> {
           name: metadata?['name'] ?? 'File',
           size: metadata?['size'] ?? 0,
           mimeType: metadata?['mimeType'],
-          source: map['source'],
+          source: map['uri'],
           metadata: map['metadata'],
         );
       default: // 'text'
@@ -192,7 +281,6 @@ class _GeneralchatState extends State<Generalchat> {
     }
   }
 
-
   void _handleImageSelection() async {
 
 
@@ -205,11 +293,36 @@ class _GeneralchatState extends State<Generalchat> {
     if (result == null) return;
 
     final file = File(result.path);
-    final fileName = '${const Uuid().v4()}.${result.path.split('.').last}';
+
+    final localId = const Uuid().v4(); // Unique ID for our placeholder
     // TODO: Consider showing a loading indicator to the user here
 
+    final placeholderMessage = types.CustomMessage(
+      id: localId,
+      authorId: Userid,
+      createdAt: await NTP.now(),
+      metadata: {
+        'localId': localId,
+        'filePath': result.path, // Path to the local file for the thumbnail
+      },
+    );
+
+    _chatController.insertMessage(placeholderMessage);
+    setState(() {
+      _uploadProgress[localId] = 0.0; // Initialize progress
+    });
+
     // 2. Upload the file to Google Drive
-    final driveLink = await driveService.uploadFile(file, fileName);
+    final fileName = '${const Uuid().v4()}.${result.path.split('.').last}';
+    final driveLink = await driveService.uploadFile(
+        file,
+        fileName,
+      onProgress: (progress){
+          setState(() {
+            _uploadProgress[localId] =  progress;
+          });
+      }
+    );
 
     if (driveLink != null) {
 
@@ -219,11 +332,12 @@ class _GeneralchatState extends State<Generalchat> {
       // 4. Insert one message record with the Google Drive link
       await supabase.from('messages').insert({
         'id': const Uuid().v4(),
-        'author_id': _currentUser.id,
+        'author_id': Userid,
         'uri': driveLink, // The link from Google Drive
         'type': 'image',
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': (await NTP.now()).toIso8601String(), // Use NTP UTC time
         'metadata': {
+          'localId': localId, // **IMPORTANT** link to the placeholder
           'name': result.name, // Use the original file name for display
           'size': bytes.length,
           'height': image.height.toDouble(),
@@ -231,6 +345,13 @@ class _GeneralchatState extends State<Generalchat> {
         }
       });
     } else {
+      // Handle failure: maybe update the placeholder to show a "failed" state
+      print('Upload failed for local message ID: $localId');
+      // You could update the progress map with a special value like -1 to indicate failure
+      setState(() {
+        _uploadProgress.remove(localId); // Or simply remove it
+        _chatController.removeMessage(placeholderMessage);
+      });
       // Handle the upload failure
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -315,7 +436,7 @@ class _GeneralchatState extends State<Generalchat> {
     // Insert message record
     await supabase.from('messages').insert({
       'id': const Uuid().v4(),
-      'author_id': _currentUser.id,
+      'author_id':UserData!.id,
       'uri': fileUrl,
       'type': 'file',
       'created_at': DateTime.now().toIso8601String(),
@@ -328,12 +449,23 @@ class _GeneralchatState extends State<Generalchat> {
   }
 
   void _handleSendPressed(text) async {
+    String id = const Uuid().v4();
+
+
+    _chatController.insertMessage(types.TextMessage(
+        id: id,
+        authorId:Userid,
+        text: text,
+        createdAt: await NTP.now(),
+    ));
+
 
     await supabase.from('messages').insert({
-      'id': const Uuid().v4(),
-      'author_id': _currentUser.id,
+      'id': id,
+      'author_id': Userid,
       'text': text,
       'type': 'text',
+      'created_at' :  (await NTP.now()).toIso8601String(),
       'metadata': {
         if (_repliedMessage != null) 'reply_to': _repliedMessage!.id,
 
@@ -410,9 +542,35 @@ class _GeneralchatState extends State<Generalchat> {
             chatController: _chatController,
             currentUserId: supabase.auth.currentUser!.id,
             resolveUser: (id) async{
-              return types.User(
-                  id:id,
-                  name: "John");
+
+              // THIS IS THE KEY: Replace your old resolveUser with this new version
+             if(_userCache.containsKey(id)){
+               return _userCache[id]!;
+             }
+             // 2. If not in cache, fetch the profile from your 'profiles' table
+            try{
+               final response = await supabase
+                   .from('profiles')
+                   .select('display_name , avatar_url')
+                   .eq('id',id)
+                   .single(); // Use .single() as each user has only one profile
+
+              final user = types.User(
+                id:id,
+                name: response['display_name'] ?? 'Unknown',
+                imageSource: response['avatar_url'],
+              );
+              // 3. Store the newly fetched user in the cache
+              _userCache[id]  = user;
+              return user;
+
+            } catch (error) {
+               print("User not found in profiles table with id : "+id);
+              // If any error occurs (e.g., profile not found), return an 'Unknown' user
+              final unknownUser = types.User(id: id, name: 'Unknown');
+              _userCache[id] = unknownUser; // Cache the unknown user too
+              return unknownUser;
+            }
             },
 
             onMessageSend: (text) {
@@ -442,9 +600,10 @@ class _GeneralchatState extends State<Generalchat> {
                         VisibilityDetector(
                           key: Key(message.id),
                           onVisibilityChanged: (VisibilityInfo info) {
-                            if (info.visibleFraction == 1 && !isSentByMe) {
+                            if (info.visibleFraction  >= 0.8 ) {
+
                               // Call a function to mark the message as seen
-                              _markMessageAsSeen(message.id);
+                             if(message.authorId != UserData?.identities?.first.userId) _markMessageAsSeen(message.id);
                             }
                           },
                           child: ChatMessageWrapper(
@@ -457,7 +616,16 @@ class _GeneralchatState extends State<Generalchat> {
                                   });
                                 }
                               },
-                              child: MessageWidget(message: message,controller: _reactionsController,messageIndex:index , chatController: _chatController,)),
+                              child: MessageWidget(
+                                message: message,
+                                controller: _reactionsController,
+                                messageIndex:index ,
+                                chatController: _chatController,
+                                userName : Username(
+                                    userId: message.authorId,
+                                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
+                                ),
+                              )),
                         ),
                         // if (repliedMessage != null && repliedMessage is types.TextMessage)
                         // Container(
@@ -475,6 +643,47 @@ class _GeneralchatState extends State<Generalchat> {
                       ],
                     );
                   },
+              chatMessageBuilder: (context,
+              message,
+              index,
+              animation,
+              child, {
+                bool? isRemoved,
+                required bool isSentByMe,
+                types.MessageGroupStatus? groupStatus,
+                  }) {
+                final isSystemMessage =
+                    message.authorId == 'system';
+                final isFirstInGroup = groupStatus?.isFirst ?? true;
+
+                final shouldShowAvatar = true;
+
+                final shouldShowUsername = true;
+                double avatarSize = 36;
+
+                // 2️⃣ Normalize to non-null DateTimes
+                final current = message.createdAt?.toLocal() ?? DateTime.now();
+                // final prevMsg = index > 0
+                //     ? _chatController.messages[index - 1]
+                //     : null;
+                // final previous =
+                //     prevMsg?.createdAt?.toLocal() ?? current;
+                //
+                // // 3️⃣ Decide which header (if any)
+                // Widget? header;
+                // if (!_isSameDay(previous, current) ||
+                //     current.difference(previous).abs() >
+                //         _timeGapThreshold) {
+                //   // a) day changed → date header
+                //   header = _buildDateandTimeHeader(current);
+                // }
+                return ChatMessage(
+                    message: message,
+                    index: index,
+                    animation: animation,
+                    child: child
+                );
+              },
               chatAnimatedListBuilder: (context,itemBuilder){
                 return ChatAnimatedList(
                   itemBuilder: itemBuilder,
@@ -483,6 +692,8 @@ class _GeneralchatState extends State<Generalchat> {
                   initialScrollToEndMode:InitialScrollToEndMode.none,
                 );
               },
+
+
               imageMessageBuilder: (
                   context,
                   message,
@@ -490,8 +701,21 @@ class _GeneralchatState extends State<Generalchat> {
                     required bool isSentByMe,
                     types.MessageGroupStatus? groupStatus,
                   }) {
-                // 1. Extract the file ID from the message's URI
-                final fileId = _extractDriveFileId((message).source);
+
+                String? extractDriveFileId(String url) {
+                  try {
+                    final uri = Uri.parse(url);
+                    // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
+                    if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
+                      return uri.pathSegments[2];
+                    }
+                  } catch (e) {
+                    print("Error parsing Drive URL: $e");
+                  }
+                  return null;
+                }
+
+                final fileId = extractDriveFileId((message).source);
 
                 if (fileId == null) {
                   // Show an error icon if the URL is invalid
@@ -499,11 +723,38 @@ class _GeneralchatState extends State<Generalchat> {
                 }
 
                 // 2. Use a FutureBuilder to download and display the image
-                return DriveImageMessage(
-                  fileId: fileId,
-                  driveService: driveService, // Pass your drive service instance
+                return ImageMessageWidget(
+                  message: message,
+                  controller: _reactionsController,
+                  fileId : fileId,
+                  messageIndex:index ,
+                  chatController: _chatController,
+                  userName : Username(
+                      userId: message.authorId,
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
+                  ),
                 );
               },
+
+
+              customMessageBuilder: (
+                  context,
+                  message,
+                  index, {
+                    required bool isSentByMe,
+                    types.MessageGroupStatus? groupStatus,
+                  }){
+                final localId = message.metadata?['localId'];
+                final filePath = message.metadata?['filePath'];
+                final progress = _uploadProgress[localId] ?? 0.0;
+
+                if (filePath != null) {
+                  return UploadProgressMessage(filePath: filePath, progress: progress);
+                }
+                // Fallback for any other custom message type
+                return const SizedBox();
+              },
+
             ),
 
 
@@ -519,65 +770,7 @@ class _GeneralchatState extends State<Generalchat> {
   }
 }
 
-class DriveImageMessage extends StatefulWidget {
-  final String fileId;
-  final GoogleDriveService driveService;
 
-  const DriveImageMessage({
-    super.key,
-    required this.fileId,
-    required this.driveService,
-  });
-
-  @override
-  State<DriveImageMessage> createState() => _DriveImageMessageState();
-}
-
-class _DriveImageMessageState extends State<DriveImageMessage> {
-  // This Future will be created only once.
-  late final Future<Uint8List?> _downloadFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    // Call the download method here in initState, so it only runs once.
-    _downloadFuture = widget.driveService.downloadFile(widget.fileId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 250, maxHeight: 250),
-      // Use the Future that was created in initState.
-      child: FutureBuilder<Uint8List?>(
-        future: _downloadFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(child: Icon(Icons.error, color: Colors.red));
-          }
-          return GestureDetector(
-            onTap:(){
-
-              FullScreenImageViewer( snapshot.data! , context);
-
-
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(
-                  snapshot.data ?? Uint8List(0),
-              fit: BoxFit.cover,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 
 Future FullScreenImageViewer (imageData , context) {

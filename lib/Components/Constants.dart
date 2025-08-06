@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
@@ -48,4 +49,11 @@ Widget defaultTextForm(
         :isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : IconButton(onPressed: () {}, icon: Icon(SuffixIcon),),
   ) ,
   );
+}
+
+
+String formatTimestampToAmPm(String timestamp) {
+  DateTime dateTime = DateTime.parse(timestamp).toLocal(); // Convert Firestore Timestamp to DateTime
+  String formattedTime = DateFormat('h:mm a').format(dateTime); // e.g., "2:30 PM"
+  return formattedTime;
 }

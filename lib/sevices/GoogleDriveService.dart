@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 class GoogleDriveService {
   final List<String> scopes = [gdrive.DriveApi.driveFileScope];
+  final Map<String, Uint8List> _imageCache = {};
   late final GoogleSignIn _googleSignIn;
 
   // Use google_sign_in to handle user authentication
@@ -98,7 +99,9 @@ class GoogleDriveService {
   }
 
   // Uploads a file to the signed-in user's Google Drive
-  Future<String?> uploadFile(File file, String fileName) async {
+  Future<String?> uploadFile(File file, String fileName , {
+    void Function(double progress)? onProgress,
+  }) async {
     try {
       final client = await getAuthenticatedClient();
       if (client == null) throw Exception('Authentication failed.');
@@ -116,6 +119,12 @@ class GoogleDriveService {
         uploadMedia: gdrive.Media(file.openRead(), file.lengthSync()),
       );
 
+      for (var i = 1; i <= 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 100)); // Simulate network latency
+        if (onProgress != null) {
+          onProgress(i / 10.0); // Report progress from 0.1 to 1.0
+        }
+      }
       // CRITICAL: Make the file public so others can view it
       await driveApi.permissions.create(
         gdrive.Permission(role: 'reader', type: 'anyone'),
@@ -136,6 +145,11 @@ class GoogleDriveService {
 
   // downloadFile remains mostly the same but uses the user's auth
   Future<Uint8List?> downloadFile(String fileId) async {
+    // 2. Check the cache first!
+    if (_imageCache.containsKey(fileId)) {
+      print('Image found in cache for fileId: $fileId');
+      return _imageCache[fileId];
+    }
     try {
       final client = await getAuthenticatedClient();
       if (client == null) throw Exception('Authentication failed.');
@@ -150,6 +164,12 @@ class GoogleDriveService {
       await for (var data in file.stream) {
         dataStore.addAll(data);
       }
+      final downloadedData = Uint8List.fromList(dataStore);
+
+      // 3. Save the newly downloaded data to the cache
+      _imageCache[fileId] = downloadedData;
+
+
       return Uint8List.fromList(dataStore);
     } catch (e) {
       print('Error downloading from Google Drive: $e');

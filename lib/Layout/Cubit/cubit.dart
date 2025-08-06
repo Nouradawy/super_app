@@ -29,6 +29,10 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(SignupRoleChangeState());
   }
 
+  void SignUpSignInToggle(){
+    emit(SignUpSignIn_Toggle());
+  }
+
   void SendChatMessage(){
     emit(MessageSentState());
   }

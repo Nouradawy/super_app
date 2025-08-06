@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
@@ -6,30 +8,37 @@ import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
+import '../../sevices/GoogleDriveService.dart';
 import '../GeneralChat.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'dart:convert';
 
-class MessageWidget extends StatelessWidget {
-  const MessageWidget({
+class ImageMessageWidget extends StatelessWidget {
+  const ImageMessageWidget({
     super.key,
     required this.message,
     required this.controller,
     required this.messageIndex,
     required this.chatController,
     required this. userName,
+    required this. fileId,
 
   });
 
-  final TextMessage message;
+  final ImageMessage message;
   final ReactionsController controller;
   final int messageIndex;
   final InMemoryChatController chatController;
   final Username userName;
+  final String fileId;
 
 
   @override
   Widget build(BuildContext context) {
     final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
+    // 1. Extract the file ID from the message's URI
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -156,13 +165,11 @@ bool isPrevPost(){
             mainAxisSize: MainAxisSize.max,
             children: isMe?UserInformation.reversed.toList():UserInformation,
           ),
-          Text(
-            message.text,
-            style: TextStyle(
-              color: textColor,
-            ),
-          ),
 
+          DriveImageMessage(
+          fileId: fileId,
+          driveService: driveService, // Pass your drive service instance
+          ),
           const SizedBox(height: 5),
           Row(
             mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
@@ -206,4 +213,68 @@ bool isPrevPost(){
     );
   }
 
+}
+
+
+
+
+
+class DriveImageMessage extends StatefulWidget {
+  final String fileId;
+  final GoogleDriveService driveService;
+
+  const DriveImageMessage({
+    super.key,
+    required this.fileId,
+    required this.driveService,
+  });
+
+  @override
+  State<DriveImageMessage> createState() => _DriveImageMessageState();
+}
+
+class _DriveImageMessageState extends State<DriveImageMessage> {
+  // This Future will be created only once.
+  late final Future<Uint8List?> _downloadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Call the download method here in initState, so it only runs once.
+    _downloadFuture = widget.driveService.downloadFile(widget.fileId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250, maxHeight: 250),
+      // Use the Future that was created in initState.
+      child: FutureBuilder<Uint8List?>(
+        future: _downloadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return const Center(child: Icon(Icons.error, color: Colors.red));
+          }
+          return GestureDetector(
+            onTap:(){
+
+              FullScreenImageViewer( snapshot.data! , context);
+
+
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                snapshot.data ?? Uint8List(0),
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

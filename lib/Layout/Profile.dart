@@ -12,12 +12,14 @@ import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 
 import '../Components/Constants.dart';
+import '../main.dart';
 import '../sevices/GoogleDriveService.dart';
+import 'SignUp.dart';
 
 class Profile extends StatelessWidget {
 
   Profile({super.key});
-  final List profile = ["Edit Profile","Notifications","Privacy","Security"];
+  final List profile = ["Edit Profile","Notifications","Privacy","Security" , "SignOut"];
   TextEditingController UserName = TextEditingController();
 
 
@@ -84,12 +86,23 @@ class Profile extends StatelessWidget {
                         ),
                         Divider(height: 1,color: Colors.grey.shade200,),
 
-                        if(AppCubit.get(context).ActivateDropdown ==false)ListView.builder(
+                        ListView.builder(
                           shrinkWrap: true,
                           itemBuilder: (context,index) {
                             return MaterialButton(
                               padding: EdgeInsets.zero,
-                              onPressed: () {
+                              onPressed: () async {
+                                if(index == profile.length-1)
+                                  {
+                                    await supabase.auth.signOut();
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => SignUp()),
+                                          (Route<dynamic> route) => false,
+
+                                    );
+
+                                  }
                                 AppCubit.get(context).AccountSettingsDropdown(index);
                               },
                               child: Column(
@@ -101,11 +114,11 @@ class Profile extends StatelessWidget {
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(profile[index],style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w400 ,fontSize: 15),textAlign: TextAlign.center,),
-                                          Icon(Icons.arrow_forward_ios,size: 20,color: Colors.grey.shade500,)
+                                          Icon(index == profile.length-1 ? Icons.logout:Icons.arrow_forward_ios,size: 20,color: Colors.grey.shade500,)
                                         ],
                                       ),
                                     ),
-                                  Divider(height: 1,color: Colors.grey.shade200,),
+                                  if(index < profile.length-1 )Divider(height: 1,color: Colors.grey.shade200,),
                                 ],
                               ),
                             );
