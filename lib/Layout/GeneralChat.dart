@@ -1,6 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
@@ -12,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:social_media_recorder/screen/social_media_recorder.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -21,6 +27,7 @@ import '../sevices/GoogleDriveService.dart';
 import 'chatWidget/ImageMessageWidget.dart';
 import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
+import 'package:record/record.dart';
 
 
 final supabase = Supabase.instance.client;
@@ -37,13 +44,16 @@ class _GeneralchatState extends State<Generalchat> {
   final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
   late types.InMemoryChatController _chatController;
+  late final TextEditingController _chatTextController;
   late final ScrollController _scrollController;
   late final ReactionsController _reactionsController;
+
 
   final int _pageSize = 20;
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
+  bool _isTyping = false;
 
   String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
@@ -53,10 +63,13 @@ class _GeneralchatState extends State<Generalchat> {
   void initState() {
     super.initState();
     _chatController = types.InMemoryChatController();
+    _chatTextController = TextEditingController();
     _scrollController = ScrollController();
     _reactionsController = ReactionsController(currentUserId: Userid);
     _loadMessagesFromCacheAndFetchLatest();
     _subscribeToRealtime();
+    _chatTextController.addListener(_handleTypingStatus);
+
 
 
     // Add this to try and sign in silently on start
@@ -75,8 +88,12 @@ class _GeneralchatState extends State<Generalchat> {
     _chatController.dispose();
     _scrollController.dispose();
     _saveMessagesToCache(_chatController.messages);
+    _chatTextController.removeListener(_handleTypingStatus);
+    _chatTextController.dispose();
+
     super.dispose();
   }
+
 
 
 
@@ -529,6 +546,79 @@ class _GeneralchatState extends State<Generalchat> {
 
   }
 
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return "$minutes:$seconds";
+  }
+
+
+  void _handleTypingStatus() {
+    if (_chatTextController.text.isNotEmpty && !_isTyping) {
+      // User started typing
+      setState(() {
+        _isTyping = true;
+      });
+      // You can add logic here to notify others, e.g., via Supabase
+      print("User is typing...");
+    } else if (_chatTextController.text.isEmpty && _isTyping) {
+      // User cleared the text field
+      setState(() {
+        _isTyping = false;
+      });
+      // Notify that the user has stopped typing
+      print("User has stopped typing.");
+    }
+  }
+
+
+
+
+
+
+
+  void _uploadVoiceNote(File voiceNoteFile, String duration) async {
+    // 1. Create a player instance to get the duration (You can now remove this part
+    //    if you trust the duration string, or keep it for accuracy)
+    final player = AudioPlayer();
+    Duration? audioDuration;
+    try {
+      await player.setSourceDeviceFile(voiceNoteFile.path);
+      audioDuration = await player.getDuration();
+    } catch (e) {
+      print("Error getting audio duration: $e");
+    } finally {
+      await player.dispose();
+    }
+
+    if (audioDuration == null) {
+      print("Could not determine audio duration. Aborting upload.");
+      return;
+    }
+
+    final googleDriveService = GoogleDriveService();
+    final fileName = 'voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final fileUrl = await googleDriveService.uploadFile(voiceNoteFile, fileName);
+
+    if (fileUrl != null) {
+      final voiceMessage = types.AudioMessage(
+        authorId: Userid,
+        id: const Uuid().v4(),
+        text: fileName,
+        size: await voiceNoteFile.length(),
+        duration: audioDuration,
+        source: fileUrl,
+      );
+
+      // You'll need a way to send this message.
+      // This part of your code seems incomplete.
+      // e.g., _handleSendPressed(voiceMessage);
+    } else {
+      print('Failed to upload voice note.');
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -536,11 +626,10 @@ class _GeneralchatState extends State<Generalchat> {
           title:Text("General Chat"),
       ),
       body: Stack(
-        alignment: AlignmentDirectional.bottomCenter,
         children: [
           Chat(
             chatController: _chatController,
-            currentUserId: supabase.auth.currentUser!.id,
+            currentUserId: Userid,
             resolveUser: (id) async{
 
               // THIS IS THE KEY: Replace your old resolveUser with this new version
@@ -574,7 +663,10 @@ class _GeneralchatState extends State<Generalchat> {
             },
 
             onMessageSend: (text) {
-              _handleSendPressed(text);
+
+                _handleSendPressed(text);
+
+
             },
 
             onAttachmentTap:_handleAttachmentPressed,
@@ -688,7 +780,7 @@ class _GeneralchatState extends State<Generalchat> {
                 return ChatAnimatedList(
                   itemBuilder: itemBuilder,
                   onEndReached: _loadMessages,
-                  scrollController: _scrollController,
+
                   initialScrollToEndMode:InitialScrollToEndMode.none,
                 );
               },
@@ -754,8 +846,42 @@ class _GeneralchatState extends State<Generalchat> {
                 // Fallback for any other custom message type
                 return const SizedBox();
               },
+              composerBuilder: (context) {
+                return Stack(
+                  children: [
+                    Composer(
+                      gap:0,
+                      sendIcon:Icon(Icons.send),
+                      textEditingController: _chatTextController,
+                      handleSafeArea: true,
+                      sigmaX: 3,
+                      sigmaY: 3,
 
-            ),
+
+                    ),
+
+                    // if(_chatTextController.text.isEmpty)Positioned(
+                    //   right: 5,
+                    //   bottom: 10,
+                    //   child: SocialMediaRecorder(
+                    //     // This is called when the user finishes recording
+                    //     sendRequestFunction: (soundFile , duration) {
+                    //       _uploadVoiceNote(soundFile , duration);
+                    //     },
+                    //     // Customize the appearance to match your app
+                    //     recordIcon: CircleAvatar(
+                    //       backgroundColor: Colors.green,
+                    //         child: const Icon(Icons.mic, color: Colors.white)),
+                    //
+                    //     // You can add more customizations here
+                    //     // lockButton: const Icon(Icons.lock, color: Colors.white),
+                    //     // slideToCancelText: "Slide to Cancel",
+                    //     // etc.
+                    //   ),
+                    // ),
+                  ],
+                );
+              }),
 
 
           ),

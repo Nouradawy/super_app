@@ -64,6 +64,10 @@ dependencies:
   googleapis_auth: ^2.0.0
   google_sign_in: ^6.1.4
   flutter_polls: ^0.1.6
+  audioplayers: ^6.5.0
+  social_media_recorder: ^1.2.1
+  path_provider: ^2.1.5
+
 
 dev_dependencies:
   flutter_test:
@@ -124,3 +128,5 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+dependency_overrides:
+  record_linux: ^1.1.1

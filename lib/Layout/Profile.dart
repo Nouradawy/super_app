@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v2.dart' as drive;
 import 'package:hexcolor/hexcolor.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Confg/supabase.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
@@ -65,6 +66,7 @@ class Profile extends StatelessWidget {
                 Text(UserData!.userMetadata!["display_name"].toString(),style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 20),),
                 Text("Resident",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 13, color: HexColor("#637488")),),
                 Text("Joined 2022",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 11, color: HexColor("#637488")),),
+
                   MaterialButton(onPressed: () async {
                     AppCubit.get(context).googleSignin();
 

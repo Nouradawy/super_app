@@ -49,6 +49,9 @@
 	<key>GIDClientID</key>
 	<string>979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254.apps.googleusercontent.com</string>
 
+	<key>NSMicrophoneUsageDescription</key>
+    <string>This app requires microphone access to record voice notes.</string>
+
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
