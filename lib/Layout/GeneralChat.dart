@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:googleapis/admob/v1.dart';
+
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
@@ -17,8 +20,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:social_media_recorder/provider/sound_record_notifier.dart';
 import 'package:social_media_recorder/screen/social_media_recorder.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:super_app/Layout/Cubit/cubit.dart';
+import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:super_app/Layout/chatWidget/AudioMessageWidget.dart';
 import 'package:uuid/uuid.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
@@ -31,6 +38,7 @@ import 'package:record/record.dart';
 
 
 final supabase = Supabase.instance.client;
+TextEditingController chatTextController = TextEditingController();
 
 class Generalchat extends StatefulWidget {
   const Generalchat({super.key});
@@ -44,7 +52,7 @@ class _GeneralchatState extends State<Generalchat> {
   final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
   late types.InMemoryChatController _chatController;
-  late final TextEditingController _chatTextController;
+
   late final ScrollController _scrollController;
   late final ReactionsController _reactionsController;
 
@@ -63,23 +71,23 @@ class _GeneralchatState extends State<Generalchat> {
   void initState() {
     super.initState();
     _chatController = types.InMemoryChatController();
-    _chatTextController = TextEditingController();
+    chatTextController = TextEditingController();
     _scrollController = ScrollController();
     _reactionsController = ReactionsController(currentUserId: Userid);
     _loadMessagesFromCacheAndFetchLatest();
     _subscribeToRealtime();
-    _chatTextController.addListener(_handleTypingStatus);
+    chatTextController.addListener(_handleTypingStatus);
 
 
 
     // Add this to try and sign in silently on start
-    driveService.signInSilently().then((_) {
-      if (driveService.currentUser != null) {
-        setState(() {
-          googleUser = driveService.currentUser;
-        });
-      }
-    });
+    // driveService.signInSilently().then((_) {
+    //   if (driveService.currentUser != null) {
+    //     setState(() {
+    //       googleUser = driveService.currentUser;
+    //     });
+    //   }
+    // });
 
   }
   @override
@@ -88,8 +96,8 @@ class _GeneralchatState extends State<Generalchat> {
     _chatController.dispose();
     _scrollController.dispose();
     _saveMessagesToCache(_chatController.messages);
-    _chatTextController.removeListener(_handleTypingStatus);
-    _chatTextController.dispose();
+    chatTextController.removeListener(_handleTypingStatus);
+    chatTextController.dispose();
 
     super.dispose();
   }
@@ -148,11 +156,6 @@ class _GeneralchatState extends State<Generalchat> {
         'id': msg.id,
         'metadata': msg.metadata,
         'replyToMessageId': msg.replyToMessageId ,
-        'type': msg is types.TextMessage
-            ? 'text'
-            : msg is types.ImageMessage
-            ? 'image'
-            : 'file',
         'uri': msg is types.FileMessage ? msg.source : (msg is types.ImageMessage ? msg.source : null),
         'text': msg is types.TextMessage ? msg.text : null,
         'name': msg is types.FileMessage ? msg.name : null,
@@ -198,7 +201,7 @@ class _GeneralchatState extends State<Generalchat> {
       await supabase.from('message_receipts').upsert(
         {
           'message_id': messageId,
-          'user_id': UserData!.id,
+          'user_id': Userid,
           'seen_at': DateTime.now().toIso8601String(),
         },
         onConflict: 'message_id, user_id',
@@ -253,16 +256,18 @@ class _GeneralchatState extends State<Generalchat> {
     final seenAtTimestamp = map['latest_seen_at'] != null
         ? DateTime.parse(map['latest_seen_at'])
         : null;
-    final messageType = map['type'];
+    final metadata = map['metadata'] as Map<String, dynamic>?;
+    final messageType = metadata?['type'] ?? map['type'];
 
 
     switch (messageType) {
       case 'image':
         final metadata = map['metadata'] as Map<String, dynamic>?;
+        print('iam at Image case ??????????!!!!0');
         return types.ImageMessage(
           createdAt: DateTime.parse(map['created_at']),
           id: map['id'],
-          text:metadata?['name'] ?? 'Image',
+          text:metadata?['name'] ?? 'image',
           authorId:  map['author_id'],
           size: metadata?['size'] ?? 0,
           height: metadata?['height']?.toDouble(),
@@ -282,6 +287,23 @@ class _GeneralchatState extends State<Generalchat> {
           source: map['uri'],
           metadata: map['metadata'],
         );
+      case 'audio':
+        final durationString = metadata?['duration'] ?? '00:00';
+        final parts = durationString.split(':');
+        final duration = Duration(
+          minutes: int.tryParse(parts[0]) ?? 0,
+          seconds: int.tryParse(parts[1]) ?? 0,
+        );
+
+        return types.AudioMessage(
+          createdAt: DateTime.parse(map['created_at']),
+          id: map['id'],
+          authorId: map['author_id'],
+          size: metadata?['size'] ?? 0,
+          source: map['uri'], // This will be the Google Drive link
+          duration: duration,
+          metadata: map['metadata'],
+        );
       default: // 'text'
         return types.TextMessage(
           createdAt: DateTime.parse(map['created_at']),
@@ -299,8 +321,6 @@ class _GeneralchatState extends State<Generalchat> {
   }
 
   void _handleImageSelection() async {
-
-
     final result = await ImagePicker().pickImage(
       imageQuality: 70,
       maxWidth: 1440,
@@ -319,6 +339,7 @@ class _GeneralchatState extends State<Generalchat> {
       authorId: Userid,
       createdAt: await NTP.now(),
       metadata: {
+        'type': 'image',
         'localId': localId,
         'filePath': result.path, // Path to the local file for the thumbnail
       },
@@ -334,6 +355,8 @@ class _GeneralchatState extends State<Generalchat> {
     final driveLink = await driveService.uploadFile(
         file,
         fileName,
+        'image',
+
       onProgress: (progress){
           setState(() {
             _uploadProgress[localId] =  progress;
@@ -351,9 +374,9 @@ class _GeneralchatState extends State<Generalchat> {
         'id': const Uuid().v4(),
         'author_id': Userid,
         'uri': driveLink, // The link from Google Drive
-        'type': 'image',
         'created_at': (await NTP.now()).toIso8601String(), // Use NTP UTC time
         'metadata': {
+          'type': 'image',
           'localId': localId, // **IMPORTANT** link to the placeholder
           'name': result.name, // Use the original file name for display
           'size': bytes.length,
@@ -481,9 +504,10 @@ class _GeneralchatState extends State<Generalchat> {
       'id': id,
       'author_id': Userid,
       'text': text,
-      'type': 'text',
+
       'created_at' :  (await NTP.now()).toIso8601String(),
       'metadata': {
+        'type': 'text',
         if (_repliedMessage != null) 'reply_to': _repliedMessage!.id,
 
       },
@@ -554,18 +578,20 @@ class _GeneralchatState extends State<Generalchat> {
 
 
   void _handleTypingStatus() {
-    if (_chatTextController.text.isNotEmpty && !_isTyping) {
+    if (chatTextController.text.isNotEmpty && !_isTyping) {
       // User started typing
       setState(() {
         _isTyping = true;
       });
+      AppCubit.get(context).showHideMic();
       // You can add logic here to notify others, e.g., via Supabase
       print("User is typing...");
-    } else if (_chatTextController.text.isEmpty && _isTyping) {
+    } else if (chatTextController.text.isEmpty && _isTyping) {
       // User cleared the text field
       setState(() {
         _isTyping = false;
       });
+      AppCubit.get(context).showHideMic();
       // Notify that the user has stopped typing
       print("User has stopped typing.");
     }
@@ -574,53 +600,9 @@ class _GeneralchatState extends State<Generalchat> {
 
 
 
-
-
-
-  void _uploadVoiceNote(File voiceNoteFile, String duration) async {
-    // 1. Create a player instance to get the duration (You can now remove this part
-    //    if you trust the duration string, or keep it for accuracy)
-    final player = AudioPlayer();
-    Duration? audioDuration;
-    try {
-      await player.setSourceDeviceFile(voiceNoteFile.path);
-      audioDuration = await player.getDuration();
-    } catch (e) {
-      print("Error getting audio duration: $e");
-    } finally {
-      await player.dispose();
-    }
-
-    if (audioDuration == null) {
-      print("Could not determine audio duration. Aborting upload.");
-      return;
-    }
-
-    final googleDriveService = GoogleDriveService();
-    final fileName = 'voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    final fileUrl = await googleDriveService.uploadFile(voiceNoteFile, fileName);
-
-    if (fileUrl != null) {
-      final voiceMessage = types.AudioMessage(
-        authorId: Userid,
-        id: const Uuid().v4(),
-        text: fileName,
-        size: await voiceNoteFile.length(),
-        duration: audioDuration,
-        source: fileUrl,
-      );
-
-      // You'll need a way to send this message.
-      // This part of your code seems incomplete.
-      // e.g., _handleSendPressed(voiceMessage);
-    } else {
-      print('Failed to upload voice note.');
-    }
-  }
-
-
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar:AppBar(
           title:Text("General Chat"),
@@ -676,7 +658,6 @@ class _GeneralchatState extends State<Generalchat> {
                   context,
                   message,
                   index,
-
                   {
                 required bool isSentByMe,
                 types.MessageGroupStatus? groupStatus,
@@ -695,7 +676,7 @@ class _GeneralchatState extends State<Generalchat> {
                             if (info.visibleFraction  >= 0.8 ) {
 
                               // Call a function to mark the message as seen
-                             if(message.authorId != UserData?.identities?.first.userId) _markMessageAsSeen(message.id);
+                             if(message.authorId != Userid) _markMessageAsSeen(message.id);
                             }
                           },
                           child: ChatMessageWrapper(
@@ -784,6 +765,23 @@ class _GeneralchatState extends State<Generalchat> {
                   initialScrollToEndMode:InitialScrollToEndMode.none,
                 );
               },
+        audioMessageBuilder:(context,
+            message,
+            index,{
+          required bool isSentByMe,
+              types.MessageGroupStatus? groupStatus,
+            }){
+                return  AudioMessageWidget(
+                  message: message,
+                  controller: _reactionsController,
+                  messageIndex:index ,
+                  chatController: _chatController,
+                  userName : Username(
+                      userId: message.authorId,
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
+                  ),
+                );
+        },
 
 
               imageMessageBuilder: (
@@ -847,39 +845,25 @@ class _GeneralchatState extends State<Generalchat> {
                 return const SizedBox();
               },
               composerBuilder: (context) {
-                return Stack(
-                  children: [
-                    Composer(
-                      gap:0,
-                      sendIcon:Icon(Icons.send),
-                      textEditingController: _chatTextController,
-                      handleSafeArea: true,
-                      sigmaX: 3,
-                      sigmaY: 3,
+                return BlocBuilder<AppCubit,AppCubitStates>(
+                  builder: (context,state) {
+
+                    return Visibility(
+                      visible: !AppCubit.get(context).isRecording,
+                      child: Composer(
+                        gap:0,
+                        sendIcon:Icon(Icons.send),
+                        textEditingController: chatTextController,
+                        handleSafeArea: true,
+                        sigmaX: 3,
+                        sigmaY: 3,
+                        sendButtonHidden:chatTextController.text.isEmpty?true:false,
 
 
-                    ),
 
-                    // if(_chatTextController.text.isEmpty)Positioned(
-                    //   right: 5,
-                    //   bottom: 10,
-                    //   child: SocialMediaRecorder(
-                    //     // This is called when the user finishes recording
-                    //     sendRequestFunction: (soundFile , duration) {
-                    //       _uploadVoiceNote(soundFile , duration);
-                    //     },
-                    //     // Customize the appearance to match your app
-                    //     recordIcon: CircleAvatar(
-                    //       backgroundColor: Colors.green,
-                    //         child: const Icon(Icons.mic, color: Colors.white)),
-                    //
-                    //     // You can add more customizations here
-                    //     // lockButton: const Icon(Icons.lock, color: Colors.white),
-                    //     // slideToCancelText: "Slide to Cancel",
-                    //     // etc.
-                    //   ),
-                    // ),
-                  ],
+                      ),
+                    );
+                  }
                 );
               }),
 

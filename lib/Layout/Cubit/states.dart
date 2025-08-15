@@ -1,9 +1,12 @@
 abstract class AppCubitStates{}
 
 class AppInitialState extends AppCubitStates{}
-class InputIsPasswordState extends AppInitialState{}
-class SignupRoleChangeState extends AppInitialState{}
-class MessageSentState extends AppInitialState{}
-class GoogleSigninStates extends AppInitialState{}
-class AccountSettingsExpandStates extends AppInitialState{}
-class SignUpSignIn_Toggle extends AppInitialState{}
+class InputIsPasswordState extends AppCubitStates{}
+class SignupRoleChangeState extends AppCubitStates{}
+class MessageSentState extends AppCubitStates{}
+class GoogleSigninStates extends AppCubitStates{}
+class AccountSettingsExpandStates extends AppCubitStates{}
+class SignUpSignIn_Toggle extends AppCubitStates{}
+class TabBarIndexStates extends AppCubitStates{}
+class ShowHideMicStates extends AppCubitStates{}
+class isRecordingStates extends AppCubitStates{}

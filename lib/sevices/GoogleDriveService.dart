@@ -99,7 +99,7 @@ class GoogleDriveService {
   }
 
   // Uploads a file to the signed-in user's Google Drive
-  Future<String?> uploadFile(File file, String fileName , {
+  Future<String?> uploadFile(File file, String fileName , String filetype, {
     void Function(double progress)? onProgress,
   }) async {
     try {
@@ -133,7 +133,7 @@ class GoogleDriveService {
 
       final fileWithLink = await driveApi.files.get(
         createdFile.id!,
-        $fields: 'webViewLink',
+        $fields:'webViewLink',
       ) as gdrive.File;
 
       return fileWithLink.webViewLink;

@@ -7,6 +7,8 @@ import 'package:hexcolor/hexcolor.dart';
 import 'package:social_media_recorder/screen/social_media_recorder.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Layout/chatWidget/AudioWaveformPainter.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
@@ -14,6 +16,7 @@ import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
   TextEditingController Search = TextEditingController();
+
   List<Map<String,dynamic>> services= [{
   "icon": "assets/Svg/maintenance.svg",
   "Name": "Maintenance",
@@ -150,19 +153,42 @@ class HomePage extends StatelessWidget {
                   }, body: Social(),
 
               ),
-              Positioned(
-                bottom: 22,
-                right:15,
+              if(AppCubit.get(context).tabBarIndex==1 && chatTextController.text.isEmpty)Positioned(
+                bottom: 0,
+                right:0,
                 child: SocialMediaRecorder(
                   // This is called when the user finishes recording
                   sendRequestFunction: (soundFile , duration) {
+                    final parts = duration.split(':');
+                    final minutes = int.tryParse(parts[0]) ?? 0;
+                    final seconds = int.tryParse(parts[1]) ?? 0;
+                    final parsedDuration = Duration(minutes: minutes, seconds: seconds);
 
+                    AppCubit.get(context).uploadVoiceNote(soundFile, parsedDuration);
+                  },
+                  fullRecordPackageHeight: 80,
+                  startRecording:(){
+                    AppCubit.get(context).micOnPressed();
+                  },
+                  stopRecording: (e){
+                    AppCubit.get(context).micOnPressed();
                   },
                   // Customize the appearance to match your app
-                  recordIcon: CircleAvatar(
-                      backgroundColor: Colors.green,
-                      child: const Icon(Icons.mic, color: Colors.white)),
-                  backGroundColor: Colors.transparent,
+
+                  backGroundColor: ChatColors.light().surfaceContainerHigh.withAlpha(100),
+                  initialButtonWidth: 40,
+                  initialButtonHight: 40,
+                  finalButtonWidth: 60,
+                  finalButtonHight: 60,
+                  waveformBuilder:(amplitudes){
+                    return CustomPaint(
+                      painter: AudioWaveformPainter(
+                          amplitudes: amplitudes,
+                        waveColor: Colors.white,
+
+                      ),
+                    );
+                  },
 
                   // You can add more customizations here
                   // lockButton: const Icon(Icons.lock, color: Colors.white),
