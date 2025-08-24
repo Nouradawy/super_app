@@ -65,6 +65,8 @@ dependencies:
   google_sign_in: ^6.1.4
   flutter_polls: ^0.1.6
   audioplayers: ^6.5.0
+  dio: ^5.9.0
+
 
   path_provider: ^2.1.5
   social_media_recorder:

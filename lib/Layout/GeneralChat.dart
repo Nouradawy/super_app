@@ -47,7 +47,10 @@ class Generalchat extends StatefulWidget {
   State<Generalchat> createState() => _GeneralchatState();
 }
 
-class _GeneralchatState extends State<Generalchat> {
+class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClientMixin{
+  @override
+  bool get wantKeepAlive => true;
+
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
@@ -193,6 +196,7 @@ class _GeneralchatState extends State<Generalchat> {
   }
 
   void _markMessageAsSeen(String messageId) async {
+    if (!mounted) return;
     // Add a print statement to be certain of the data being sent.
     print('Attempting to mark message as seen. User ID: ${UserData!.id}, Message ID: $messageId');
 
@@ -596,13 +600,9 @@ class _GeneralchatState extends State<Generalchat> {
       print("User has stopped typing.");
     }
   }
-
-
-
-
   @override
   Widget build(BuildContext context) {
-
+    super.build(context);
     return Scaffold(
       appBar:AppBar(
           title:Text("General Chat"),
