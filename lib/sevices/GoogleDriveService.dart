@@ -131,12 +131,21 @@ class GoogleDriveService {
         createdFile.id!,
       );
 
-      final fileWithLink = await driveApi.files.get(
-        createdFile.id!,
-        $fields:'webViewLink',
-      ) as gdrive.File;
+      if(filetype == 'image')
+        {
+          final fileWithLink = await driveApi.files.get(
+            createdFile.id!,
+            $fields:'webViewLink',
+          ) as gdrive.File;
 
-      return fileWithLink.webViewLink;
+          return fileWithLink.webViewLink;
+        }
+      if(filetype == 'audio')
+        {
+          final directDownloadLink = 'https://drive.google.com/uc?export=download&id=${createdFile.id!}';
+
+          return directDownloadLink;
+        }
     } catch (e) {
       print('Error uploading to Google Drive: $e');
       return null;

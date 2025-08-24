@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
 import '../../sevices/GoogleDriveService.dart';
+import '../../sevices/gumletService.dart';
 
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
@@ -111,11 +112,18 @@ class AppCubit extends Cubit<AppCubitStates> {
         throw Exception('Failed to get Google Drive link.');
       }
 
+      // 3. Upload the file from google drive to gumlet
+      final String? gumleturl = await uploadVoiceNoteGumlet(fileLink);
+
+      if (gumleturl == null) {
+        throw Exception('Failed to get Gumlet URL.');
+      }
+
       // 3. If upload is successful, insert the record into Supabase
       await supabase.from('messages').insert({
         'id': const Uuid().v4(),
         'author_id': Userid, // Assuming Userid is accessible here
-        'uri': fileLink, // The public link from Google Drive
+        'uri': gumleturl, // The public link from Google Drive
         'created_at': DateTime.now().toIso8601String(),
         'metadata': {
           'type': 'audio',
