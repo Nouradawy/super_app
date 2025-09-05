@@ -12,8 +12,8 @@ class JoinCommunity extends StatelessWidget {
       body: ListView.builder(
           itemBuilder: (context,index){
             return ListTile(
-              leading: ,
-            ),
+              leading: Text(""),
+            );
           }
       ),
     );
