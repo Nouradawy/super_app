@@ -106,7 +106,7 @@ class HomePage extends StatelessWidget {
                 return [
                   SliverAppBar(
                     backgroundColor: Colors.white,
-                    expandedHeight: MediaQuery.of(context).size.height*0.21,
+                    expandedHeight: MediaQuery.of(context).size.width*0.50,
                     flexibleSpace: FlexibleSpaceBar(
                       background:Column(
                         children: [
@@ -127,7 +127,7 @@ class HomePage extends StatelessWidget {
                           //<-----------------ListView for Services---------------->
                           Container(
                             margin:EdgeInsets.only(left:MediaQuery.of(context).size.width*0.075),
-                            height: 120,
+                            height: MediaQuery.sizeOf(context).width*0.28,
                             child: ListView.builder(
                               scrollDirection: Axis.horizontal,
                               clipBehavior: Clip.none,
@@ -135,7 +135,7 @@ class HomePage extends StatelessWidget {
                               itemBuilder: (context,index){
                                 final service = services[index];
                                 return Container(
-                                  width: 120,
+                                  width: MediaQuery.sizeOf(context).width*0.28,
                                   margin: EdgeInsets.only(right:10),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12), // <-- Rounded corners

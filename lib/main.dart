@@ -9,6 +9,7 @@ import 'Confg/supabase.dart';
 import 'Layout/GeneralChat.dart';
 import 'Layout/Profile.dart';
 import 'Layout/SignUp.dart';
+import 'Layout/wellcomingPage.dart';
 
 
 
@@ -60,7 +61,7 @@ class MyApp extends StatelessWidget {
           // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: session == null ? SignUp():HomePage(),
+        home: JoinCommunity(),
       ),
     );
   }

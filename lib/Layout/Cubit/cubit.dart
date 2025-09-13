@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:bloc/bloc.dart';
@@ -8,6 +9,7 @@ import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../Components/CompoundsList.dart';
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
 import '../../sevices/GoogleDriveService.dart';
@@ -81,6 +83,37 @@ class AppCubit extends Cubit<AppCubitStates> {
       googleUser = null;
     }
     emit(GoogleSigninStates());
+  }
+
+  Future<List<Category>> fetchCompounds () async {
+
+      // This is the magic query:
+      // 1. From the 'categories' table...
+      // 2. Select all its columns (*), AND...
+      // 3. Select all columns (*) from the 'compounds' table that are related to it.
+      // Supabase knows the relationship because of the Foreign Key you created.
+      final response = await supabase
+          .from('compound_categories')
+          .select('*, compounds(*)'); // MAGIC!
+
+      // Supabase returns a List<dynamic> where each element is a Map (a category)
+      // We parse this raw data into our clean Dart models
+      final data = (response as List)
+          .map((categoryJson) => Category.fromJson(categoryJson))
+          .toList();
+
+      final encoder = JsonEncoder.withIndent('  ');
+
+      // 2. Convert your entire 'data' list into a pretty-printed JSON string
+      //    This works because the encoder will find the .toJson() method
+      //    in your Category class, which in turn calls .toJson() on each Compound.
+      final prettyJson = encoder.convert(data);
+
+      // 3. Print the readable result
+      print(prettyJson);
+
+      return data;
+
   }
 
 

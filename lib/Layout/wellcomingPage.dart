@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'Cubit/cubit.dart';
+
 class JoinCommunity extends StatelessWidget {
   const JoinCommunity({super.key});
 
@@ -9,13 +11,10 @@ class JoinCommunity extends StatelessWidget {
       appBar: AppBar(
         title: Text("Join a Community"),
       ),
-      body: ListView.builder(
-          itemBuilder: (context,index){
-            return ListTile(
-              leading: Text(""),
-            );
-          }
-      ),
+      body: MaterialButton(onPressed:(){
+        AppCubit.get(context).fetchCompounds();
+      },
+      child:Text("Click here"))
     );
   }
 }
