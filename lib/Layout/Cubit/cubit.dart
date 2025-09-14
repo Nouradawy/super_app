@@ -102,16 +102,6 @@ class AppCubit extends Cubit<AppCubitStates> {
           .map((categoryJson) => Category.fromJson(categoryJson))
           .toList();
 
-      final encoder = JsonEncoder.withIndent('  ');
-
-      // 2. Convert your entire 'data' list into a pretty-printed JSON string
-      //    This works because the encoder will find the .toJson() method
-      //    in your Category class, which in turn calls .toJson() on each Compound.
-      final prettyJson = encoder.convert(data);
-
-      // 3. Print the readable result
-      print(prettyJson);
-
       return data;
 
   }
