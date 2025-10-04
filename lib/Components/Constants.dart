@@ -9,6 +9,8 @@ import '../sevices/GoogleDriveService.dart';
 
 final GoogleDriveService driveService = GoogleDriveService();
 GoogleSignInAccount? googleUser;
+Map<String,dynamic> MyCompounds = {'0': "Add New Community"};
+int? selectedCompoundId;
 
 
 
@@ -48,6 +50,41 @@ Widget defaultTextForm(
     isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : IconButton(onPressed: () {}, icon: Icon(SuffixIcon),)
         :isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : IconButton(onPressed: () {}, icon: Icon(SuffixIcon),),
   ) ,
+  );
+}
+
+Widget PostTextForm(
+    context,{
+      required TextEditingController controller,
+      required TextInputType keyboardType,
+      String? hintText,
+      bool IsPassword = false,
+      IconData? SuffixIcon,
+      IconData? preIcon,
+
+
+    }) {
+  final bool isactive = IsPassword;
+  isactive ? IsPassword = AppCubit.get(context).isPassword : null;
+
+  return TextFormField(
+    controller: controller,
+    keyboardType:keyboardType,
+    obscureText:IsPassword,
+    maxLines: null,
+    textAlignVertical: TextAlignVertical.top,
+    decoration:InputDecoration(
+      contentPadding:EdgeInsets.symmetric(horizontal: 10),
+      border: InputBorder.none,
+      filled:false,
+      isDense:true,
+      hintText:hintText,
+      hintStyle: GoogleFonts.manrope(color: Colors.grey.shade500 ,fontWeight: FontWeight.w400  ,fontSize: 13),
+      prefixIcon: preIcon==null?null:Icon(
+        preIcon,color: Theme.of(context).primaryColor,
+      ),
+
+    ) ,
   );
 }
 

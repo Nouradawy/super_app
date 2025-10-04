@@ -14,6 +14,8 @@ import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:super_app/Layout/Maintenance.dart';
 import 'package:super_app/Layout/chatWidget/AudioWaveformPainter.dart';
+import 'package:super_app/Layout/wellcomingPage.dart';
+import 'package:super_app/Network/CacheHelper.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
@@ -21,7 +23,7 @@ import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
   TextEditingController Search = TextEditingController();
-  List<String> compoundSubscription = ["Plumbing","Electricity","Plastering","Gardening"];
+
   List<Map<String,dynamic>> services= [{
   "icon": "assets/Svg/maintenance.svg",
   "Name": "Maintenance",
@@ -57,7 +59,8 @@ class HomePage extends StatelessWidget {
         backgroundColor:Colors.white,
         appBar: AppBar(
           backgroundColor:Colors.white,
-          title:DropdownMenu<String>(
+          title:DropdownMenu(
+            initialSelection: selectedCompoundId?.toString(),
             width: MediaQuery.sizeOf(context).width * 0.7,
             inputDecorationTheme: InputDecorationTheme(
 
@@ -80,14 +83,30 @@ class HomePage extends StatelessWidget {
             ),
 
             dropdownMenuEntries:
-            compoundSubscription.map<DropdownMenuEntry<String>>(
-                  (String value) {
+            (MyCompounds.entries.toList().reversed).map(
+                  (entry) {
+                    String key = entry.key;
+                    String value =  entry.value;
                 return DropdownMenuEntry<String>(
-                  value: value,
-                  label: value,
+                  leadingIcon: key == '0' ?Icon(Icons.add):null,
+                  value: key,
+                  label: value.toString(),
                 );
               },
             ).toList(),
+              onSelected:(selectedkey) async {
+              if(selectedkey == '0'){
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => JoinCommunity()),
+                );
+              } else {
+                selectedCompoundId =  int.parse(selectedkey.toString());
+                context.read<AppCubit>().selectCompound();
+                print(selectedCompoundId);
+                await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
+              }
+              },
           ),
           leading: Image.asset('assets/JannaLogo.png' , width: 90,
         ),
@@ -96,7 +115,15 @@ class HomePage extends StatelessWidget {
               context,
               MaterialPageRoute(builder: (context) => Profile()),
             );
-          }, icon: Icon(Icons.settings))],
+          }, icon: Icon(Icons.settings)),
+            IconButton(onPressed: (){
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => JoinCommunity()),
+              );
+            }, icon: Icon(Icons.join_full))
+          ],
+
         ),
         body: Stack(
           alignment: AlignmentDirectional.bottomEnd,
@@ -195,78 +222,114 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                   )];
-              }, body: Social(),
+              }, body: DefaultTabController( // 1. Provide the controller here
+              length: 2,
+              child: TabChangeHandler( // 2. Use the listener widget we just created
+                child: BlocConsumer<AppCubit, AppCubitStates>(
+                  listener: (context,state){
+                    if(state is AppInitialState || state is CompoundIdChanged || state is NewPostState)
+                      {
+                        AppCubit.get(context).getPostsData(selectedCompoundId!);
+                      }
+
+                  },
+                  buildWhen: (previousState, currentState) {
+                    // Only rebuild if the state is AppInitialState and the compound ID has changed.
+                    if ((previousState is AppInitialState && currentState is GetPostsDataStates) || currentState is CompoundIdChanged || currentState is GetPostsDataStates || currentState is NewPostState) {
+                      return true;
+                    }
+                    // For any other state changes, don't rebuild this part of the tree.
+                    return false;
+                  },
+                  builder: (context, state) {
+                    int? currentCompoundId = selectedCompoundId;
+
+                    if (currentCompoundId == null) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    // 3. Pass the key to Social, which is now a clean StatelessWidget
+                    return Social(key: ValueKey(currentCompoundId));
+                  },
+                ),
+              ),
+            ),
 
             ),
             BlocBuilder<AppCubit,AppCubitStates>(
                 builder: (context,state){
-                  if(AppCubit.get(context).tabBarIndex==1 && chatTextController.text.isEmpty) {
+                  if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty) {
                     return Positioned(
                       bottom: 0,
                       right: 0,
-                      child: SocialMediaRecorder(
-                        onButtonPress: () {
-                          AppCubit.get(context).micOnPressed();
-                        },
-                        onButtonRelease: () {
-                          if (AppCubit
-                              .get(context)
-                              .isRecording) {
+                      child: SafeArea(
+                        child: SocialMediaRecorder(
+                          onButtonPress: () {
+                            AppCubit.get(context).recordedAmplitudes.clear();
                             AppCubit.get(context).micOnPressed();
-                          }
-                        },
-                        // This is called when the user finishes recording
-                        sendRequestFunction: (soundFile, duration) async {
-                          print("attemptinng to save");
-                          final parts = duration.split(':');
-                          final minutes = int.tryParse(parts[0]) ?? 0;
-                          final seconds = int.tryParse(parts[1]) ?? 0;
-                          final parsedDuration = Duration(
-                              minutes: minutes, seconds: seconds);
-                          final String timestamp = DateTime
-                              .now()
-                              .millisecondsSinceEpoch
-                              .toString();
-                          final downloadsDirectory = Directory(
-                              '/storage/emulated/0/Download');
-                          final localPath = '${downloadsDirectory
-                              .path}/test_voice_note$timestamp.m4a';
-                          // Save the soundFile to the temporary directory
-                          await Future.delayed(
-                              const Duration(milliseconds: 1000));
-                          await soundFile.copy(localPath);
-                          print('Voice note saved locally at: $localPath');
-                          // AppCubit.get(context).uploadVoiceNote(soundFile, parsedDuration);
-
-                        },
-
-                        fullRecordPackageHeight: 80,
-
-                        // Customize the appearance to match your app
-
-                        backGroundColor: ChatColors
-                            .light()
-                            .surfaceContainerHigh
-                            .withAlpha(100),
-                        initialButtonWidth: 40,
-                        initialButtonHight: 40,
-                        finalButtonWidth: 60,
-                        finalButtonHight: 60,
-                        encode: AudioEncoderType.AAC,
-                        waveformBuilder: (amplitudes) {
-                          return CustomPaint(
-                            painter: AudioWaveformPainter(
-                              amplitudes: amplitudes,
-                              waveColor: Colors.white,
-
-                            ),
-                          );
-                        },
-
-                        // You can add more customizations here
-                        // lockButton: const Icon(Icons.lock, color: Colors.white),
-                        // slideToCancelText: "Slide to Cancel",
-                        // etc.
+                          },
+                          onButtonRelease: () {
+                            if (AppCubit
+                                .get(context)
+                                .isRecording) {
+                              AppCubit.get(context).micOnPressed();
+                            }
+                          },
+                          // This is called when the user finishes recording
+                          sendRequestFunction: (soundFile, duration) async {
+                            print("attemptinng to save");
+                            final parts = duration.split(':');
+                            final minutes = int.tryParse(parts[0]) ?? 0;
+                            final seconds = int.tryParse(parts[1]) ?? 0;
+                            final parsedDuration = Duration(
+                                minutes: minutes, seconds: seconds);
+                            // final String timestamp = DateTime
+                            //     .now()
+                            //     .millisecondsSinceEpoch
+                            //     .toString();
+                            // final downloadsDirectory = Directory(
+                            //     '/storage/emulated/0/Download');
+                            // final localPath = '${downloadsDirectory
+                            //     .path}/test_voice_note$timestamp.m4a';
+                            // // Save the soundFile to the temporary directory
+                            // await Future.delayed(
+                            //     const Duration(milliseconds: 1000));
+                            // await soundFile.copy(localPath);
+                            // print('Voice note saved locally at: $localPath');
+                            final amplitudesToUpload = AppCubit.get(context).recordedAmplitudes;
+                            AppCubit.get(context).uploadVoiceNote(soundFile, parsedDuration ,amplitudesToUpload ,selectedCompoundId!);
+                        
+                          },
+                        
+                          fullRecordPackageHeight: 80,
+                        
+                          // Customize the appearance to match your app
+                        
+                          backGroundColor: ChatColors
+                              .light()
+                              .surfaceContainerHigh
+                              .withAlpha(100),
+                          initialButtonWidth: 40,
+                          initialButtonHight: 40,
+                          finalButtonWidth: 60,
+                          finalButtonHight: 60,
+                          encode: AudioEncoderType.AAC,
+                          waveformBuilder: (amplitudes) {
+                            AppCubit.get(context).recordedAmplitudes = amplitudes;
+                            return CustomPaint(
+                              painter: AudioWaveformPainter(
+                                amplitudes: amplitudes,
+                                waveColor: Colors.white,
+                        
+                              ),
+                            );
+                          },
+                        
+                          // You can add more customizations here
+                          // lockButton: const Icon(Icons.lock, color: Colors.white),
+                          // slideToCancelText: "Slide to Cancel",
+                          // etc.
+                        ),
                       ),
                     );
                 } else {
@@ -279,3 +342,47 @@ class HomePage extends StatelessWidget {
   }
 }
 
+
+class TabChangeHandler extends StatefulWidget {
+  final Widget child;
+  const TabChangeHandler({super.key, required this.child});
+
+  @override
+  State<TabChangeHandler> createState() => _TabChangeHandlerState();
+}
+
+class _TabChangeHandlerState extends State<TabChangeHandler> {
+  TabController? _tabController;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Get the controller provided by the parent
+    _tabController = DefaultTabController.of(context);
+    // Remove any previous listener before adding a new one
+    _tabController?.removeListener(_handleTabSelection);
+    _tabController?.addListener(_handleTabSelection);
+  }
+
+  @override
+  void dispose() {
+    // Clean up the listener when the widget is destroyed
+    _tabController?.removeListener(_handleTabSelection);
+    super.dispose();
+  }
+
+  void _handleTabSelection() {
+    if (_tabController != null) {
+      // To prevent duplicate calls, only emit if the index has actually changed
+      if (AppCubit.get(context).tabBarIndex != _tabController!.index) {
+        AppCubit.get(context).tabBarIndexSwitcher(_tabController!.index);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // This widget doesn't render anything itself, it just passes through its child.
+    return widget.child;
+  }
+}

@@ -217,7 +217,7 @@ class SignUp extends StatelessWidget {
                             password: password.text,
                           );
 
-                          print ("UserRole : "+UserData!.userMetadata?["role"]);
+
                         } else {
                           await supabase.auth.signInWithPassword(
                             email: email.text,
@@ -228,7 +228,7 @@ class SignUp extends StatelessWidget {
                         UserData = Supabase.instance.client.auth.currentSession?.user;
                       if(UserData !=null) {
 
-                        Navigator.push(
+                        Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(builder: (context) => HomePage()),
                         );

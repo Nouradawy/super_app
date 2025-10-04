@@ -18,6 +18,7 @@ class AudioWaveformPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (amplitudes.isEmpty) return;
 
+
     // THE OPTIMIZATION: Create a single path object.
     final Path wavePath = Path();
 

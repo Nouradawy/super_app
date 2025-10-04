@@ -2,13 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:googleapis/admob/v1.dart';
 
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
@@ -20,7 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:social_media_recorder/provider/sound_record_notifier.dart';
+import 'package:social_media_recorder/audio_encoder_type.dart';
 import 'package:social_media_recorder/screen/social_media_recorder.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
@@ -30,26 +26,30 @@ import 'package:uuid/uuid.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
 import '../Confg/supabase.dart';
-import '../sevices/GoogleDriveService.dart';
+import 'chatWidget/AudioWaveformPainter.dart';
 import 'chatWidget/ImageMessageWidget.dart';
 import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
-import 'package:record/record.dart';
+
 
 
 final supabase = Supabase.instance.client;
-TextEditingController chatTextController = TextEditingController();
+
+
 
 class Generalchat extends StatefulWidget {
-  const Generalchat({super.key});
+  final int compoundId;
+  const Generalchat({super.key , required this.compoundId});
 
   @override
   State<Generalchat> createState() => _GeneralchatState();
 }
 
-class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClientMixin{
-  @override
-  bool get wantKeepAlive => true;
+class _GeneralchatState extends State<Generalchat> {
+  late final TextEditingController _chatTextController;
+  int? _channelId;
+
+
 
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
@@ -74,12 +74,12 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
   void initState() {
     super.initState();
     _chatController = types.InMemoryChatController();
-    chatTextController = TextEditingController();
+    _chatTextController = TextEditingController();
     _scrollController = ScrollController();
     _reactionsController = ReactionsController(currentUserId: Userid);
-    _loadMessagesFromCacheAndFetchLatest();
-    _subscribeToRealtime();
-    chatTextController.addListener(_handleTypingStatus);
+    _initializeAndSubscribe();
+    // _loadMessagesFromCacheAndFetchLatest();
+    _chatTextController.addListener(_handleTypingStatus);
 
 
 
@@ -93,28 +93,56 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
     // });
 
   }
+
+  Future<void> _initializeAndSubscribe() async {
+    try {
+      final response = await supabase
+          .from('channels')
+          .select('id')
+          .eq('compound_id', widget.compoundId) // Use the passed-in compoundId
+          .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
+          .single(); // Assuming one general channel per compound
+
+      setState(() {
+        _channelId = response['id'];
+      });
+
+      // Now that we have the channel ID, we can load messages and subscribe
+      _loadMessagesFromCacheAndFetchLatest();
+      _subscribeToRealtime();
+
+    } catch (error) {
+      print('Error fetching channel ID: $error');
+      // Handle the error, maybe show a message to the user
+    }
+  }
   @override
   void dispose() {
     _realtimeChannel?.unsubscribe();
     _chatController.dispose();
     _scrollController.dispose();
     _saveMessagesToCache(_chatController.messages);
-    chatTextController.removeListener(_handleTypingStatus);
-    chatTextController.dispose();
+    _chatTextController.removeListener(_handleTypingStatus);
+    _chatTextController.dispose();
 
     super.dispose();
   }
 
 
-
-
   void _subscribeToRealtime() {
+    if (_channelId == null) return;
+
     _realtimeChannel = supabase
-        .channel('public:messages')
+        .channel('public:messages:channel_id=eq.$_channelId')
         .onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'messages',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'channel_id',
+          value: _channelId,
+        ),
       callback: (payload) {
         final newMessageMap = payload.newRecord;
         final localId = newMessageMap['metadata']?['localId'];
@@ -148,7 +176,14 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
   }
 
   Future<void> _saveMessagesToCache(List<types.Message> messages) async {
+
+    if (_channelId == null) return;
+
     final prefs = await SharedPreferences.getInstance();
+
+    // Create a dynamic cache key unique to this channel.
+    final cacheKey = 'chat_messages_$_channelId';
+
     final List<String> encodedMessages = messages.map((msg) {
       // First, convert the message to a Map that flutter_chat_ui can work with
       // Unfortunately, flutter_chat_types doesn't have a built-in toJson for all message types.
@@ -159,21 +194,41 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
         'id': msg.id,
         'metadata': msg.metadata,
         'replyToMessageId': msg.replyToMessageId ,
-        'uri': msg is types.FileMessage ? msg.source : (msg is types.ImageMessage ? msg.source : null),
+        'uri': msg is types.FileMessage
+            ? msg.source
+            : (msg is types.ImageMessage
+            ? msg.source
+            : (msg is types.AudioMessage ? msg.source : null)),
         'text': msg is types.TextMessage ? msg.text : null,
         'name': msg is types.FileMessage ? msg.name : null,
         'size': msg is types.FileMessage ? msg.size : (msg is types.ImageMessage ? msg.size : null),
         'height': msg is types.ImageMessage ? msg.height : null,
         'width': msg is types.ImageMessage ? msg.width : null,
+        'type': msg.metadata?['type'] ?? (msg is types.ImageMessage
+            ? 'image'
+            : (msg is types.FileMessage
+            ? 'file'
+            : (msg is types.AudioMessage
+            ? 'audio'
+            : 'text'))),
       };
       return jsonEncode(messageMap);
     }).toList();
-    await prefs.setStringList(_messagesCacheKey, encodedMessages);
+    // Use the new dynamic key to save the messages.
+    await prefs.setStringList(cacheKey, encodedMessages);
   }
 
   Future<List<types.Message>> _loadMessagesFromCache() async {
+
+    // Guard clause: Don't load from cache if we don't know the channel.
+    if (_channelId == null) return [];
+
+
     final prefs = await SharedPreferences.getInstance();
-    final encodedMessages = prefs.getStringList(_messagesCacheKey);
+
+    // Create the same dynamic cache key to find the right messages.
+    final cacheKey = 'chat_messages_$_channelId';
+    final encodedMessages = prefs.getStringList(cacheKey);
     if (encodedMessages == null) {
       return [];
     }
@@ -227,6 +282,7 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
     // Fetch messages using _lastMessageId for pagination
     final response = await supabase
         .rpc('get_messages_with_seen_status', params: {
+          'p_channel_id': _channelId,
           'page_size': _pageSize,
           'page_num': _currentPage,
         });
@@ -379,6 +435,7 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
         'author_id': Userid,
         'uri': driveLink, // The link from Google Drive
         'created_at': (await NTP.now()).toIso8601String(), // Use NTP UTC time
+        'channel_id': _channelId,
         'metadata': {
           'type': 'image',
           'localId': localId, // **IMPORTANT** link to the placeholder
@@ -484,6 +541,7 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
       'uri': fileUrl,
       'type': 'file',
       'created_at': DateTime.now().toIso8601String(),
+      'channel_id': _channelId,
       'metadata': {
         'name': file.name,
         'size': file.size,
@@ -493,8 +551,12 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
   }
 
   void _handleSendPressed(text) async {
-    String id = const Uuid().v4();
+    if (_channelId == null) {
+      print("Cannot send message, channel ID is not set.");
+      return;
+    }
 
+    String id = const Uuid().v4();
 
     _chatController.insertMessage(types.TextMessage(
         id: id,
@@ -503,12 +565,11 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
         createdAt: await NTP.now(),
     ));
 
-
     await supabase.from('messages').insert({
       'id': id,
       'author_id': Userid,
       'text': text,
-
+      'channel_id': _channelId,
       'created_at' :  (await NTP.now()).toIso8601String(),
       'metadata': {
         'type': 'text',
@@ -582,27 +643,27 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
 
 
   void _handleTypingStatus() {
-    if (chatTextController.text.isNotEmpty && !_isTyping) {
+    if (_chatTextController.text.isNotEmpty && !_isTyping) {
       // User started typing
       setState(() {
         _isTyping = true;
       });
-      AppCubit.get(context).showHideMic();
+      AppCubit.get(context).showHideMic(_chatTextController.text.isEmpty);
       // You can add logic here to notify others, e.g., via Supabase
       print("User is typing...");
-    } else if (chatTextController.text.isEmpty && _isTyping) {
+    } else if (_chatTextController.text.isEmpty && _isTyping) {
       // User cleared the text field
       setState(() {
         _isTyping = false;
       });
-      AppCubit.get(context).showHideMic();
+      AppCubit.get(context).showHideMic(_chatTextController.text.isEmpty);
       // Notify that the user has stopped typing
       print("User has stopped typing.");
     }
   }
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+
     return Scaffold(
       appBar:AppBar(
           title:Text("General Chat"),
@@ -853,11 +914,11 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
                       child: Composer(
                         gap:0,
                         sendIcon:Icon(Icons.send),
-                        textEditingController: chatTextController,
+                        textEditingController: _chatTextController,
                         handleSafeArea: true,
                         sigmaX: 3,
                         sigmaY: 3,
-                        sendButtonHidden:chatTextController.text.isEmpty?true:false,
+                        sendButtonHidden:_chatTextController.text.isEmpty?true:false,
 
 
 
@@ -874,8 +935,10 @@ class _GeneralchatState extends State<Generalchat> with AutomaticKeepAliveClient
 
               offset: Offset(0, -70),
               child: replyTopBar()),
+
         ],
       ),
+
     );
   }
 }

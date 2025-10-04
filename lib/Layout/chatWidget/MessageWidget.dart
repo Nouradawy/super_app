@@ -151,11 +151,13 @@ bool isPrevPost(){
         crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          SizedBox(height: 2,),
           Row(
             spacing: 15,
             mainAxisSize: MainAxisSize.max,
             children: isMe?UserInformation.reversed.toList():UserInformation,
           ),
+          SizedBox(height: 5,),
           Text(
             message.text,
             style: TextStyle(

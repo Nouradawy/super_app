@@ -1,16 +1,19 @@
 // wellcomingPage.dart
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import '../Components/CompoundsList.dart';
+import '../Components/Constants.dart';
+import '../Model/CompoundsList.dart';
+import '../Network/CacheHelper.dart';
 import 'Cubit/cubit.dart';
+import 'HomePage.dart';
 
 class JoinCommunity extends StatelessWidget {
   const JoinCommunity({super.key});
 
   @override
   Widget build(BuildContext context) {
-
-    List StaticComp;
 
     return Scaffold(
       appBar: AppBar(
@@ -40,7 +43,7 @@ class JoinCommunity extends StatelessWidget {
           return ListView.builder(
             itemCount: categories.length,
             itemBuilder: (context, index) {
-              StaticComp = AppCubit.get(context).fetchCompounds();
+
               final category = categories[index];
 
               // IMPORTANT: The itemBuilder MUST return a widget.
@@ -58,9 +61,32 @@ class JoinCommunity extends StatelessWidget {
                     const Divider(),
 
                     // Map the list of compounds to a list of ListTile widgets
-                    ...category.compounds.map((compound) {
+                    ...category.compounds.reversed.map((compound) {
                       return ListTile(
-                        leading: const Icon(Icons.location_city),
+                        tileColor:Colors.white38,
+                        minTileHeight:70,
+                        onTap:() async {
+                          MyCompounds.addAll({compound.id.toString(): compound.name.toString()});
+
+                          await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
+
+                          Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => HomePage()));
+                          selectedCompoundId = compound.id;
+                        },
+                        leading: ClipRRect(
+                          borderRadius:BorderRadius.circular(10),
+                          child: Image.network(
+                              compound.pictureUrl.toString(),
+                            width: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context,exception,stackTrace){
+                                return SizedBox.shrink();
+                            },
+                          ),
+                        ),
+                        subtitle: Text(compound.developer!),
                         title: Text(compound.name),
                         // You can add more details here if needed
                         // subtitle: Text(compound.location ?? ''),

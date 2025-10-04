@@ -15,6 +15,8 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'dart:convert';
 
+import 'AudioWaveformPainter.dart';
+
 class AudioMessageWidget extends StatelessWidget {
   const AudioMessageWidget({
     super.key,
@@ -41,6 +43,7 @@ class AudioMessageWidget extends StatelessWidget {
     final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
     // 1. Extract the file ID from the message's URI
 
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -52,8 +55,8 @@ class AudioMessageWidget extends StatelessWidget {
           children: [
             // message
             messageBuilder(
-              context,
-              isMe
+                context,
+                isMe
             ),
 
             //reactions
@@ -93,12 +96,12 @@ class AudioMessageWidget extends StatelessWidget {
     );
   }
 
-bool isPrevPost(){
+  bool isPrevPost(){
     if(messageIndex>0 && chatController.messages[messageIndex-1].authorId == message.authorId ){
       return true;
     }
     return false;
-}
+  }
 
   Widget messageBuilder(
       context ,isMe
@@ -136,67 +139,76 @@ bool isPrevPost(){
           child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
     ];
 
+    // 1. Safely get the raw list from metadata. If it's null, use an empty list.
+    final List<dynamic> rawAmplitudes = message.metadata?['waveform'] ?? [];
+
+    // 2. Safely convert each element of the raw list to a double.
+    // This handles both integers and doubles from the database.
+    final List<double> amplitudes = rawAmplitudes.map((e) => (e as num).toDouble()).toList();
+
     final List<Widget> chatObjects=[
       ChatBubble(
-      padding: EdgeInsets.symmetric(horizontal: 15,vertical: 2),
-      clipper: isMe
-          ? isPrevPost()? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
-          type:BubbleType.sendBubble,
-          radius: 10,
-          nipRadius: 0,
-          nipHeight: 14,
-          nipWidth: 5
-      )
-          :ChatBubbleClipper1(
-          type:BubbleType.receiverBubble,
-          radius: 10,
-          nipRadius: 0,
-          nipHeight: 14,
-          nipWidth: 5
-      ),
-      alignment: isMe
-          ?Alignment.topRight
-          :Alignment.topLeft,
-      backGroundColor: BackgroundColor,
-      child:Column(
-        crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            spacing: 15,
-            mainAxisSize: MainAxisSize.max,
-            children: isMe?UserInformation.reversed.toList():UserInformation,
-          ),
-          //TODO:Add audiourl
-          AudioMessageBuilder(audioUrl: message.source, duration: message.duration.toString(),),
-          const SizedBox(height: 5),
-          Row(
-            mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Text(
+        padding: EdgeInsets.symmetric(horizontal: 15,vertical: 2),
+        clipper: isMe
+            ? isPrevPost()? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
+            type:BubbleType.sendBubble,
+            radius: 10,
+            nipRadius: 0,
+            nipHeight: 14,
+            nipWidth: 5
+        )
+            :ChatBubbleClipper1(
+            type:BubbleType.receiverBubble,
+            radius: 10,
+            nipRadius: 0,
+            nipHeight: 14,
+            nipWidth: 5
+        ),
+        alignment: isMe
+            ?Alignment.topRight
+            :Alignment.topLeft,
+        backGroundColor: BackgroundColor,
+        child:Column(
+          crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 2,),
+            Row(
+              spacing: 15,
+              mainAxisSize: MainAxisSize.max,
+              children: isMe?UserInformation.reversed.toList():UserInformation,
+            ),
+            SizedBox(height: 5,),
+            //TODO:Add audiourl
+            AudioMessageBuilder(audioUrl: message.source, duration: message.duration.toString(), amplitudes: amplitudes,),
+            const SizedBox(height: 5),
+            Row(
+              mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Text(
 
-                message.createdAt !=null ?formatTimestampToAmPm(message.createdAt.toString()):"null",
-                style: TextStyle(
-                  fontSize: 10,
-                  color: textColor,
+                  message.createdAt !=null ?formatTimestampToAmPm(message.createdAt.toString()):"null",
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: textColor,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 5),
-              message.seenAt !=null ?Icon(
-                Icons.done_all,
-                color: Colors.greenAccent,
-                size: 13,
-              ):Icon(
-                Icons.done_all,
-                color: Colors.grey,
-                size: 13,
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 5),
+                message.seenAt !=null ?Icon(
+                  Icons.done_all,
+                  color: Colors.greenAccent,
+                  size: 13,
+                ):Icon(
+                  Icons.done_all,
+                  color: Colors.grey,
+                  size: 13,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
       Avatar(userId: message.authorId)
     ];
     return Material(
@@ -204,9 +216,9 @@ bool isPrevPost(){
       child: Padding(
         padding: padding,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: isMe?chatObjects:chatObjects.reversed.toList()
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: isMe?chatObjects:chatObjects.reversed.toList()
         ),
       ),
     );
@@ -220,11 +232,13 @@ bool isPrevPost(){
 class AudioMessageBuilder extends StatefulWidget {
   final String audioUrl;
   final String duration;
+  final List<double> amplitudes;
 
   const AudioMessageBuilder({
     super.key,
     required this.audioUrl,
     required this.duration,
+    required this.amplitudes,
   });
 
   @override
@@ -244,21 +258,25 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
   Future<void> _togglePlay() async {
     if (_isPlaying) {
       await _audioPlayer.pause();
-      setState(() {
-        _isPlaying = false;
-      });
+      // No need for setState here, onPlayerComplete will handle the icon change
     } else {
       await _audioPlayer.play(UrlSource(widget.audioUrl));
-      setState(() {
-        _isPlaying = true;
-      });
     }
+
+    // It's slightly more efficient to set the isPlaying state here
+    // based on the player's actual state stream.
+    setState(() {
+      _isPlaying = _audioPlayer.state == PlayerState.playing;
+    });
 
     // Listen for when the playback completes
     _audioPlayer.onPlayerComplete.first.then((_) {
-      setState(() {
-        _isPlaying = false;
-      });
+      // ADD THIS CHECK: Only call setState if the widget is still visible.
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+        });
+      }
     });
   }
 
@@ -277,6 +295,17 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
             icon: Icon(_isPlaying ? Icons.pause_circle : Icons.play_circle),
             onPressed: _togglePlay,
             color: Colors.blue.shade800,
+          ),
+          SizedBox( // Wrap the painter in a SizedBox to give it a defined size
+            width: 150,
+            height: 40,
+            child: CustomPaint( // Use CustomPaint here
+              painter: AudioWaveformPainter(
+                // 3. PASS THE WIDGET'S AMPLITUDES TO THE PAINTER
+                amplitudes: widget.amplitudes,
+                waveColor: Colors.blue.shade800, // Changed for better contrast
+              ),
+            ),
           ),
           Text(widget.duration),
         ],

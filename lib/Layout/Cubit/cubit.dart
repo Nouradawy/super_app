@@ -5,11 +5,12 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../Components/CompoundsList.dart';
+import '../../Model/CompoundsList.dart';
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
 import '../../sevices/GoogleDriveService.dart';
@@ -18,6 +19,7 @@ import '../../sevices/gumletService.dart';
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
   static AppCubit get(context) => BlocProvider.of(context);
+
   bool isPassword = true;
   String? RoleName ;
 
@@ -25,9 +27,9 @@ class AppCubit extends Cubit<AppCubitStates> {
   bool ActivateDropdown = false;
   int AccountIndex = 0;
   /// used to Get Current TabBar (Chat - Social) Index at HomePage
-  int tabBarIndex =  0 ;
+  int  tabBarIndex =  0 ;
   bool isRecording = false;
-
+  List<double> recordedAmplitudes = [];
 
 
   /// used to Switch TabBar Index at [Social] page
@@ -35,11 +37,20 @@ class AppCubit extends Cubit<AppCubitStates> {
     tabBarIndex = index;
     emit(TabBarIndexStates());
   }
-
+  bool isChatInputEmpty = true;
   /// used to Switch Mic States (view or hide) it form [Generalchat] page
-  void showHideMic(){
+  void showHideMic(bool isEmpty){
 
+    if (isChatInputEmpty != isEmpty) {
+      isChatInputEmpty = isEmpty;
       emit(ShowHideMicStates());
+    }
+  }
+
+  void selectCompound() {
+
+      emit(CompoundIdChanged());
+
   }
 
   void Passon(){
@@ -85,6 +96,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(GoogleSigninStates());
   }
 
+
   Future<List<Category>> fetchCompounds () async {
 
       // This is the magic query:
@@ -107,10 +119,19 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
 
-  Future<void> uploadVoiceNote(File soundFile, Duration duration) async {
+  Future<void> uploadVoiceNote(File soundFile, Duration duration , List<double> amplitudes , int compoundId) async {
     // 1. Instantiate your Google Drive service
     final googleDriveService = GoogleDriveService();
+    int? _channelId;
+    final response = await supabase
+        .from('channels')
+        .select('id')
+        .eq('compound_id',compoundId) // Use the passed-in compoundId
+        .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
+        .single(); // Assuming one general channel per compound
 
+      _channelId = response['id'];
+      emit(GetPostsDataStates());
     // Ensure the user is signed in to Google Drive
     if (googleDriveService.currentUser == null) {
       await googleDriveService.signIn();
@@ -148,12 +169,14 @@ class AppCubit extends Cubit<AppCubitStates> {
         'author_id': Userid, // Assuming Userid is accessible here
         'uri': gumleturl, // The public link from Google Drive
         'created_at': DateTime.now().toIso8601String(),
+        'channel_id': _channelId,
         'metadata': {
           'type': 'audio',
           'name': fileName,
           'size': await soundFile.length(),
           // Format duration to a string like "01:23"
           'duration': '${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
+          'waveform': amplitudes,
         },
       });
 
@@ -164,4 +187,66 @@ class AppCubit extends Cubit<AppCubitStates> {
       // Optionally, emit a state to show an error
     }
   }
+
+  final List _uploadProgress = [];
+
+  final List<Map<String, String>> imageSources = [];
+
+  Future<void> fetchPostsData (String postHead , bool getCalls , String? type , List<XFile>? files , int compoundId ) async {
+
+    if(files != null || files!.isNotEmpty){
+
+      for (final xfile in files) {
+        final bytes = await xfile.readAsBytes();
+        final image = await decodeImageFromList(bytes);
+        int index =0;                     //count the number of items in files List used for _uploadProgress
+        _uploadProgress.add(0);           //adding new item to the list and using index to update it's progress
+        final file = File(xfile.path);
+        final fileName = xfile.name;
+
+
+        // 1. Upload the file to Google Drive
+        final driveLink = await driveService.uploadFile(
+            file,
+            fileName,
+            'image',
+        );
+        if(driveLink !=null){
+          imageSources.add({
+            'uri': driveLink,
+            'name': fileName,
+            'size': bytes.length.toString(),
+            'height': image.height.toString(),
+            'width': image.width.toString(),
+          });
+        }
+        index++;
+      }
+    }
+
+    await supabase.from('Posts').insert({
+      'id': const Uuid().v4(),
+      'compound_id': compoundId,
+      'author_id': Userid,
+      'user_name':UserData!.userMetadata!["display_name"].toString(),
+      'post_head': postHead,
+      'source_url': imageSources,
+      'getCalls':getCalls,
+
+
+  });
+    imageSources.clear();
+    emit(NewPostState());
+
+  }
+
+  List Posts=[];
+
+  Future<void> getPostsData (int compoundId) async {
+    Posts = await supabase.from('Posts').select('*').eq('compound_id', compoundId);
+    emit(GetPostsDataStates());
+  }
+
+
+
 }

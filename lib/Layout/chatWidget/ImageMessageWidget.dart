@@ -76,8 +76,6 @@ class ImageMessageWidget extends StatelessWidget {
         controller: controller,
         maxReactionsToShow: 3,
         size: 18,
-
-
       ),
     )
         : Positioned(
@@ -131,7 +129,7 @@ bool isPrevPost(){
             color: Colors.black.withAlpha(120),
             borderRadius: BorderRadius.circular(5),
           ),
-          child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
+          child: Text("Building:34 , Apartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
     ];
 
     final List<Widget> chatObjects=[
@@ -160,11 +158,13 @@ bool isPrevPost(){
         crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          SizedBox(height: 2,),
           Row(
             spacing: 15,
             mainAxisSize: MainAxisSize.max,
             children: isMe?UserInformation.reversed.toList():UserInformation,
           ),
+          SizedBox(height: 5,),
 
           DriveImageMessage(
           fileId: fileId,

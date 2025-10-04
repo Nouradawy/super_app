@@ -1,10 +1,15 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:super_app/Components/Constants.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
 import 'package:super_app/Layout/Maintenance.dart';
+import 'package:super_app/Network/CacheHelper.dart';
 
+import 'Components/BlocObserver.dart';
 import 'Confg/supabase.dart';
 import 'Layout/GeneralChat.dart';
 import 'Layout/Profile.dart';
@@ -15,13 +20,22 @@ import 'Layout/wellcomingPage.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
+  Bloc.observer = const SimpleBlocObserver();
   await Supabase.initialize(
     // ⚠️ IMPORTANT: Replace with your own URL and Anon Key
-    url: 'https://ckwdavrschtisigmxwmy.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrd2RhdnJzY2h0aXNpZ214d215Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyNzIxMDQsImV4cCI6MjA2ODg0ODEwNH0.RYmu2jeNU-0yTbtVpBWMni1eUeQUksdbdpFrBBrEAx4',
+    url: 'http://192.168.100.53:8000',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE',
   );
-
-
+  await CacheHelper.init();
+  String?Compounds = await CacheHelper.getData(key: "MyCompounds", type: "String");
+  if (Compounds != null) {
+    MyCompounds = json.decode(Compounds);
+  }
+  int? CompoundIndex = await CacheHelper.getData(key: "compoundCurrentIndex", type: "int");
+  if(CompoundIndex != null){
+    selectedCompoundId = CompoundIndex;
+    print(selectedCompoundId);
+  }
 
   runApp(const MyApp());
 }
@@ -61,7 +75,7 @@ class MyApp extends StatelessWidget {
           // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: JoinCommunity(),
+        home: session == null ? SignUp():HomePage(),
       ),
     );
   }
