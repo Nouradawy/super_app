@@ -40,7 +40,6 @@ void main() async{
   runApp(const MyApp());
 }
 
-Session? session = Supabase.instance.client.auth.currentSession;
 
 
 class MyApp extends StatelessWidget {
@@ -49,7 +48,6 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    UserData = session?.user;
     return BlocProvider(
       create:(context) => AppCubit(),
       child: MaterialApp(
@@ -62,7 +60,7 @@ class MyApp extends StatelessWidget {
           // TRY THIS: Try running your application with "flutter run". You'll see
           // the application has a purple toolbar. Then, without quitting the app,
           // try changing the seedColor in the colorScheme below to Colors.green
-          // and then invoke "hot reload" (save your changes or press the "hot
+          // and then invoke "hot reload" (save your changes or press the "ho
           // reload" button in a Flutter-supported IDE, or press "r" if you used
           // the command line to start the app).
           //
@@ -75,7 +73,27 @@ class MyApp extends StatelessWidget {
           // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: session == null ? SignUp():HomePage(),
+        home: StreamBuilder<AuthState>(
+          stream: Supabase.instance.client.auth.onAuthStateChange,
+          builder: (context, snapshot) {
+            // 1. While waiting for the first auth event, you can show a loading screen
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            // 2. Once data is received, check if there is a session
+            if (snapshot.hasData && snapshot.data!.session != null) {
+              // User is logged in, show the HomePage
+              UserData = snapshot.data!.session!.user; // You can set your global UserData here
+              return  HomePage();
+            } else {
+              // User is not logged in, show the SignUp page
+              return  SignUp();
+            }
+          },
+        ),
       ),
     );
   }

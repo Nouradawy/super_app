@@ -20,7 +20,6 @@ class Social extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     return Column(
       children: [
         TabBar(
@@ -655,7 +654,7 @@ class Social extends StatelessWidget {
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12.0,
+                                horizontal: 0,
                               ),
                               child: Row(
                                 mainAxisAlignment:
@@ -740,7 +739,7 @@ class Social extends StatelessWidget {
                               children: [
                                 ConstrainedBox(
                                   constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.sizeOf(context).width*0.66
+                                      maxWidth: MediaQuery.sizeOf(context).width*0.64
                                   ),
                                   child: PostTextForm(
                                     context,
@@ -752,30 +751,23 @@ class Social extends StatelessWidget {
                                   constraints: BoxConstraints(
                                     maxHeight: 28,
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-
-                                      IconButton(
-                                          onPressed: () async {
-                                            Comments = AppCubit.get(context).Posts[index]['Comments'];
-                                            Comments.add({'authorid':Userid,
-                                                'comment':Comment.text,});
-                                            print(Comments);
-                                            await supabase.from('Posts').update({
-                                              'Comments':Comments
-                                            }).eq('id',AppCubit.get(context).Posts[index]['id']).select();
-                                            Comments.clear();
-                                            Navigator.pop(context);
-                                          },
-                                          icon: Icon(Icons.send_rounded),
-                                          iconSize:15,
-                                        padding: EdgeInsets.zero,
-                                        constraints: BoxConstraints(),
-                                        splashRadius: 15,
-                                      ),
-                                    ],
+                                  child: IconButton(
+                                      onPressed: () async {
+                                        Comments = AppCubit.get(context).Posts[index]['Comments']?? [];
+                                        Comments.add({'authorid':Userid,
+                                            'comment':Comment.text,});
+                                        print(Comments);
+                                        await supabase.from('Posts').update({
+                                          'Comments':Comments
+                                        }).eq('id',AppCubit.get(context).Posts[index]['id']).select();
+                                        Comments.clear();
+                                        Navigator.pop(context);
+                                      },
+                                      icon: Icon(Icons.send_rounded),
+                                      iconSize:15,
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints(),
+                                    splashRadius: 15,
                                   ),
                                 )
                               ],

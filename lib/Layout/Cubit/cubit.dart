@@ -53,6 +53,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   }
 
+
   void Passon(){
     isPassword =! isPassword;
     suffixIcon = isPassword ?Icons.visibility:Icons.visibility_off;

@@ -180,7 +180,7 @@ class AudioMessageWidget extends StatelessWidget {
             ),
             SizedBox(height: 5,),
             //TODO:Add audiourl
-            AudioMessageBuilder(audioUrl: message.source, duration: message.duration.toString(), amplitudes: amplitudes,),
+            AudioMessageBuilder(audioUrl: message.source, duration: message.duration, amplitudes: amplitudes,),
             const SizedBox(height: 5),
             Row(
               mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
@@ -231,7 +231,7 @@ class AudioMessageWidget extends StatelessWidget {
 
 class AudioMessageBuilder extends StatefulWidget {
   final String audioUrl;
-  final String duration;
+  final Duration  duration;
   final List<double> amplitudes;
 
   const AudioMessageBuilder({
@@ -253,6 +253,12 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return "$minutes:$seconds";
   }
 
   Future<void> _togglePlay() async {
@@ -307,7 +313,7 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
               ),
             ),
           ),
-          Text(widget.duration),
+          Text(_formatDuration(widget.duration)),
         ],
       ),
     );

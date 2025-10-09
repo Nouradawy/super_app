@@ -49,7 +49,8 @@ class _GeneralchatState extends State<Generalchat> {
   late final TextEditingController _chatTextController;
   int? _channelId;
 
-
+  bool _isInitializing = true;
+  late final String _userId;
 
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
@@ -70,15 +71,14 @@ class _GeneralchatState extends State<Generalchat> {
   RealtimeChannel? _realtimeChannel;
   static const String _messagesCacheKey = 'chat_messages';
 
+
   @override
   void initState() {
     super.initState();
+    _initializeChat();
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _scrollController = ScrollController();
-    _reactionsController = ReactionsController(currentUserId: Userid);
-    _initializeAndSubscribe();
-    // _loadMessagesFromCacheAndFetchLatest();
     _chatTextController.addListener(_handleTypingStatus);
 
 
@@ -116,6 +116,8 @@ class _GeneralchatState extends State<Generalchat> {
       // Handle the error, maybe show a message to the user
     }
   }
+
+
   @override
   void dispose() {
     _realtimeChannel?.unsubscribe();
@@ -128,6 +130,29 @@ class _GeneralchatState extends State<Generalchat> {
     super.dispose();
   }
 
+  Future<void> _initializeChat() async {
+    // It can be helpful to wait for the end of the frame
+    await Future.delayed(Duration.zero);
+    if (!mounted) return;
+
+    // Fetch the user ID safely within the widget itself
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
+    if (userId == null) {
+      // Handle the error, maybe show a message or pop the screen
+      print("FATAL: GeneralChat loaded without a logged-in user.");
+      if (mounted) setState(() => _isInitializing = false);
+      return;
+    }
+
+    // Now that you have the ID, initialize everything that depends on it
+    setState(() {
+      _userId = userId;
+      _reactionsController = ReactionsController(currentUserId: _userId);
+      _initializeAndSubscribe();
+      _isInitializing = false; // Turn off the loading indicator
+    });
+  }
 
   void _subscribeToRealtime() {
     if (_channelId == null) return;
@@ -260,7 +285,7 @@ class _GeneralchatState extends State<Generalchat> {
       await supabase.from('message_receipts').upsert(
         {
           'message_id': messageId,
-          'user_id': Userid,
+          'user_id': _userId,
           'seen_at': DateTime.now().toIso8601String(),
         },
         onConflict: 'message_id, user_id',
@@ -396,7 +421,7 @@ class _GeneralchatState extends State<Generalchat> {
 
     final placeholderMessage = types.CustomMessage(
       id: localId,
-      authorId: Userid,
+      authorId: _userId,
       createdAt: await NTP.now(),
       metadata: {
         'type': 'image',
@@ -432,7 +457,7 @@ class _GeneralchatState extends State<Generalchat> {
       // 4. Insert one message record with the Google Drive link
       await supabase.from('messages').insert({
         'id': const Uuid().v4(),
-        'author_id': Userid,
+        'author_id': _userId,
         'uri': driveLink, // The link from Google Drive
         'created_at': (await NTP.now()).toIso8601String(), // Use NTP UTC time
         'channel_id': _channelId,
@@ -560,14 +585,14 @@ class _GeneralchatState extends State<Generalchat> {
 
     _chatController.insertMessage(types.TextMessage(
         id: id,
-        authorId:Userid,
+        authorId:_userId,
         text: text,
         createdAt: await NTP.now(),
     ));
 
     await supabase.from('messages').insert({
       'id': id,
-      'author_id': Userid,
+      'author_id': _userId,
       'text': text,
       'channel_id': _channelId,
       'created_at' :  (await NTP.now()).toIso8601String(),
@@ -663,7 +688,12 @@ class _GeneralchatState extends State<Generalchat> {
   }
   @override
   Widget build(BuildContext context) {
-
+    if (_isInitializing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("General Chat")),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       appBar:AppBar(
           title:Text("General Chat"),
@@ -672,7 +702,7 @@ class _GeneralchatState extends State<Generalchat> {
         children: [
           Chat(
             chatController: _chatController,
-            currentUserId: Userid,
+            currentUserId: _userId,
             resolveUser: (id) async{
 
               // THIS IS THE KEY: Replace your old resolveUser with this new version
@@ -737,7 +767,7 @@ class _GeneralchatState extends State<Generalchat> {
                             if (info.visibleFraction  >= 0.8 ) {
 
                               // Call a function to mark the message as seen
-                             if(message.authorId != Userid) _markMessageAsSeen(message.id);
+                             if(message.authorId != _userId) _markMessageAsSeen(message.id);
                             }
                           },
                           child: ChatMessageWrapper(

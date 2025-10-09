@@ -96,7 +96,7 @@ class HomePage extends StatelessWidget {
             ).toList(),
               onSelected:(selectedkey) async {
               if(selectedkey == '0'){
-                Navigator.push(
+                Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => JoinCommunity()),
                 );
@@ -313,14 +313,15 @@ class HomePage extends StatelessWidget {
                           initialButtonHight: 40,
                           finalButtonWidth: 60,
                           finalButtonHight: 60,
+
                           encode: AudioEncoderType.AAC,
                           waveformBuilder: (amplitudes) {
                             AppCubit.get(context).recordedAmplitudes = amplitudes;
                             return CustomPaint(
                               painter: AudioWaveformPainter(
                                 amplitudes: amplitudes,
-                                waveColor: Colors.white,
-                        
+                                waveColor: Colors.black,
+
                               ),
                             );
                           },
