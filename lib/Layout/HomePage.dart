@@ -96,14 +96,14 @@ class HomePage extends StatelessWidget {
             ).toList(),
               onSelected:(selectedkey) async {
               if(selectedkey == '0'){
-                Navigator.pushReplacement(
+                Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => JoinCommunity()),
                 );
               } else {
                 selectedCompoundId =  int.parse(selectedkey.toString());
                 context.read<AppCubit>().selectCompound();
-                print(selectedCompoundId);
+                print(selectedkey);
                 await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
               }
               },

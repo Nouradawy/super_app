@@ -243,10 +243,13 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   List Posts=[];
 
-  Future<void> getPostsData (int compoundId) async {
+  Future<void> getPostsData (int? compoundId) async {
+    if(compoundId !=null)
     Posts = await supabase.from('Posts').select('*').eq('compound_id', compoundId);
     emit(GetPostsDataStates());
   }
+
+
 
 
 

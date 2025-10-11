@@ -69,6 +69,7 @@ dependencies:
   just_waveform: ^0.0.7
 
 
+
   path_provider: ^2.1.5
   social_media_recorder:
     path: "../CustomFlutterPackeges/social_media_recorder-1.2.1"

@@ -24,12 +24,13 @@ class MessageWidget extends StatelessWidget {
   final ReactionsController controller;
   final int messageIndex;
   final InMemoryChatController chatController;
-  final Username userName;
+  final String? userName;
 
 
   @override
   Widget build(BuildContext context) {
     final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
+    final hasReactions = controller.getReactionCounts(message.id).isNotEmpty;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -40,9 +41,13 @@ class MessageWidget extends StatelessWidget {
         child: Stack(
           children: [
             // message
-            messageBuilder(
-              context,
-              isMe
+            Padding(
+              padding: EdgeInsets.only(bottom: hasReactions ? 12.0 : 0),
+              child: messageBuilder(
+                context,
+                isMe,
+                  hasReactions
+              ),
             ),
 
             //reactions
@@ -60,7 +65,7 @@ class MessageWidget extends StatelessWidget {
   Widget buildReactions(BuildContext context, bool isMe) {
     return isMe
         ? Positioned(
-      bottom: 8,
+      bottom: 0,
       right: 20,
       child: StackedReactions(
         messageId: message.id,
@@ -72,7 +77,7 @@ class MessageWidget extends StatelessWidget {
       ),
     )
         : Positioned(
-      bottom: 2,
+      bottom: 0,
       left: 8,
       child: StackedReactions(
         messageId: message.id,
@@ -90,16 +95,12 @@ bool isPrevPost(){
 }
 
   Widget messageBuilder(
-      context ,isMe
+      context ,isMe , hasReactions
       ){
 
-    final hasReactions = controller.getReactionCounts(message.id).isNotEmpty;
+
     // padding for the message card
-    final padding = hasReactions
-        ? isMe
-        ? const EdgeInsets.only(left: 30.0, bottom: 25.0)
-        : const EdgeInsets.only(right: 30.0, bottom: 25.0)
-        : const EdgeInsets.only(bottom: 5.0);
+    final padding = const EdgeInsets.only(bottom: 2.0);
 
     final BackgroundColor = isMe
         ? Colors.indigo
@@ -109,13 +110,13 @@ bool isPrevPost(){
         : Theme.of(context).colorScheme.onSecondary;
 
     final List<Widget> UserInformation =[
-      Container(
+       userName !=null ?Container(
           padding: EdgeInsets.symmetric(horizontal: 3,vertical: 1),
           decoration: BoxDecoration(
             color: Colors.black.withAlpha(120),
             borderRadius: BorderRadius.circular(5),
           ),
-          child:userName),
+          child:Text(userName! ,style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent),)):SizedBox.shrink(),
       Container(
           padding: EdgeInsets.symmetric(horizontal: 3,vertical: 1),
           decoration: BoxDecoration(
@@ -125,84 +126,86 @@ bool isPrevPost(){
           child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
     ];
 
-    final List<Widget> chatObjects=[
-      ChatBubble(
-      padding: EdgeInsets.symmetric(horizontal: 15,vertical: 2),
-      clipper: isMe
-          ? isPrevPost()? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
-          type:BubbleType.sendBubble,
-          radius: 10,
-          nipRadius: 0,
-          nipHeight: 14,
-          nipWidth: 5
-      )
-          :ChatBubbleClipper1(
-          type:BubbleType.receiverBubble,
-          radius: 10,
-          nipRadius: 0,
-          nipHeight: 14,
-          nipWidth: 5
-      ),
-      alignment: isMe
-          ?Alignment.topRight
-          :Alignment.topLeft,
-      backGroundColor: BackgroundColor,
-      child:Column(
-        crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(height: 2,),
-          Row(
-            spacing: 15,
-            mainAxisSize: MainAxisSize.max,
-            children: isMe?UserInformation.reversed.toList():UserInformation,
-          ),
-          SizedBox(height: 5,),
-          Text(
-            message.text,
-            style: TextStyle(
-              color: textColor,
-            ),
-          ),
 
-          const SizedBox(height: 5),
-          Row(
-            mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Text(
-                //TODO:: Change Time sent logic for Messages Widget
-                message.createdAt !=null ?formatTimestampToAmPm(message.createdAt.toString()):"null",
-                style: TextStyle(
-                  fontSize: 10,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(width: 5),
-              message.seenAt !=null ?Icon(
-                Icons.done_all,
-                color: Colors.greenAccent,
-                size: 13,
-              ):Icon(
-                Icons.done_all,
-                color: Colors.grey,
-                size: 13,
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-      Avatar(userId: message.authorId)
-    ];
     return Material(
       color:Colors.transparent,
       child: Padding(
         padding: padding,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: isMe?chatObjects:chatObjects.reversed.toList()
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            // prevents full-width stretch
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          child: ChatBubble(
+            padding: EdgeInsets.symmetric(horizontal: 15,vertical: 2),
+            clipper: isMe
+                ? isPrevPost()? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
+                type:BubbleType.sendBubble,
+                radius: 10,
+                nipRadius: 0,
+                nipHeight: 14,
+                nipWidth: 5
+            )
+                :ChatBubbleClipper1(
+                type:BubbleType.receiverBubble,
+                radius: 10,
+                nipRadius: 0,
+                nipHeight: 14,
+                nipWidth: 5
+            ),
+            alignment: isMe
+                ?Alignment.topRight
+                :Alignment.topLeft,
+            backGroundColor: BackgroundColor,
+            child:Column(
+              crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+
+              children: [
+                // SizedBox(height: 2,),
+                Row(
+                  spacing: 15,
+                  mainAxisSize: MainAxisSize.min,
+                  children: isMe?UserInformation.reversed.toList():UserInformation,
+                ),
+                SizedBox(height: 3,),
+                Flexible(
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: textColor,
+                    ),
+                  ),
+                ),
+          
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      //TODO:: Change Time sent logic for Messages Widget
+                      message.createdAt !=null ?formatTimestampToAmPm(message.createdAt.toString()):"null",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    message.seenAt !=null ?Icon(
+                      Icons.done_all,
+                      color: Colors.greenAccent,
+                      size: 13,
+                    ):Icon(
+                      Icons.done_all,
+                      color: Colors.grey,
+                      size: 13,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

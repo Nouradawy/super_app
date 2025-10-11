@@ -70,9 +70,11 @@ class JoinCommunity extends StatelessWidget {
 
                           await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
 
-                          Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => HomePage()));
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => HomePage()),
+                                (Route<dynamic> route) => false, // This predicate removes all previous routes
+                          );
                           selectedCompoundId = compound.id;
                         },
                         leading: ClipRRect(

@@ -30,11 +30,10 @@ import 'chatWidget/AudioWaveformPainter.dart';
 import 'chatWidget/ImageMessageWidget.dart';
 import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
-
+import 'package:provider/provider.dart';
 
 
 final supabase = Supabase.instance.client;
-
 
 
 class Generalchat extends StatefulWidget {
@@ -69,8 +68,7 @@ class _GeneralchatState extends State<Generalchat> {
 
   String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
-  static const String _messagesCacheKey = 'chat_messages';
-
+  types.User? Message_user ;
 
   @override
   void initState() {
@@ -93,30 +91,6 @@ class _GeneralchatState extends State<Generalchat> {
     // });
 
   }
-
-  Future<void> _initializeAndSubscribe() async {
-    try {
-      final response = await supabase
-          .from('channels')
-          .select('id')
-          .eq('compound_id', widget.compoundId) // Use the passed-in compoundId
-          .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
-          .single(); // Assuming one general channel per compound
-
-      setState(() {
-        _channelId = response['id'];
-      });
-
-      // Now that we have the channel ID, we can load messages and subscribe
-      _loadMessagesFromCacheAndFetchLatest();
-      _subscribeToRealtime();
-
-    } catch (error) {
-      print('Error fetching channel ID: $error');
-      // Handle the error, maybe show a message to the user
-    }
-  }
-
 
   @override
   void dispose() {
@@ -153,7 +127,28 @@ class _GeneralchatState extends State<Generalchat> {
       _isInitializing = false; // Turn off the loading indicator
     });
   }
+  Future<void> _initializeAndSubscribe() async {
+    try {
+      final response = await supabase
+          .from('channels')
+          .select('id')
+          .eq('compound_id', widget.compoundId) // Use the passed-in compoundId
+          .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
+          .single(); // Assuming one general channel per compound
 
+      setState(() {
+        _channelId = response['id'];
+      });
+
+      // Now that we have the channel ID, we can load messages and subscribe
+      _loadMessagesFromCacheAndFetchLatest();
+      _subscribeToRealtime();
+
+    } catch (error) {
+      print('Error fetching channel ID: $error');
+      // Handle the error, maybe show a message to the user
+    }
+  }
   void _subscribeToRealtime() {
     if (_channelId == null) return;
 
@@ -666,6 +661,40 @@ class _GeneralchatState extends State<Generalchat> {
     return "$minutes:$seconds";
   }
 
+  Future<types.User?> _resolveUser(String id) async {
+    // THIS IS THE KEY: Replace your old resolveUser with this new version
+    if(_userCache.containsKey(id)){
+      return _userCache[id]!;
+    }
+    // 2. If not in cache, fetch the profile from your 'profiles' table
+    try{
+      final response = await supabase
+          .from('profiles')
+          .select('display_name , avatar_url')
+          .eq('id',id)
+          .single(); // Use .single() as each user has only one profile
+
+      final user = types.User(
+        id:id,
+        name: response['display_name'] ?? 'Unknown',
+        imageSource: response['avatar_url'],
+      );
+      // 3. Store the newly fetched user in the cache
+      _userCache[id]  = user;
+      setState(() {
+        Message_user = user;
+      });
+
+      return user;
+    } catch (error) {
+      print("User not found in profiles table with id : "+id);
+      // If any error occurs (e.g., profile not found), return an 'Unknown' user
+      final unknownUser = types.User(id: id, name: 'Unknown');
+      _userCache[id] = unknownUser; // Cache the unknown user too
+      return unknownUser;
+    }
+  }
+
 
   void _handleTypingStatus() {
     if (_chatTextController.text.isNotEmpty && !_isTyping) {
@@ -703,37 +732,7 @@ class _GeneralchatState extends State<Generalchat> {
           Chat(
             chatController: _chatController,
             currentUserId: _userId,
-            resolveUser: (id) async{
-
-              // THIS IS THE KEY: Replace your old resolveUser with this new version
-             if(_userCache.containsKey(id)){
-               return _userCache[id]!;
-             }
-             // 2. If not in cache, fetch the profile from your 'profiles' table
-            try{
-               final response = await supabase
-                   .from('profiles')
-                   .select('display_name , avatar_url')
-                   .eq('id',id)
-                   .single(); // Use .single() as each user has only one profile
-
-              final user = types.User(
-                id:id,
-                name: response['display_name'] ?? 'Unknown',
-                imageSource: response['avatar_url'],
-              );
-              // 3. Store the newly fetched user in the cache
-              _userCache[id]  = user;
-              return user;
-
-            } catch (error) {
-               print("User not found in profiles table with id : "+id);
-              // If any error occurs (e.g., profile not found), return an 'Unknown' user
-              final unknownUser = types.User(id: id, name: 'Unknown');
-              _userCache[id] = unknownUser; // Cache the unknown user too
-              return unknownUser;
-            }
-            },
+            resolveUser: _resolveUser,
 
             onMessageSend: (text) {
 
@@ -758,6 +757,7 @@ class _GeneralchatState extends State<Generalchat> {
                         .where((m) => m.id == replyToId)
                         .cast<types.Message?>()
                         .firstOrNull;
+                    final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
 
                     return Stack(
                       children: [
@@ -770,26 +770,33 @@ class _GeneralchatState extends State<Generalchat> {
                              if(message.authorId != _userId) _markMessageAsSeen(message.id);
                             }
                           },
-                          child: ChatMessageWrapper(
-                              messageId: message.id,
-                              controller: _reactionsController,
-                              onMenuItemTapped: (item){
-                                if(item.label == "Reply") {
-                                  setState(() {
-                                    _repliedMessage = message;
-                                  });
-                                }
-                              },
-                              child: MessageWidget(
-                                message: message,
-                                controller: _reactionsController,
-                                messageIndex:index ,
-                                chatController: _chatController,
-                                userName : Username(
-                                    userId: message.authorId,
-                                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
-                                ),
-                              )),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: isMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
+                            children: [
+                              ChatMessageWrapper(
+                                  messageId: message.id,
+                                  controller: _reactionsController,
+
+                                  onMenuItemTapped: (item){
+                                    if(item.label == "Reply") {
+                                      setState(() {
+                                        _repliedMessage = message;
+                                      });
+                                    }
+                                  },
+
+                                  child: MessageWidget(
+                                    message: message,
+                                    controller: _reactionsController,
+                                    messageIndex:index ,
+                                    chatController: _chatController,
+                                    userName :  Message_user?.name,
+
+                                  )),
+                              Avatar(userId: message.authorId)
+                            ],
+                          ),
                         ),
                         // if (repliedMessage != null && repliedMessage is types.TextMessage)
                         // Container(
