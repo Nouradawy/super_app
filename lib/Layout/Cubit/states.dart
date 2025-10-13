@@ -16,3 +16,4 @@ class UploadProgressStates extends AppCubitStates{}
 class GetPostsDataStates extends AppCubitStates{}
 class CompoundIdChanged extends AppCubitStates{}
 class NewPostState extends AppCubitStates{}
+class BottomNavIndexChangeStates extends AppCubitStates{}

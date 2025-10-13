@@ -8,7 +8,7 @@ import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
 import 'package:super_app/Layout/Maintenance.dart';
 import 'package:super_app/Network/CacheHelper.dart';
-
+import 'package:permission_handler/permission_handler.dart';
 import 'Components/BlocObserver.dart';
 import 'Confg/supabase.dart';
 import 'Layout/GeneralChat.dart';
@@ -87,8 +87,10 @@ class MyApp extends StatelessWidget {
             if (snapshot.hasData && snapshot.data!.session != null) {
               // User is logged in, show the HomePage
               UserData = snapshot.data!.session!.user; // You can set your global UserData here
+              requestPermision();
               return  HomePage();
             } else {
+              requestPermision();
               // User is not logged in, show the SignUp page
               return  SignUp();
             }
@@ -99,3 +101,12 @@ class MyApp extends StatelessWidget {
   }
 }
 
+Future<void> requestPermision() async {
+  if(await Permission.microphone.status.isDenied || await Permission.storage.status.isDenied)
+  {
+    await [
+      Permission.microphone,
+      Permission.storage
+    ].request();
+  }
+}

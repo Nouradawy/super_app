@@ -10,10 +10,6 @@ import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:super_app/sevices/GoogleDriveService.dart';
 import '../Confg/supabase.dart';
 import '../sevices/DriveImageWidget.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
-import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
-
 import 'Constants.dart';
 
 bool Mounted =false;
@@ -34,6 +30,7 @@ class Social extends StatelessWidget {
         ),
         Expanded(
           child: TabBarView(
+            physics:LessSensitivePageScrollPhysics() ,
             children: [
               RefreshIndicator(
                 onRefresh: () => AppCubit.get(context).getPostsData(selectedCompoundId!),
@@ -824,5 +821,53 @@ class Social extends StatelessWidget {
         );
       },
     );
+  }
+}
+/// A custom scroll physics that makes the TabBarView more sensitive to swipes.
+class LessSensitivePageScrollPhysics extends PageScrollPhysics {
+  const LessSensitivePageScrollPhysics({super.parent});
+
+  @override
+  LessSensitivePageScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return LessSensitivePageScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  // This is the updated override with the correct signature
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics metrics, double velocity) {
+    // Defer to the parent simulation if the user is not swiping
+    // or if they are at the edge of the scroll view.
+    if ((velocity.abs() < tolerance.velocity) ||
+        (velocity > 0.0 && metrics.pixels >= metrics.maxScrollExtent) ||
+        (velocity < 0.0 && metrics.pixels <= metrics.minScrollExtent)) {
+      return super.createBallisticSimulation(metrics, velocity);
+    }
+
+    // Determine the target page
+    final double target = _getTargetPixels(metrics, velocity);
+
+    // If the target is different from the current position, create a simulation
+    if (target != metrics.pixels) {
+      return ScrollSpringSimulation(spring, metrics.pixels, target, velocity,
+          tolerance: tolerance);
+    }
+
+    // If no simulation is needed, return null
+    return null;
+  }
+
+  double _getTargetPixels(ScrollMetrics metrics, double velocity) {
+    double page = metrics.pixels / metrics.viewportDimension;
+
+    // This is the key logic: we give the swipe a "push"
+    // to make it easier to cross the threshold for a page change.
+    if (velocity < -tolerance.velocity) {
+      page -= 0.6; // Adjust this value to control left swipe sensitivity
+    } else if (velocity > tolerance.velocity) {
+      page += 0.6; // Adjust this value to control right swipe sensitivity
+    }
+
+    // Snap to the nearest whole page
+    return page.round() * metrics.viewportDimension;
   }
 }

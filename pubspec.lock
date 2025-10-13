@@ -361,10 +361,9 @@ packages:
   flutter_chat_reactions:
     dependency: "direct main"
     description:
-      name: flutter_chat_reactions
-      sha256: c7b3544327247fcae38b7d3523d2800b5a6eddff48fcb89e1350ed96e11c8781
-      url: "https://pub.dev"
-    source: hosted
+      path: "../CustomFlutterPackeges/flutter_chat_reactions-0.2.6"
+      relative: true
+    source: path
     version: "0.2.6"
   flutter_chat_ui:
     dependency: "direct main"
@@ -574,7 +573,7 @@ packages:
     source: hosted
     version: "3.0.1"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: bb2ce4590bc2667c96f318d68cac1b5a7987ec819351d32b1c987239a815e007
@@ -862,7 +861,7 @@ packages:
     source: hosted
     version: "4.2.5"
   permission_handler:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: permission_handler
       sha256: bc917da36261b00137bbc8896bf1482169cd76f866282368948f032c8c1caae1

@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:ntp/ntp.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
@@ -20,6 +22,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
   static AppCubit get(context) => BlocProvider.of(context);
 
+  int bottomNavIndex = 0;
   bool isPassword = true;
   String? RoleName ;
 
@@ -30,6 +33,8 @@ class AppCubit extends Cubit<AppCubitStates> {
   int  tabBarIndex =  0 ;
   bool isRecording = false;
   List<double> recordedAmplitudes = [];
+
+  types.InMemoryChatController? chatController ;
 
 
   /// used to Switch TabBar Index at [Social] page
@@ -45,6 +50,12 @@ class AppCubit extends Cubit<AppCubitStates> {
       isChatInputEmpty = isEmpty;
       emit(ShowHideMicStates());
     }
+  }
+
+  void bottomNavIndexChange(index){
+    bottomNavIndex = index;
+    print(bottomNavIndex);
+    emit(BottomNavIndexChangeStates());
   }
 
   void selectCompound() {
@@ -124,6 +135,25 @@ class AppCubit extends Cubit<AppCubitStates> {
     // 1. Instantiate your Google Drive service
     final googleDriveService = GoogleDriveService();
     int? _channelId;
+    final localId = const Uuid().v4(); // Unique ID for our placeholder
+    // TODO: Consider showing a loading indicator to the user here
+
+    final placeholderMessage = types.AudioMessage(
+      id: localId,
+      authorId: Userid,
+      createdAt: await NTP.now(),
+      metadata: {
+        'type': 'soundFile',
+        'localId': localId,
+        'status': 'processing',
+        'waveform': amplitudes,
+      },
+      source: "soundFile",
+      duration: duration,
+
+    );
+
+    chatController?.insertMessage(placeholderMessage);
     final response = await supabase
         .from('channels')
         .select('id')
@@ -169,15 +199,17 @@ class AppCubit extends Cubit<AppCubitStates> {
         'id': const Uuid().v4(),
         'author_id': Userid, // Assuming Userid is accessible here
         'uri': gumleturl, // The public link from Google Drive
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': (await NTP.now()).toIso8601String(),
         'channel_id': _channelId,
         'metadata': {
           'type': 'audio',
           'name': fileName,
           'size': await soundFile.length(),
+          'localId': localId,
           // Format duration to a string like "01:23"
           'duration': '${duration.inMinutes.remainder(60).toString().padLeft(2, '0')}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
           'waveform': amplitudes,
+          'status': 'processing'
         },
       });
 

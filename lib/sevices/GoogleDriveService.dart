@@ -154,32 +154,31 @@ class GoogleDriveService {
 
   // downloadFile remains mostly the same but uses the user's auth
   Future<Uint8List?> downloadFile(String fileId) async {
-    // 2. Check the cache first!
+    // 1. Check the cache first (this is good practice and remains unchanged).
     if (_imageCache.containsKey(fileId)) {
-      print('Image found in cache for fileId: $fileId');
       return _imageCache[fileId];
     }
     try {
-      final client = await getAuthenticatedClient();
-      if (client == null) throw Exception('Authentication failed.');
+      // 2. Construct the direct public download URL.
+      final downloadUrl = 'https://drive.google.com/uc?export=download&id=$fileId';
+      final uri = Uri.parse(downloadUrl);
 
-      final driveApi = gdrive.DriveApi(client);
-      final gdrive.Media file = await driveApi.files.get(
-        fileId,
-        downloadOptions: gdrive.DownloadOptions.fullMedia,
-      ) as gdrive.Media;
+      // 3. Use a standard, unauthenticated http client to fetch the file.
+      //    We are NOT using getAuthenticatedClient() here.
+      final response = await http.get(uri);
 
-      final List<int> dataStore = [];
-      await for (var data in file.stream) {
-        dataStore.addAll(data);
+      if (response.statusCode == 200) {
+        final downloadedData = response.bodyBytes;
+
+        // 4. Save the newly downloaded data to the cache.
+        _imageCache[fileId] = downloadedData;
+
+        return downloadedData;
+      } else {
+        // Handle cases where the download fails (e.g., file not found).
+        print('Error downloading file: Status code ${response.statusCode}');
+        return null;
       }
-      final downloadedData = Uint8List.fromList(dataStore);
-
-      // 3. Save the newly downloaded data to the cache
-      _imageCache[fileId] = downloadedData;
-
-
-      return Uint8List.fromList(dataStore);
     } catch (e) {
       print('Error downloading from Google Drive: $e');
       return null;

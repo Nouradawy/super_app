@@ -16,21 +16,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:social_media_recorder/audio_encoder_type.dart';
-import 'package:social_media_recorder/screen/social_media_recorder.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/chatWidget/AudioMessageWidget.dart';
 import 'package:uuid/uuid.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
 import '../Confg/supabase.dart';
-import 'chatWidget/AudioWaveformPainter.dart';
-import 'chatWidget/ImageMessageWidget.dart';
+import 'package:http/http.dart' as http;
 import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
-import 'package:provider/provider.dart';
+
 
 
 final supabase = Supabase.instance.client;
@@ -50,7 +47,7 @@ class _GeneralchatState extends State<Generalchat> {
 
   bool _isInitializing = true;
   late final String _userId;
-
+///Initialize _userCache from supabase
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
@@ -65,6 +62,7 @@ class _GeneralchatState extends State<Generalchat> {
   bool _isLoading = false;
   bool _hasMore = true;
   bool _isTyping = false;
+
 
   String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
@@ -92,8 +90,11 @@ class _GeneralchatState extends State<Generalchat> {
 
   }
 
+
+  final Map<String, Timer> _pollingTimers = {};
   @override
   void dispose() {
+    _pollingTimers.values.forEach((timer) => timer.cancel());
     _realtimeChannel?.unsubscribe();
     _chatController.dispose();
     _scrollController.dispose();
@@ -155,7 +156,7 @@ class _GeneralchatState extends State<Generalchat> {
     _realtimeChannel = supabase
         .channel('public:messages:channel_id=eq.$_channelId')
         .onPostgresChanges(
-      event: PostgresChangeEvent.insert,
+      event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'messages',
         filter: PostgresChangeFilter(
@@ -164,35 +165,96 @@ class _GeneralchatState extends State<Generalchat> {
           value: _channelId,
         ),
       callback: (payload) {
-        final newMessageMap = payload.newRecord;
-        final localId = newMessageMap['metadata']?['localId'];
+        // ADD LOGIC TO HANDLE DIFFERENT EVENT TYPES
+        if (payload.eventType == PostgresChangeEvent.insert) {
+          final newMessageMap = payload.newRecord;
+          final localId = newMessageMap['metadata']?['localId'];
 
-        // --- Replacement Logic ---
-        if (localId != null) {
-          // Find and remove the placeholder message
-          try {
-            final placeholder = _chatController.messages
-                .firstWhere((m) => m.id == localId);
-            _chatController.removeMessage(placeholder);
-            _uploadProgress.remove(localId); // Clean up progress tracking
-          } catch (e) {
-            // Placeholder might not be found if the user scrolled away and it was disposed
-            print('Could not find placeholder to remove: $e');
+          if (localId != null) {
+            try {
+              final placeholder = _chatController.messages.firstWhere((m) =>
+              m.id == localId);
+              _chatController.removeMessage(placeholder);
+            } catch (e) {
+              print('Could not find placeholder to remove: $e');
+            }
+          }
+          final newMessage = _mapToMessage(newMessageMap);
+          if (newMessage is types.AudioMessage && newMessage.metadata?['status'] == 'processing') {
+            _startPollingForMessage(newMessage);
+          }
+          if (!_chatController.messages.any((m) => m.id == newMessage.id)) {
+            _chatController.insertMessage(newMessage);
+          }
+        } else if (payload.eventType == PostgresChangeEvent.update) {
+          // THIS IS THE NEW LOGIC FOR UPDATES
+          final updatedMessageMap = payload.newRecord;
+          final updatedMessage = _mapToMessage(updatedMessageMap);
+
+          try{
+            final originalMessage  = _chatController.messages.firstWhere(
+                    (msg) => msg.id == updatedMessage.id
+            );
+
+            // This finds and replaces the message in the chat list, triggering a UI refresh.
+            _chatController.updateMessage(originalMessage , updatedMessage);
+          } catch (e){
+            print('Could not find the original message to update: ${updatedMessage.id}');
           }
         }
 
-        final newMessage = _mapToMessage(newMessageMap);
-
-        if (!_chatController.messages.any((m) => m.id == newMessage.id)) {
-
-          _chatController.insertMessage(newMessage);
-
-          // Save updated list to cache
-          _saveMessagesToCache(_chatController.messages);
-        }
+        _saveMessagesToCache(
+            _chatController.messages); // Save cache on any change
       },
     )
         .subscribe();
+  }
+
+  void _startPollingForMessage(types.AudioMessage message) {
+    // Prevent starting multiple timers for the same message
+    if (_pollingTimers.containsKey(message.id)) return;
+
+    final timer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      final isReadyNow = await _checkUrlIsReady(message.source);
+      if (isReadyNow) {
+        timer.cancel(); // Stop this timer
+        _pollingTimers.remove(message.id); // Remove from tracking
+
+        // Update the message in Supabase so everyone sees it as ready
+        final currentMetadata = message.metadata ?? {};
+        await supabase.from('messages').update({
+          'metadata': {
+            ...currentMetadata,
+            'status': 'ready',
+          }
+        }).eq('id', message.id);
+      }
+    });
+
+    _pollingTimers[message.id] = timer; // Track the new timer
+  }
+
+  Future<void> _deleteMessage(types.Message message) async {
+
+    await supabase.from('messages').update({
+      'text': "this message deleted by the user",
+      'uri':null,
+    'metadata': {
+    'type': 'text',
+    },
+
+
+  }).eq('id', message.id);
+
+  }
+  // Helper function for checking the URL (can also be in this file)
+  Future<bool> _checkUrlIsReady(String url) async {
+    try {
+      final response = await http.head(Uri.parse(url));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<void> _saveMessagesToCache(List<types.Message> messages) async {
@@ -212,8 +274,11 @@ class _GeneralchatState extends State<Generalchat> {
         'author_id': msg.authorId,
         'created_at':msg.createdAt?.toIso8601String(),
         'id': msg.id,
-        'metadata': msg.metadata,
-        'replyToMessageId': msg.replyToMessageId ,
+        'metadata': {
+          ...?msg.metadata, // Use the spread operator to copy existing metadata
+          if (msg.replyToMessageId != null) 'reply_to': msg.replyToMessageId,
+        },
+
         'uri': msg is types.FileMessage
             ? msg.source
             : (msg is types.ImageMessage
@@ -328,7 +393,9 @@ class _GeneralchatState extends State<Generalchat> {
         _saveMessagesToCache(_chatController.messages);
       }
     }
+    AppCubit.get(context).chatController = _chatController;
     setState(() => _isLoading = false);
+
   }
 
 
@@ -342,8 +409,8 @@ class _GeneralchatState extends State<Generalchat> {
 
     switch (messageType) {
       case 'image':
-        final metadata = map['metadata'] as Map<String, dynamic>?;
-        print('iam at Image case ??????????!!!!0');
+
+
         return types.ImageMessage(
           createdAt: DateTime.parse(map['created_at']),
           id: map['id'],
@@ -353,10 +420,11 @@ class _GeneralchatState extends State<Generalchat> {
           height: metadata?['height']?.toDouble(),
           width: metadata?['width']?.toDouble(),
           source: map['uri'],
-          metadata: map['metadata'],
+          metadata: metadata,
+          replyToMessageId: metadata?['reply_to']
         );
       case 'file':
-        final metadata = map['metadata'] as Map<String, dynamic>?;
+
         return types.FileMessage(
           createdAt: DateTime.parse(map['created_at']),
           id: map['id'],
@@ -365,7 +433,8 @@ class _GeneralchatState extends State<Generalchat> {
           size: metadata?['size'] ?? 0,
           mimeType: metadata?['mimeType'],
           source: map['uri'],
-          metadata: map['metadata'],
+          metadata: metadata,
+          replyToMessageId: metadata?['reply_to']
         );
       case 'audio':
         final durationString = metadata?['duration'] ?? '00:00';
@@ -382,7 +451,8 @@ class _GeneralchatState extends State<Generalchat> {
           size: metadata?['size'] ?? 0,
           source: map['uri'], // This will be the Google Drive link
           duration: duration,
-          metadata: map['metadata'],
+          metadata: metadata,
+          replyToMessageId: metadata?['reply_to'],
         );
       default: // 'text'
         return types.TextMessage(
@@ -390,8 +460,8 @@ class _GeneralchatState extends State<Generalchat> {
           id: map['id'],
           authorId:  map['author_id'],
           text: map['text'] ?? '',
-          metadata: map['metadata'],
-          replyToMessageId: (map['metadata'] as Map<String, dynamic>?)?['reply_to'],
+          metadata: metadata,
+          replyToMessageId: metadata?['reply_to'],
           deliveredAt: DateTime.parse(map['created_at']),
           seenAt: seenAtTimestamp,
 
@@ -570,6 +640,8 @@ class _GeneralchatState extends State<Generalchat> {
     });
   }
 
+
+
   void _handleSendPressed(text) async {
     if (_channelId == null) {
       print("Cannot send message, channel ID is not set.");
@@ -583,6 +655,7 @@ class _GeneralchatState extends State<Generalchat> {
         authorId:_userId,
         text: text,
         createdAt: await NTP.now(),
+      replyToMessageId: _repliedMessage?.id
     ));
 
     await supabase.from('messages').insert({
@@ -598,7 +671,9 @@ class _GeneralchatState extends State<Generalchat> {
       },
 
     });
+
     setState(() {
+
       _repliedMessage = null; // Clear after sending
     });
   }
@@ -606,9 +681,12 @@ class _GeneralchatState extends State<Generalchat> {
   Widget replyTopBar(){
     if (_repliedMessage != null) {
       return Container(
-          width: MediaQuery.sizeOf(context).width*0.7,
+          width: MediaQuery.sizeOf(context).width*0.8,
           decoration: BoxDecoration(
-              color:HexColor("#E8E8E8"),
+              color:types.ChatColors
+                  .light()
+                  .surfaceContainerHigh
+                  .withAlpha(100),
               borderRadius: BorderRadius.only(topLeft: Radius.circular(5),topRight: Radius.circular(5))
           ),
           child: Column(
@@ -631,10 +709,13 @@ class _GeneralchatState extends State<Generalchat> {
                 ],
               ),
               Container(
-                width: MediaQuery.sizeOf(context).width*0.6,
+                width: MediaQuery.sizeOf(context).width*0.7,
                 padding: EdgeInsets.symmetric(horizontal: 10,vertical: 2),
                 decoration: BoxDecoration(
-                    color:Colors.black12,
+                    color:types.ChatColors
+                        .light()
+                        .surfaceContainerHigh
+                        .withAlpha(200),
                     border: BoxBorder.fromLTRB(left: BorderSide(color:Colors.greenAccent , width: 2)),
                     borderRadius: BorderRadius.circular(5)
                 ),
@@ -695,26 +776,24 @@ class _GeneralchatState extends State<Generalchat> {
     }
   }
 
-
   void _handleTypingStatus() {
-    if (_chatTextController.text.isNotEmpty && !_isTyping) {
-      // User started typing
+    // Determine the new typing state based on the text field's content.
+    final bool isCurrentlyTyping = _chatTextController.text.isNotEmpty;
+
+    // Only update the state if the new state is different from the old one.
+    if (isCurrentlyTyping != _isTyping) {
       setState(() {
-        _isTyping = true;
+        _isTyping = isCurrentlyTyping;
       });
-      AppCubit.get(context).showHideMic(_chatTextController.text.isEmpty);
-      // You can add logic here to notify others, e.g., via Supabase
-      print("User is typing...");
-    } else if (_chatTextController.text.isEmpty && _isTyping) {
-      // User cleared the text field
-      setState(() {
-        _isTyping = false;
-      });
-      AppCubit.get(context).showHideMic(_chatTextController.text.isEmpty);
-      // Notify that the user has stopped typing
-      print("User has stopped typing.");
+
+      // The logic for showing/hiding the mic is the inverse of the typing status.
+      AppCubit.get(context).showHideMic(!isCurrentlyTyping);
+
+      // Optional: A cleaner way to log the change.
+      print(isCurrentlyTyping ? "User has started typing." : "User has stopped typing.");
     }
   }
+
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
@@ -733,14 +812,9 @@ class _GeneralchatState extends State<Generalchat> {
             chatController: _chatController,
             currentUserId: _userId,
             resolveUser: _resolveUser,
-
             onMessageSend: (text) {
-
                 _handleSendPressed(text);
-
-
             },
-
             onAttachmentTap:_handleAttachmentPressed,
             builders: types.Builders(
               textMessageBuilder:
@@ -752,66 +826,62 @@ class _GeneralchatState extends State<Generalchat> {
                 required bool isSentByMe,
                 types.MessageGroupStatus? groupStatus,
               }) {
-                    final replyToId = message.metadata?['reply_to'];
-                    final repliedMessage = _chatController.messages
-                        .where((m) => m.id == replyToId)
-                        .cast<types.Message?>()
-                        .firstOrNull;
-                    final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
 
-                    return Stack(
-                      children: [
-                        VisibilityDetector(
-                          key: Key(message.id),
-                          onVisibilityChanged: (VisibilityInfo info) {
-                            if (info.visibleFraction  >= 0.8 ) {
+                    final user = _userCache[message.authorId];
+                    final userNameString = user?.name ?? '...';
+                    if (user == null) {
+                      _resolveUser(message.authorId);
+                    }
 
-                              // Call a function to mark the message as seen
-                             if(message.authorId != _userId) _markMessageAsSeen(message.id);
-                            }
-                          },
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: isMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
-                            children: [
-                              ChatMessageWrapper(
-                                  messageId: message.id,
-                                  controller: _reactionsController,
 
-                                  onMenuItemTapped: (item){
-                                    if(item.label == "Reply") {
-                                      setState(() {
-                                        _repliedMessage = message;
-                                      });
-                                    }
-                                  },
+                    return VisibilityDetector(
+                      key: Key(message.id),
+                      onVisibilityChanged: (VisibilityInfo info) {
+                        if (info.visibleFraction  >= 0.8 ) {
 
-                                  child: MessageWidget(
-                                    message: message,
-                                    controller: _reactionsController,
-                                    messageIndex:index ,
-                                    chatController: _chatController,
-                                    userName :  Message_user?.name,
+                          // Call a function to mark the message as seen
+                         if(message.authorId != _userId) _markMessageAsSeen(message.id);
+                        }
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
+                        children: [
+                          ChatMessageWrapper(
+                              messageId: message.id,
+                              controller: _reactionsController,
+                              config: const ChatReactionsConfig(
+                                // The default is EdgeInsets.all(20.0), which is too large.
+                                // Let's reduce it.
+                                dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                              ),
+                              onMenuItemTapped: (item){
+                                if(item.label == "Reply") {
+                                  setState(() {
+                                    _repliedMessage = message;
+                                  });
 
-                                  )),
-                              Avatar(userId: message.authorId)
-                            ],
-                          ),
-                        ),
-                        // if (repliedMessage != null && repliedMessage is types.TextMessage)
-                        // Container(
-                        //   margin: EdgeInsets.only(bottom: 4),
-                        //   padding: EdgeInsets.all(6),
-                        //   decoration: BoxDecoration(
-                        //     color: Colors.grey[300],
-                        //     borderRadius: BorderRadius.circular(6),
-                        //   ),
-                        //   child: Text(
-                        //     (repliedMessage).text,
-                        //     style: TextStyle(fontSize: 12, color: Colors.black87),
-                        //   ),
-                        // ),
-                      ],
+                                }
+                                if(item.isDestructive)
+                                  {
+                                    setState(() {
+                                    _deleteMessage(message);
+                                    });
+                                  }
+                              },
+
+                              child: MessageWidget(
+                                message: message,
+                                controller: _reactionsController,
+                                messageIndex:index ,
+                                chatController: _chatController,
+                                userName :  userNameString,
+                                userCache: _userCache
+
+                              )),
+                          Avatar(userId: message.authorId)
+                        ],
+                      ),
                     );
                   },
               chatMessageBuilder: (context,
@@ -823,31 +893,7 @@ class _GeneralchatState extends State<Generalchat> {
                 required bool isSentByMe,
                 types.MessageGroupStatus? groupStatus,
                   }) {
-                final isSystemMessage =
-                    message.authorId == 'system';
-                final isFirstInGroup = groupStatus?.isFirst ?? true;
 
-                final shouldShowAvatar = true;
-
-                final shouldShowUsername = true;
-                double avatarSize = 36;
-
-                // 2️⃣ Normalize to non-null DateTimes
-                final current = message.createdAt?.toLocal() ?? DateTime.now();
-                // final prevMsg = index > 0
-                //     ? _chatController.messages[index - 1]
-                //     : null;
-                // final previous =
-                //     prevMsg?.createdAt?.toLocal() ?? current;
-                //
-                // // 3️⃣ Decide which header (if any)
-                // Widget? header;
-                // if (!_isSameDay(previous, current) ||
-                //     current.difference(previous).abs() >
-                //         _timeGapThreshold) {
-                //   // a) day changed → date header
-                //   header = _buildDateandTimeHeader(current);
-                // }
                 return ChatMessage(
                     message: message,
                     index: index,
@@ -869,16 +915,78 @@ class _GeneralchatState extends State<Generalchat> {
           required bool isSentByMe,
               types.MessageGroupStatus? groupStatus,
             }){
-                return  AudioMessageWidget(
-                  message: message,
-                  controller: _reactionsController,
-                  messageIndex:index ,
-                  chatController: _chatController,
-                  userName : Username(
-                      userId: message.authorId,
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
-                  ),
-                );
+
+          final user = _userCache[message.authorId];
+          final userNameString = user?.name ?? '...';
+          if (user == null) {
+            _resolveUser(message.authorId);
+          }
+          return Stack(
+            children: [
+              VisibilityDetector(
+                key: Key(message.id),
+                onVisibilityChanged: (VisibilityInfo info) {
+                  if (info.visibleFraction  >= 0.8 ) {
+
+                    // Call a function to mark the message as seen
+                    if(message.authorId != _userId) _markMessageAsSeen(message.id);
+                  }
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
+                  children: [
+                    ChatMessageWrapper(
+                        messageId: message.id,
+                        controller: _reactionsController,
+                        config: const ChatReactionsConfig(
+                          // The default is EdgeInsets.all(20.0), which is too large.
+                          // Let's reduce it.
+                          dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        ),
+                        onMenuItemTapped: (item){
+                          if(item.label == "Reply") {
+                            setState(() {
+                              _repliedMessage = message;
+                            });
+                          }
+
+                          if(item.isDestructive)
+                          {
+                            setState(() {
+                              _deleteMessage(message);
+                            });
+                          }
+                        },
+
+                        child: MessageWidget(
+                          message: message,
+                          controller: _reactionsController,
+                          messageIndex:index ,
+                          chatController: _chatController,
+                          userName :  userNameString,
+                            userCache: _userCache
+
+                        )),
+                    Avatar(userId: message.authorId)
+                  ],
+                ),
+              ),
+              // if (repliedMessage != null && repliedMessage is types.TextMessage)
+              // Container(
+              //   margin: EdgeInsets.only(bottom: 4),
+              //   padding: EdgeInsets.all(6),
+              //   decoration: BoxDecoration(
+              //     color: Colors.grey[300],
+              //     borderRadius: BorderRadius.circular(6),
+              //   ),
+              //   child: Text(
+              //     (repliedMessage).text,
+              //     style: TextStyle(fontSize: 12, color: Colors.black87),
+              //   ),
+              // ),
+            ],
+          );
         },
 
 
@@ -889,6 +997,18 @@ class _GeneralchatState extends State<Generalchat> {
                     required bool isSentByMe,
                     types.MessageGroupStatus? groupStatus,
                   }) {
+                final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
+
+                final user = _userCache[message.authorId];
+
+                // Use the user's name if available, otherwise show a placeholder.
+                final userNameString = user?.name ?? '...';
+
+                // If the user wasn't in the cache, kick off a fetch.
+                // This will update the cache and trigger a rebuild to show the correct name.
+                if (user == null) {
+                  _resolveUser(message.authorId);
+                }
 
                 String? extractDriveFileId(String url) {
                   try {
@@ -911,16 +1031,65 @@ class _GeneralchatState extends State<Generalchat> {
                 }
 
                 // 2. Use a FutureBuilder to download and display the image
-                return ImageMessageWidget(
-                  message: message,
-                  controller: _reactionsController,
-                  fileId : fileId,
-                  messageIndex:index ,
-                  chatController: _chatController,
-                  userName : Username(
-                      userId: message.authorId,
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 10 ,color: Colors.greenAccent)
-                  ),
+                return Stack(
+                  children: [
+                    VisibilityDetector(
+                      key: Key(message.id),
+                      onVisibilityChanged: (VisibilityInfo info) {
+                        if (info.visibleFraction  >= 0.8 ) {
+
+                          // Call a function to mark the message as seen
+                          if(message.authorId != _userId) _markMessageAsSeen(message.id);
+                        }
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: isMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
+                        children: [
+                          ChatMessageWrapper(
+                              messageId: message.id,
+                              controller: _reactionsController,
+                              config: const ChatReactionsConfig(
+                                // The default is EdgeInsets.all(20.0), which is too large.
+                                // Let's reduce it.
+                                dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              ),
+                              onMenuItemTapped: (item){
+                                if(item.label == "Reply") {
+                                  setState(() {
+                                    _repliedMessage = message;
+                                  });
+                                }
+                              },
+
+                              child: MessageWidget(
+                                message: message,
+                                controller: _reactionsController,
+                                messageIndex:index ,
+                                chatController: _chatController,
+                                userName :  userNameString,
+                                fileId: fileId,
+                                  userCache: _userCache
+
+                              )),
+                          Avatar(userId: message.authorId)
+                        ],
+                      ),
+                    ),
+                    // if (repliedMessage != null && repliedMessage is types.TextMessage)
+                    // Container(
+                    //   margin: EdgeInsets.only(bottom: 4),
+                    //   padding: EdgeInsets.all(6),
+                    //   decoration: BoxDecoration(
+                    //     color: Colors.grey[300],
+                    //     borderRadius: BorderRadius.circular(6),
+                    //   ),
+                    //   child: Text(
+                    //     (repliedMessage).text,
+                    //     style: TextStyle(fontSize: 12, color: Colors.black87),
+                    //   ),
+                    // ),
+                  ],
                 );
               },
 
@@ -957,8 +1126,6 @@ class _GeneralchatState extends State<Generalchat> {
                         sigmaY: 3,
                         sendButtonHidden:_chatTextController.text.isEmpty?true:false,
 
-
-
                       ),
                     );
                   }
@@ -968,11 +1135,10 @@ class _GeneralchatState extends State<Generalchat> {
 
           ),
           //Used to render Replay toBar in case you click and hold the message
-          Transform.translate(
-
-              offset: Offset(0, -70),
+          Positioned(
+              bottom: 65,
+              left:MediaQuery.sizeOf(context).width*0.1,
               child: replyTopBar()),
-
         ],
       ),
 
@@ -983,7 +1149,7 @@ class _GeneralchatState extends State<Generalchat> {
 
 
 
-Future FullScreenImageViewer (imageData , context) {
+Future fullScreenImageViewer (imageData , context) {
     return showDialog(
       builder: (BuildContext context)=> Center(
         child: InteractiveViewer(
