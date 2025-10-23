@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
@@ -13,8 +15,10 @@ import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../Model/CompoundsList.dart';
+import '../../Model/CompoundsList.dart' as type;
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
+import '../../Network/CacheHelper.dart';
 import '../../sevices/GoogleDriveService.dart';
 import '../../sevices/gumletService.dart';
 
@@ -24,7 +28,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   int bottomNavIndex = 0;
   bool isPassword = true;
-  String? RoleName ;
+  Roles? roleName ;
 
   IconData? suffixIcon = Icons.visibility;
   bool ActivateDropdown = false;
@@ -33,7 +37,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   int  tabBarIndex =  0 ;
   bool isRecording = false;
   List<double> recordedAmplitudes = [];
-
+  List<type.Category> compoundSuggestions = categories;
   types.InMemoryChatController? chatController ;
 
 
@@ -43,7 +47,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(TabBarIndexStates());
   }
   bool isChatInputEmpty = true;
-  /// used to Switch Mic States (view or hide) it form [Generalchat] page
+  /// used to Switch Mic States (view or hide) it form [GeneralChat] page
   void showHideMic(bool isEmpty){
 
     if (isChatInputEmpty != isEmpty) {
@@ -58,11 +62,21 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(BottomNavIndexChangeStates());
   }
 
-  void selectCompound() {
+  Future<void> selectCompound({Compound? compound , required bool atWelcome} ) async {
+    if(atWelcome){
+      MyCompounds.addAll({
+        compound!.id.toString(): compound.name
+            .toString()
+      });
 
-      emit(CompoundIdChanged());
+      await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
+      selectedCompoundId = compound.id;
+    }
+    emit(CompoundIdChange());
 
   }
+
+  void compoundIdSelected()=>emit(CompoundIdChange());
 
 
   void Passon(){
@@ -76,8 +90,9 @@ class AppCubit extends Cubit<AppCubitStates> {
     isRecording = !isRecording;
     emit(isRecordingStates());
   }
-  void SignupRoleName(String roleName){
-    RoleName = roleName;
+
+  void SignupRoleName(Roles? roleName){
+    roleName = roleName;
     emit(SignupRoleChangeState());
   }
 
@@ -95,6 +110,28 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(AccountSettingsExpandStates());
   }
 
+  Future<void> signOut() async {
+    try {
+      // 1. Perform the asynchronous sign-out from Supabase.
+      await supabase.auth.signOut();
+
+      // 2. Clear any local user data.
+      UserData = null;
+      selectedCompoundId = null;
+      await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
+      googleUser = null; // Also clear the googleUser if you have one
+      MyCompounds = {'0': "Add New Community"};
+      await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
+
+      // 3. Emit a new state to notify the UI that sign-out is complete.
+      emit(AppSignOutSuccessState()); // You'll need to create this state
+    } catch (error) {
+      // Handle potential errors during sign-out
+      debugPrint('Error signing out: $error');
+    }
+  }
+
+
   void googleSignin()async{
     if (googleUser == null) {
       final user = await driveService.signIn();
@@ -109,28 +146,37 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
 
-  Future<List<Category>> fetchCompounds () async {
+  Future<void> loadCompounds () async {
+    final args = SupabaseArgs(
+      url: 'https://nouradawysupabase.duckdns.org', // Your URL
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
+    );
 
-      // This is the magic query:
-      // 1. From the 'categories' table...
-      // 2. Select all its columns (*), AND...
-      // 3. Select all columns (*) from the 'compounds' table that are related to it.
-      // Supabase knows the relationship because of the Foreign Key you created.
-      final response = await supabase
-          .from('compound_categories')
-          .select('*, compounds(*)'); // MAGIC!
-
-      // Supabase returns a List<dynamic> where each element is a Map (a category)
-      // We parse this raw data into our clean Dart models
-      final data = (response as List)
-          .map((categoryJson) => Category.fromJson(categoryJson))
-          .toList();
-
-      return data;
+    categories = await compute(fetchCompounds,args);
+    emit(CategoriesLoadedSuccess());
 
   }
 
+  void getSuggestions(TextEditingController controller) {
+    if(controller.text.isEmpty) { compoundSuggestions = categories;}
+    else {
+      compoundSuggestions = categories.map((category) {
+        final filteredCompounds = category.compounds
+            .where((compound) => compound.name.toLowerCase().contains(controller.text.toLowerCase()))
+            .toList();
 
+        return type.Category(
+          id: category.id,
+          name: category.name,
+          compounds: filteredCompounds
+        );
+      }).toList();
+      compoundSuggestions.removeWhere((category) => category.compounds.isEmpty);
+    }
+
+
+    emit(CompoundSuggestionsUpdated());
+  }
   Future<void> uploadVoiceNote(File soundFile, Duration duration , List<double> amplitudes , int compoundId) async {
     // 1. Instantiate your Google Drive service
     final googleDriveService = GoogleDriveService();
@@ -276,8 +322,9 @@ class AppCubit extends Cubit<AppCubitStates> {
   List Posts=[];
 
   Future<void> getPostsData (int? compoundId) async {
-    if(compoundId !=null)
-    Posts = await supabase.from('Posts').select('*').eq('compound_id', compoundId);
+    if(compoundId !=null) {
+      Posts = await supabase.from('Posts').select('*').eq('compound_id', compoundId);
+    }
     emit(GetPostsDataStates());
   }
 

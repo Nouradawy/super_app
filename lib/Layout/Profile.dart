@@ -28,7 +28,17 @@ class Profile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    return BlocBuilder<AppCubit,AppCubitStates>(
+    return BlocConsumer<AppCubit,AppCubitStates>(
+      listener: (context , state){
+        if (state is AppSignOutSuccessState) {
+          // This navigation is now guaranteed to run when sign-out is successful.
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => SignUp()),
+                (Route<dynamic> route) => false,
+          );
+        }
+      },
       builder: (context,state) {
         return Scaffold(
           appBar: AppBar(
@@ -63,9 +73,12 @@ class Profile extends StatelessWidget {
                   ),
                 ),
             
-                Text(UserData!.userMetadata!["display_name"].toString(),style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 20),),
-                Text("Resident",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 13, color: HexColor("#637488")),),
-                Text("Joined 2022",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 11, color: HexColor("#637488")),),
+                Text(UserData?.userMetadata?["display_name"]?.toString() ?? "Guest",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 20),),
+                if(UserData !=null) ...[
+                  Text("Resident",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 13, color: HexColor("#637488")),),
+                  Text("Joined 2022",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500 ,fontSize: 11, color: HexColor("#637488")),),
+                ],
+
 
                   MaterialButton(onPressed: () async {
                     AppCubit.get(context).googleSignin();
@@ -94,18 +107,15 @@ class Profile extends StatelessWidget {
                             return MaterialButton(
                               padding: EdgeInsets.zero,
                               onPressed: () async {
+
                                 if(index == profile.length-1)
                                   {
-                                    await supabase.auth.signOut();
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      MaterialPageRoute(builder: (context) => SignUp()),
-                                          (Route<dynamic> route) => false,
+                                    context.read<AppCubit>().signOut();
 
-                                    );
+                                  } else {
+                                  AppCubit.get(context).AccountSettingsDropdown(index);
+                                }
 
-                                  }
-                                AppCubit.get(context).AccountSettingsDropdown(index);
                               },
                               child: Column(
                                 children: [

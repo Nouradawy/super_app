@@ -1,8 +1,6 @@
 abstract class AppCubitStates{}
 
-class AppInitialState extends AppCubitStates{
-
-}
+class AppInitialState extends AppCubitStates{}
 class InputIsPasswordState extends AppCubitStates{}
 class SignupRoleChangeState extends AppCubitStates{}
 class MessageSentState extends AppCubitStates{}
@@ -15,5 +13,9 @@ class isRecordingStates extends AppCubitStates{}
 class UploadProgressStates extends AppCubitStates{}
 class GetPostsDataStates extends AppCubitStates{}
 class CompoundIdChanged extends AppCubitStates{}
+class CompoundIdChange extends AppCubitStates{}
 class NewPostState extends AppCubitStates{}
 class BottomNavIndexChangeStates extends AppCubitStates{}
+class CompoundSuggestionsUpdated extends AppCubitStates{}
+class CategoriesLoadedSuccess extends AppCubitStates{}
+class AppSignOutSuccessState extends AppCubitStates{}

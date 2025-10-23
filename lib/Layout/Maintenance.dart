@@ -5,26 +5,29 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:super_app/Themes/lightTheme.dart';
 
 class Maintenance extends StatelessWidget {
   Maintenance({super.key});
 
-  TextEditingController issue = TextEditingController();
-  TextEditingController issueTitle = TextEditingController();
-  List<String> maintenanceCategory = ["Plumbing","Electricity","Plastering","Gardening"];
+  final TextEditingController issue = TextEditingController();
+  final TextEditingController issueTitle = TextEditingController();
+  final List<String> maintenanceCategory = ["Plumbing","Electricity","Plastering","Gardening"];
+  final List<String> maintenanceIconBackground = ["Plumbing","Electricity","Plastering","Gardening"];
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppCubit,AppCubitStates>
       (builder: (context,state){
         return Scaffold(
             appBar: AppBar(
-              title:Text("Maintenance")
+              title:Text(context.loc.maintenance)
             ),
             floatingActionButton: FloatingActionButton.extended(
                 onPressed: (){
                   newReport(context,maintenanceCategory,issue);
                 },
-              label: Text("Report a Problem",style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
+              label: Text(context.loc.reportProblem,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
               icon: Icon(Icons.add, color: HexColor("#121416")),
               backgroundColor: HexColor("#dce8f3"),
 
@@ -32,23 +35,34 @@ class Maintenance extends StatelessWidget {
             ),
             body: Column(
               children: [
-                Text("Report History"),
+                Text(context.loc.reportHistory),
                 ListView.builder(
                   shrinkWrap: true,
                   itemCount:
                     2,
                     itemBuilder: (context,index)=>ListTile(
-                      title:Text("Date:7/20/2025",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
-                      subtitle:Text("issue: leaky faucet",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w500 ,letterSpacing: 0.2,color: HexColor("#6a7681"))),
-                      leading:Container(
-                        width:40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.orangeAccent,
-                            shape:BoxShape.circle
-                          ),
-                          child: Icon(Icons.announcement , color: HexColor("#2C2F42"),)),
-                      trailing: Text("InProgress"),
+                      title:Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 10,
+                        children: [
+                          Text("Leaky Faucet",style: GoogleFonts.plusJakartaSans(fontSize: 14,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
+                          Chip(
+                            label:Text(context.loc.inProcess,style: GoogleFonts.plusJakartaSans(fontSize: 11,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.white)),
+                            backgroundColor: HexColor("#76b7f5"),
+                            visualDensity: VisualDensity(vertical: -4),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: EdgeInsets.symmetric(horizontal: 0.0,vertical: 0),
+                          )
+                        ],
+                      ),
+                      subtitle:Text("${context.loc.report} #MR001 - 7/20/2025",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                      leading:CircleAvatar(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        child: Icon(Icons.hourglass_top), // Icon for 'In Progress'
+                      ),
+                      trailing: Icon(Icons.arrow_forward_ios_rounded , color: Colors.grey, size: 13,),
+
 
                     ))
               ],
@@ -64,7 +78,7 @@ Future<void> newReport(
   TextEditingController issue,
 ) async {
   if (maintenanceCategory.isEmpty) {
-    throw ArgumentError('Maintenance category list cannot be empty');
+    throw ArgumentError(context.loc.maintenanceListError);
   }
   return showDialog(
     context: context,
@@ -91,7 +105,7 @@ Future<void> newReport(
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
-                      Text("Maintenance Report"),
+                      Text(context.loc.maintenanceReport),
 
 
                     ],),
@@ -118,7 +132,7 @@ Future<void> newReport(
                         Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
                       ),
                     ),
-                    label: const Text("Select Issue type"),
+                    label: Text(context.loc.maintenanceIssueSelect),
                     dropdownMenuEntries:
                         maintenanceCategory.map<DropdownMenuEntry<String>>(
                       (String value) {
@@ -145,7 +159,7 @@ Future<void> newReport(
                       maxLines: 10,
                       decoration: InputDecoration(
                         border: InputBorder.none,
-                        labelText: 'Describe the issue in detail',
+                        labelText: context.loc.issueDescription,
                         labelStyle: GoogleFonts.plusJakartaSans(
                           color: HexColor("#60768a"),
                           fontSize: 12,
@@ -156,9 +170,9 @@ Future<void> newReport(
                       ),
                     ),
                   ),
-                  SizedBox(height:15,),
-                  Text("Upload Photos",style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
-                  SizedBox(height:15,),
+                  const SizedBox(height:15,),
+                  Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
+                  const SizedBox(height:15,),
                   DottedBorder(
                     options: RoundedRectDottedBorderOptions(
                         radius: Radius.circular(8),
@@ -178,16 +192,16 @@ Future<void> newReport(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text("No photos uploaded",style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
-                          Text("Tap to upload photos of the issue",style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+                          Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                          Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
                           MaterialButton(
                             onPressed: (){},
-                            child: Text("Upload"  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
                             color:HexColor("f0f2f5"),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18.0),
                             ),
+                            child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
 
                           ),
 
@@ -205,7 +219,7 @@ Future<void> newReport(
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18.0),
                     ),
-                    child: Text("Submit Report"  ,style:GoogleFonts.plusJakartaSans(color: Colors.white , fontWeight: FontWeight.w600)),
+                    child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
                   ),
                 ],
               ),

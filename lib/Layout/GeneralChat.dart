@@ -6,12 +6,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
@@ -29,19 +26,16 @@ import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
 
 
+class GeneralChat extends StatefulWidget {
 
-final supabase = Supabase.instance.client;
-
-
-class Generalchat extends StatefulWidget {
   final int compoundId;
-  const Generalchat({super.key , required this.compoundId});
+  const GeneralChat({super.key , required this.compoundId});
 
   @override
-  State<Generalchat> createState() => _GeneralchatState();
+  State<GeneralChat> createState() => _GeneralChatState();
 }
 
-class _GeneralchatState extends State<Generalchat> {
+class _GeneralChatState extends State<GeneralChat> {
   late final TextEditingController _chatTextController;
   int? _channelId;
 
@@ -64,9 +58,8 @@ class _GeneralchatState extends State<Generalchat> {
   bool _isTyping = false;
 
 
-  String? _lastMessageId;
   RealtimeChannel? _realtimeChannel;
-  types.User? Message_user ;
+  types.User? messageUser ;
 
   @override
   void initState() {
@@ -76,17 +69,6 @@ class _GeneralchatState extends State<Generalchat> {
     _chatTextController = TextEditingController();
     _scrollController = ScrollController();
     _chatTextController.addListener(_handleTypingStatus);
-
-
-
-    // Add this to try and sign in silently on start
-    // driveService.signInSilently().then((_) {
-    //   if (driveService.currentUser != null) {
-    //     setState(() {
-    //       googleUser = driveService.currentUser;
-    //     });
-    //   }
-    // });
 
   }
 
@@ -387,7 +369,6 @@ class _GeneralchatState extends State<Generalchat> {
       if (uniqueNewMessages.isNotEmpty) {
         await _chatController.insertAllMessages(uniqueNewMessages, index: 0);
         _currentPage++;
-        _lastMessageId = uniqueNewMessages.first.id;
 
         // Save updated list to cache
         _saveMessagesToCache(_chatController.messages);
@@ -482,7 +463,7 @@ class _GeneralchatState extends State<Generalchat> {
     final file = File(result.path);
 
     final localId = const Uuid().v4(); // Unique ID for our placeholder
-    // TODO: Consider showing a loading indicator to the user here
+
 
     final placeholderMessage = types.CustomMessage(
       id: localId,
@@ -763,7 +744,7 @@ class _GeneralchatState extends State<Generalchat> {
       // 3. Store the newly fetched user in the cache
       _userCache[id]  = user;
       setState(() {
-        Message_user = user;
+        messageUser = user;
       });
 
       return user;
@@ -792,6 +773,47 @@ class _GeneralchatState extends State<Generalchat> {
       // Optional: A cleaner way to log the change.
       print(isCurrentlyTyping ? "User has started typing." : "User has stopped typing.");
     }
+  }
+
+  Widget chatWrapper (
+      types.Message message ,
+      int index ,
+      String userNameString ,
+      {String? fileId}
+      ){
+    return ChatMessageWrapper(
+        messageId: message.id,
+        controller:_reactionsController,
+        config: const ChatReactionsConfig(
+          // The default is EdgeInsets.all(20.0), which is too large.
+          // Let's reduce it.
+          dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+        ),
+        onMenuItemTapped: (item){
+          if(item.label == "Reply") {
+            setState(() {
+              _repliedMessage = message;
+            });
+
+          }
+          if(item.isDestructive)
+          {
+            setState(() {
+              _deleteMessage(message);
+            });
+          }
+        },
+
+        child: MessageWidget(
+            message: message,
+            controller: _reactionsController,
+            messageIndex:index ,
+            chatController: _chatController,
+            userName :  userNameString,
+            userCache: _userCache,
+            fileId:fileId,
+
+        ));
   }
 
   @override
@@ -847,38 +869,11 @@ class _GeneralchatState extends State<Generalchat> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
                         children: [
-                          ChatMessageWrapper(
-                              messageId: message.id,
-                              controller: _reactionsController,
-                              config: const ChatReactionsConfig(
-                                // The default is EdgeInsets.all(20.0), which is too large.
-                                // Let's reduce it.
-                                dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-                              ),
-                              onMenuItemTapped: (item){
-                                if(item.label == "Reply") {
-                                  setState(() {
-                                    _repliedMessage = message;
-                                  });
-
-                                }
-                                if(item.isDestructive)
-                                  {
-                                    setState(() {
-                                    _deleteMessage(message);
-                                    });
-                                  }
-                              },
-
-                              child: MessageWidget(
-                                message: message,
-                                controller: _reactionsController,
-                                messageIndex:index ,
-                                chatController: _chatController,
-                                userName :  userNameString,
-                                userCache: _userCache
-
-                              )),
+                          chatWrapper(
+                            message,
+                            index,
+                            userNameString,
+                          ),
                           Avatar(userId: message.authorId)
                         ],
                       ),
@@ -936,38 +931,11 @@ class _GeneralchatState extends State<Generalchat> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
                   children: [
-                    ChatMessageWrapper(
-                        messageId: message.id,
-                        controller: _reactionsController,
-                        config: const ChatReactionsConfig(
-                          // The default is EdgeInsets.all(20.0), which is too large.
-                          // Let's reduce it.
-                          dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        ),
-                        onMenuItemTapped: (item){
-                          if(item.label == "Reply") {
-                            setState(() {
-                              _repliedMessage = message;
-                            });
-                          }
-
-                          if(item.isDestructive)
-                          {
-                            setState(() {
-                              _deleteMessage(message);
-                            });
-                          }
-                        },
-
-                        child: MessageWidget(
-                          message: message,
-                          controller: _reactionsController,
-                          messageIndex:index ,
-                          chatController: _chatController,
-                          userName :  userNameString,
-                            userCache: _userCache
-
-                        )),
+                    chatWrapper(
+                      message,
+                      index,
+                      userNameString,
+                    ),
                     Avatar(userId: message.authorId)
                   ],
                 ),
@@ -1046,32 +1014,12 @@ class _GeneralchatState extends State<Generalchat> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: isMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
                         children: [
-                          ChatMessageWrapper(
-                              messageId: message.id,
-                              controller: _reactionsController,
-                              config: const ChatReactionsConfig(
-                                // The default is EdgeInsets.all(20.0), which is too large.
-                                // Let's reduce it.
-                                dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              ),
-                              onMenuItemTapped: (item){
-                                if(item.label == "Reply") {
-                                  setState(() {
-                                    _repliedMessage = message;
-                                  });
-                                }
-                              },
-
-                              child: MessageWidget(
-                                message: message,
-                                controller: _reactionsController,
-                                messageIndex:index ,
-                                chatController: _chatController,
-                                userName :  userNameString,
-                                fileId: fileId,
-                                  userCache: _userCache
-
-                              )),
+                          chatWrapper(
+                            message,
+                            index,
+                            userNameString,
+                            fileId: fileId
+                          ),
                           Avatar(userId: message.authorId)
                         ],
                       ),

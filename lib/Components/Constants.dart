@@ -15,17 +15,15 @@ int? selectedCompoundId;
 
 
 
-
-
-
 Widget defaultTextForm(
     context,{
-  required TextEditingController controller,
-  required TextInputType keyboardType,
-  String? hintText,
-  bool IsPassword = false,
-  IconData? SuffixIcon,
-  IconData? preIcon,
+      required TextEditingController controller,
+      required TextInputType keyboardType,
+      String? hintText,
+      bool IsPassword = false,
+      IconData? SuffixIcon,
+      IconData? preIcon,
+      Function(String)? onChanged,
 
 
 }) {
@@ -33,6 +31,7 @@ Widget defaultTextForm(
   isactive ? IsPassword = AppCubit.get(context).isPassword : null;
 
   return TextFormField(
+    onChanged: onChanged,
   controller: controller,
   keyboardType:keyboardType,
   obscureText:IsPassword,

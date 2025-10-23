@@ -17,46 +17,47 @@ import 'package:super_app/Layout/Maintenance.dart';
 import 'package:super_app/Layout/chatWidget/AudioWaveformPainter.dart';
 import 'package:super_app/Layout/wellcomingPage.dart';
 import 'package:super_app/Network/CacheHelper.dart';
+import 'package:super_app/Themes/lightTheme.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
 import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
-  TextEditingController Search = TextEditingController();
+  final TextEditingController Search = TextEditingController();
 
-  List<Map<String,dynamic>> services= [{
-  "icon": "assets/Svg/maintenance.svg",
-  "Name": "Maintenance",
-    "icon color":Colors.indigo.shade600,
-    "icon bg":Colors.indigo.shade100,
-    "Background" :Colors.indigo.shade50,
-    "text Color":Colors.indigo.shade900
-},
-    {
-      "icon": "assets/Svg/security.svg",
-      "Name": "Security",
-      "icon color":Colors.purple.shade600,
-      "icon bg":Colors.purple.shade100,
-      "Background" :Colors.purple.shade50,
-      "text Color":Colors.purple.shade900
-    },
-
-    {
-      "icon": "assets/Svg/cleaning.svg",
-      "Name": "Cleaning",
-      "icon color":Colors.teal.shade600,
-      "icon bg":Colors.teal.shade100,
-      "Background" :Colors.teal.shade50,
-      "text Color":Colors.teal.shade900
-    }
-];
 
    HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
 
+    final List<Map<String,dynamic>> services= [{
+      "icon": "assets/Svg/maintenance.svg",
+      "Name": context.loc.maintenance,
+      "icon color":Colors.indigo.shade600,
+      "icon bg":Colors.indigo.shade100,
+      "Background" :Colors.indigo.shade50,
+      "text Color":Colors.indigo.shade900
+    },
+      {
+        "icon": "assets/Svg/security.svg",
+        "Name": context.loc.security,
+        "icon color":Colors.purple.shade600,
+        "icon bg":Colors.purple.shade100,
+        "Background" :Colors.purple.shade50,
+        "text Color":Colors.purple.shade900
+      },
+
+      {
+        "icon": "assets/Svg/cleaning.svg",
+        "Name": context.loc.cleaning,
+        "icon color":Colors.teal.shade600,
+        "icon bg":Colors.teal.shade100,
+        "Background" :Colors.teal.shade50,
+        "text Color":Colors.teal.shade900
+      }
+    ];
     return BlocBuilder<AppCubit,AppCubitStates>(
       buildWhen: (prev,current){
         return current is BottomNavIndexChangeStates || current is AppInitialState;
@@ -102,16 +103,16 @@ class HomePage extends StatelessWidget {
                     );
                   },
                 ).toList(),
-                  onSelected:(selectedkey) async {
-                  if(selectedkey == '0'){
+                  onSelected:(selectedKey) async {
+                  if(selectedKey == '0'){
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => JoinCommunity()),
                     );
                   } else {
-                    selectedCompoundId =  int.parse(selectedkey.toString());
-                    context.read<AppCubit>().selectCompound();
-                    print(selectedkey);
+                    selectedCompoundId =  int.parse(selectedKey.toString());
+                    context.read<AppCubit>().selectCompound(atWelcome: false);
+                    debugPrint(selectedKey);
                     await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
                   }
                   },
@@ -167,22 +168,13 @@ class HomePage extends StatelessWidget {
                     return [
                       SliverAppBar(
                         backgroundColor: Colors.white,
-                        expandedHeight: MediaQuery.of(context).size.width*0.50,
+                        expandedHeight: MediaQuery.of(context).size.width*0.40,
                         flexibleSpace: FlexibleSpaceBar(
                           background:Column(
                             children: [
                               //Searchbar
-                              Container(
-                                padding: EdgeInsets.only(left: MediaQuery.of(context).size.width*0.075 , right:MediaQuery.of(context).size.width*0.075 ),
-                                child: defaultTextForm(
-                                    context,
-                                    controller:Search,
-                                    keyboardType: TextInputType.text,
-                                    preIcon: Icons.search_outlined
-                                ),
-                              ),
-                              SizedBox(
-                                height:20,
+                              const SizedBox(
+                                height:30,
                               ),
 
                               //<-----------------ListView for Services---------------->
@@ -197,7 +189,7 @@ class HomePage extends StatelessWidget {
                                     final service = services[index];
                                     return Container(
                                       width: MediaQuery.sizeOf(context).width*0.28,
-                                      margin: EdgeInsets.only(right:10),
+                                      margin: const EdgeInsets.only(right:10),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12), // <-- Rounded corners
                                         color: service["Background"],
@@ -223,7 +215,7 @@ class HomePage extends StatelessWidget {
                                             children: [
                                               const SizedBox(height: 15),
                                               Container(
-                                                padding: EdgeInsets.all(12),
+                                                padding: const EdgeInsets.all(12),
                                                 width: 50,
                                                 height: 50,
                                                 decoration: BoxDecoration(
@@ -239,6 +231,7 @@ class HomePage extends StatelessWidget {
                                                     ,
                                                     service['icon']),
                                               ),
+                                              const SizedBox(height: 5),
                                               SizedBox(
                                                   width: 100,
                                                   child: Text(service['Name'] ,textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize:13,fontWeight: FontWeight.bold , color: service["text Color"]
@@ -261,9 +254,9 @@ class HomePage extends StatelessWidget {
                   child: TabChangeHandler( // 2. Use the listener widget we just created
                     child: BlocConsumer<AppCubit, AppCubitStates>(
                       listener: (context,state){
-                        if(state is AppInitialState || state is CompoundIdChanged || state is NewPostState)
+                        if(state is AppInitialState || state is CompoundIdChange || state is NewPostState)
                           {
-                            AppCubit.get(context).getPostsData(selectedCompoundId!);
+                            context.read<AppCubit>().getPostsData(selectedCompoundId!);
                           }
 
                       },
@@ -276,14 +269,13 @@ class HomePage extends StatelessWidget {
                         return false;
                       },
                       builder: (context, state) {
-                        int? currentCompoundId = selectedCompoundId;
 
-                        if (currentCompoundId == null) {
+                        if (selectedCompoundId == null) {
                           return const Center(child: CircularProgressIndicator());
                         }
 
                         // 3. Pass the key to Social, which is now a clean StatelessWidget
-                        return Social(key: ValueKey(currentCompoundId));
+                        return Social(key: ValueKey(selectedCompoundId));
                       },
                     ),
                   ),
@@ -291,6 +283,7 @@ class HomePage extends StatelessWidget {
 
                 ),
                 BlocBuilder<AppCubit,AppCubitStates>(
+                  buildWhen: (prev , current)=>current is TabBarIndexStates,
                     builder: (context,state){
                       if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty) {
                         return Positioned(
@@ -311,25 +304,12 @@ class HomePage extends StatelessWidget {
                               },
                               // This is called when the user finishes recording
                               sendRequestFunction: (soundFile, duration) async {
-                                print("attemptinng to save");
+                                debugPrint("attempting to save");
                                 final parts = duration.split(':');
                                 final minutes = int.tryParse(parts[0]) ?? 0;
                                 final seconds = int.tryParse(parts[1]) ?? 0;
-                                final parsedDuration = Duration(
-                                    minutes: minutes, seconds: seconds);
-                                // final String timestamp = DateTime
-                                //     .now()
-                                //     .millisecondsSinceEpoch
-                                //     .toString();
-                                // final downloadsDirectory = Directory(
-                                //     '/storage/emulated/0/Download');
-                                // final localPath = '${downloadsDirectory
-                                //     .path}/test_voice_note$timestamp.m4a';
-                                // // Save the soundFile to the temporary directory
-                                // await Future.delayed(
-                                //     const Duration(milliseconds: 1000));
-                                // await soundFile.copy(localPath);
-                                // print('Voice note saved locally at: $localPath');
+                                final parsedDuration = Duration(minutes: minutes, seconds: seconds);
+
                                 final amplitudesToUpload = AppCubit.get(context).recordedAmplitudes;
                                 AppCubit.get(context).uploadVoiceNote(soundFile, parsedDuration ,amplitudesToUpload ,selectedCompoundId!);
 

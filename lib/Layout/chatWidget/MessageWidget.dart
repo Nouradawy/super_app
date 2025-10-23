@@ -60,6 +60,9 @@ class MessageWidget extends StatelessWidget {
     final createdAt = message.createdAt;
     final seenAt = message.seenAt;
 
+
+
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -157,6 +160,19 @@ bool isPrevPost(message){
           child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
     ];
 
+    String? extractDriveFileId(String url) {
+      try {
+        final uri = Uri.parse(url);
+        // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
+        if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
+          return uri.pathSegments[2];
+        }
+      } catch (e) {
+        print("Error parsing Drive URL: $e");
+      }
+      return null;
+    }
+
 
     return Material(
       color:Colors.transparent,
@@ -216,7 +232,7 @@ bool isPrevPost(message){
                          Text(repliedUser.name!),
                       ],
                     ),
-                    widgetByType(msgTextColor, repliedMessage ,fileId , isReply: true),
+                    widgetByType(msgTextColor, repliedMessage ,repliedMessage is ImageMessage?extractDriveFileId(repliedMessage.source):null , isReply: true),
                   ],
                 ),
                                 ),
@@ -481,3 +497,5 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
     );
   }
 }
+
+

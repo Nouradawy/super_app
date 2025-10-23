@@ -7,6 +7,7 @@ import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Themes/lightTheme.dart';
 import 'package:super_app/sevices/GoogleDriveService.dart';
 import '../Confg/supabase.dart';
 import '../sevices/DriveImageWidget.dart';
@@ -26,7 +27,7 @@ class Social extends StatelessWidget {
         TabBar(
           labelColor: Colors.black,
           unselectedLabelColor: Colors.grey,
-          tabs: [Tab(text: "Social"), Tab(text: "Chat")],
+          tabs: [Tab(text: context.loc.socialTab), Tab(text: context.loc.chatTab)],
         ),
         Expanded(
           child: TabBarView(
@@ -36,6 +37,7 @@ class Social extends StatelessWidget {
                 onRefresh: () => AppCubit.get(context).getPostsData(selectedCompoundId!),
                 child: Column(
                   children: [
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -50,14 +52,14 @@ class Social extends StatelessWidget {
                             "assets/person.svg",
                           ),
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         SizedBox(
                           width:
                           MediaQuery.sizeOf(context).width *
                               0.75,
                           child: MaterialButton(
                             elevation: 0,
-                            color: HexColor("#F0F2F5"),
+                            color: context.txt.statusButtonColor,
                             onPressed: () {
                               newPost(context, postHead);
                             },
@@ -67,7 +69,7 @@ class Social extends StatelessWidget {
                               ), // circular border
                               // optional border line
                             ),
-                            child: Text("What's on your mind?"),
+                            child: Text(context.loc.statusButton),
                           ),
                         ),
                       ],
@@ -88,7 +90,7 @@ class Social extends StatelessWidget {
                                     topLeft: Radius.circular(8),
                                     topRight: Radius.circular(8),
                                   ),
-                                  color: HexColor("#F0EFF4"),
+                                  color: context.txt.socialBackgroundColor,
                                 ),
                                 child: Padding(
                                   padding: EdgeInsets.only(
@@ -120,22 +122,11 @@ class Social extends StatelessWidget {
                                             children: [
                                               Text(
                                                 AppCubit.get(context).Posts[index]["user_name"],
-                                                style:
-                                                GoogleFonts.plusJakartaSans(
-                                                  fontWeight:
-                                                  FontWeight.w900,
-                                                  fontSize: 12,
-                                                ),
+                                                style:context.txt.socialUserName
                                               ),
                                               Text(
                                                 "1d",
-                                                style:
-                                                GoogleFonts.plusJakartaSans(
-                                                  height: 0.8,
-                                                  fontWeight:
-                                                  FontWeight.w300,
-                                                  fontSize: 12,
-                                                ),
+                                                style:context.txt.socialPostSince
                                               ),
                                             ],
                                           ),
@@ -150,11 +141,7 @@ class Social extends StatelessWidget {
                                           ),
                                           child: Text(
                                             AppCubit.get(context).Posts[index]["post_head"],
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 12,
-                                              color: Colors.black,
-                                            ),
+                                            style: context.txt.socialPostHead
                                           ),
                                         ),
                                       ),
@@ -171,7 +158,7 @@ class Social extends StatelessWidget {
                               Container(
                                 width: MediaQuery.sizeOf(context).width * 0.95,
                                 decoration: BoxDecoration(
-                                  color: HexColor("#F0EFF4"),
+                                  color: context.txt.socialBackgroundColor,
                                   borderRadius: BorderRadius.only(
                                     bottomLeft: Radius.circular(8),
                                     bottomRight: Radius.circular(8),
@@ -184,8 +171,7 @@ class Social extends StatelessWidget {
                                     Padding(
                                       padding: EdgeInsets.symmetric(
                                         horizontal:
-                                        MediaQuery.sizeOf(context).width *
-                                            0.04,
+                                        MediaQuery.sizeOf(context).width * 0.04,
                                         vertical: 4,
                                       ),
                                       child: Row(
@@ -193,32 +179,20 @@ class Social extends StatelessWidget {
                                         MainAxisAlignment.end,
                                         children: [
                                           Text(
-                                            "${(AppCubit.get(context).Posts[index]['Comments']  as List?  ?? [] ).length} comment",
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: HexColor(
-                                                "#1c1e21",
-                                              ).withAlpha(170),
-                                            ),
+                                            "${(AppCubit.get(context).Posts[index]['Comments']  as List?  ?? [] ).length} ${context.loc.comment}",
+                                            style: context.txt.commentsCount
                                           ),
                                         ],
                                       ),
                                     ),
                                     Divider(
-                                      indent:
-                                      MediaQuery.sizeOf(context).width *
-                                          0.04,
-                                      endIndent:
-                                      MediaQuery.sizeOf(context).width *
-                                          0.04,
+                                      indent: MediaQuery.sizeOf(context).width * 0.04,
+                                      endIndent: MediaQuery.sizeOf(context).width * 0.04,
                                       height: 1.1,
                                       color: Colors.black12,
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12.0,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12.0,),
                                       child: Row(
                                         mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -227,17 +201,14 @@ class Social extends StatelessWidget {
                                             onPressed: () {},
                                             child: Row(
                                               spacing: 5,
-                                              crossAxisAlignment:
-                                              CrossAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.center,
                                               children: [
                                                 Icon(
                                                   Icons.thumb_up_alt_outlined,
-                                                  color: HexColor(
-                                                    "#1c1e21",
-                                                  ).withAlpha(170),
+                                                  color: context.txt.socialIconColor,
                                                   size: 20,
                                                 ),
-                                                Text("Like"),
+                                                Text(context.loc.like),
                                               ],
                                             ),
                                           ),
@@ -252,12 +223,10 @@ class Social extends StatelessWidget {
                                               children: [
                                                 Icon(
                                                   Icons.chat_outlined,
-                                                  color: HexColor(
-                                                    "#1c1e21",
-                                                  ).withAlpha(170),
+                                                  color: context.txt.socialIconColor,
                                                   size: 20,
                                                 ),
-                                                Text("comment"),
+                                                Text(context.loc.comment),
                                               ],
                                             ),
                                           ),
@@ -269,10 +238,10 @@ class Social extends StatelessWidget {
                                               children: [
                                                 Icon(
                                                   Icons.share_rounded,
-                                                  color: HexColor("#1c1e21").withAlpha(170),
+                                                  color: context.txt.socialIconColor,
                                                   size: 20,
                                                 ),
-                                                Text("share"),
+                                                Text(context.loc.share),
                                               ],
                                             ),
                                           ),
@@ -290,7 +259,7 @@ class Social extends StatelessWidget {
                   ],
                 ),
               ),
-              Generalchat(compoundId: selectedCompoundId!,),
+              GeneralChat(compoundId: selectedCompoundId!,),
             ],
           ),
         ),
@@ -299,8 +268,8 @@ class Social extends StatelessWidget {
   }
 
   Future<void> newPost(
-    BuildContext context,
-    TextEditingController postHead,
+      BuildContext context,
+      TextEditingController postHead,
   ) async {
     bool postProgressBar = false;
     return showDialog(
@@ -318,7 +287,7 @@ class Social extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(child: Text("Create post")),
+                    Center(child: Text(context.loc.postCreate)),
                     Divider(thickness: 0.5),
                     Row(
                       children: [
@@ -334,11 +303,8 @@ class Social extends StatelessWidget {
 
                         SizedBox(width: 10),
                         Text(
-                          "Omar Yasser",
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                          ),
+                            UserData?.userMetadata?["display_name"] ?? "Guest",
+                            style: context.txt.socialUserName
                         ),
                       ],
                     ),
@@ -347,7 +313,7 @@ class Social extends StatelessWidget {
                       context,
                       controller: postHead,
                       keyboardType: TextInputType.text,
-                      hintText: "What's on your mind ?",
+                      hintText: context.loc.statusButton,
                     ),
 
                     Stack(
@@ -506,8 +472,8 @@ class Social extends StatelessWidget {
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setStateOfDialog) {
-            List Comments= [];
-            TextEditingController Comment = TextEditingController();
+            List newComments= [];
+            TextEditingController newComment = TextEditingController();
             return AlertDialog(
               contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               shape: RoundedRectangleBorder(
@@ -523,13 +489,12 @@ class Social extends StatelessWidget {
                     children: [
                       Container(
                         width: MediaQuery.sizeOf(context).width,
-
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.only(
                             topLeft: Radius.circular(8),
                             topRight: Radius.circular(8),
                           ),
-                          color: HexColor("#F0EFF4"),
+                          color: context.txt.socialBackgroundColor,
                         ),
                         child: Padding(
                           padding: EdgeInsets.only(
@@ -561,22 +526,12 @@ class Social extends StatelessWidget {
                                     children: [
                                       Text(
                                         AppCubit.get(context).Posts[index]["user_name"],
-                                        style:
-                                        GoogleFonts.plusJakartaSans(
-                                          fontWeight:
-                                          FontWeight.w900,
-                                          fontSize: 12,
-                                        ),
+                                        style: context.txt.socialUserName
                                       ),
                                       Text(
                                         "1d",
                                         style:
-                                        GoogleFonts.plusJakartaSans(
-                                          height: 0.8,
-                                          fontWeight:
-                                          FontWeight.w300,
-                                          fontSize: 12,
-                                        ),
+                                        context.txt.socialPostSince
                                       ),
                                     ],
                                   ),
@@ -591,11 +546,7 @@ class Social extends StatelessWidget {
                                   ),
                                   child: Text(
                                     AppCubit.get(context).Posts[index]["post_head"],
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 12,
-                                      color: Colors.black,
-                                    ),
+                                    style: context.txt.socialPostHead
                                   ),
                                 ),
                               ),
@@ -611,7 +562,7 @@ class Social extends StatelessWidget {
                       Container(
                         width: MediaQuery.sizeOf(context).width * 0.95,
                         decoration: BoxDecoration(
-                          color: HexColor("#F0EFF4"),
+                          color: context.txt.socialBackgroundColor,
                           borderRadius: BorderRadius.only(
                             bottomLeft: Radius.circular(8),
                             bottomRight: Radius.circular(8),
@@ -624,22 +575,15 @@ class Social extends StatelessWidget {
                             Padding(
                               padding: EdgeInsets.symmetric(
                                 horizontal:
-                                MediaQuery.sizeOf(context).width *
-                                    0.04,
+                                MediaQuery.sizeOf(context).width * 0.04,
                                 vertical: 4,
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   Text(
-                                    "${(AppCubit.get(context).Posts[index]['Comments'] as List? ?? []).length} comments",
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: HexColor(
-                                        "#1c1e21",
-                                      ).withAlpha(170),
-                                    ),
+                                    "${(AppCubit.get(context).Posts[index]['Comments'] as List? ?? []).length} ${context.loc.comment}",
+                                    style: context.txt.commentsCount
                                   ),
                                 ],
                               ),
@@ -659,8 +603,7 @@ class Social extends StatelessWidget {
                                 horizontal: 0,
                               ),
                               child: Row(
-                                mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   MaterialButton(
                                     onPressed: () {},
@@ -671,12 +614,10 @@ class Social extends StatelessWidget {
                                       children: [
                                         Icon(
                                           Icons.thumb_up_alt_outlined,
-                                          color: HexColor(
-                                            "#1c1e21",
-                                          ).withAlpha(170),
+                                          color: context.txt.socialIconColor,
                                           size: 20,
                                         ),
-                                        Text("Like"),
+                                        Text(context.loc.like),
                                       ],
                                     ),
                                   ),
@@ -691,12 +632,10 @@ class Social extends StatelessWidget {
                                       children: [
                                         Icon(
                                           Icons.chat_outlined,
-                                          color: HexColor(
-                                            "#1c1e21",
-                                          ).withAlpha(170),
+                                          color: context.txt.socialIconColor,
                                           size: 20,
                                         ),
-                                        Text("comment"),
+                                        Text(context.loc.comment),
                                       ],
                                     ),
                                   ),
@@ -709,10 +648,10 @@ class Social extends StatelessWidget {
                                       children: [
                                         Icon(
                                           Icons.share_rounded,
-                                          color: HexColor("#1c1e21").withAlpha(170),
+                                          color: context.txt.socialIconColor,
                                           size: 20,
                                         ),
-                                        Text("share"),
+                                        Text(context.loc.share),
                                       ],
                                     ),
                                   ),
@@ -745,9 +684,9 @@ class Social extends StatelessWidget {
                                   ),
                                   child: PostTextForm(
                                     context,
-                                    controller: Comment,
+                                    controller: newComment,
                                     keyboardType: TextInputType.text,
-                                    hintText: 'Comment as ${UserData!.userMetadata!["display_name"]}',
+                                    hintText: '${context.loc.commentAs} ${UserData!.userMetadata!["display_name"]}',
                                   ),),
                                 ConstrainedBox(
                                   constraints: BoxConstraints(
@@ -755,14 +694,15 @@ class Social extends StatelessWidget {
                                   ),
                                   child: IconButton(
                                       onPressed: () async {
-                                        Comments = AppCubit.get(context).Posts[index]['Comments']?? [];
-                                        Comments.add({'authorid':Userid,
-                                            'comment':Comment.text,});
-                                        print(Comments);
+                                        newComments = AppCubit.get(context).Posts[index]['Comments']?? [];
+                                        newComments.add({'authorid':Userid,
+                                            'comment':newComment.text,});
+                                        debugPrint(newComments.toString());
                                         await supabase.from('Posts').update({
-                                          'Comments':Comments
+                                          'Comments':newComments
                                         }).eq('id',AppCubit.get(context).Posts[index]['id']).select();
-                                        Comments.clear();
+                                        newComments.clear();
+                                        ///TODO:Rebuild the comments section instead of popping
                                         Navigator.pop(context);
                                       },
                                       icon: Icon(Icons.send_rounded),
