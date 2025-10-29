@@ -4,7 +4,7 @@ import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
-
+import 'package:permission_handler/permission_handler.dart';
 import '../sevices/GoogleDriveService.dart';
 
 final GoogleDriveService driveService = GoogleDriveService();
@@ -12,7 +12,15 @@ GoogleSignInAccount? googleUser;
 Map<String,dynamic> MyCompounds = {'0': "Add New Community"};
 int? selectedCompoundId;
 
-
+Future<void> requestPermission() async {
+  if(await Permission.microphone.status.isDenied || await Permission.storage.status.isDenied)
+  {
+    await [
+      Permission.microphone,
+      Permission.storage
+    ].request();
+  }
+}
 
 
 Widget defaultTextForm(

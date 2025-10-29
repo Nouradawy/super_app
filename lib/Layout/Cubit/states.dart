@@ -15,6 +15,8 @@ class GetPostsDataStates extends AppCubitStates{}
 class CompoundIdChanged extends AppCubitStates{}
 class CompoundIdChange extends AppCubitStates{}
 class NewPostState extends AppCubitStates{}
+class NewReportSubmitState extends AppCubitStates{}
+class PresenceUpdated extends AppCubitStates{}
 class BottomNavIndexChangeStates extends AppCubitStates{}
 class CompoundSuggestionsUpdated extends AppCubitStates{}
 class CategoriesLoadedSuccess extends AppCubitStates{}

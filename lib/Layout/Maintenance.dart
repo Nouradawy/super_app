@@ -1,18 +1,25 @@
+import 'dart:io';
+
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:super_app/Components/Constants.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Themes/lightTheme.dart';
 
+import '../Confg/supabase.dart';
+
 class Maintenance extends StatelessWidget {
   Maintenance({super.key});
 
-  final TextEditingController issue = TextEditingController();
+  final TextEditingController issueDescription = TextEditingController();
   final TextEditingController issueTitle = TextEditingController();
-  final List<String> maintenanceCategory = ["Plumbing","Electricity","Plastering","Gardening"];
+  final TextEditingController issueCategory = TextEditingController();
+  List<XFile>? file;
   final List<String> maintenanceIconBackground = ["Plumbing","Electricity","Plastering","Gardening"];
 
   @override
@@ -25,7 +32,7 @@ class Maintenance extends StatelessWidget {
             ),
             floatingActionButton: FloatingActionButton.extended(
                 onPressed: (){
-                  newReport(context,maintenanceCategory,issue);
+                  newReport(context,issueDescription , issueTitle , issueCategory , file );
                 },
               label: Text(context.loc.reportProblem,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
               icon: Icon(Icons.add, color: HexColor("#121416")),
@@ -73,13 +80,12 @@ class Maintenance extends StatelessWidget {
 }
 
 Future<void> newReport(
-  BuildContext context,
-  List<String> maintenanceCategory,
-  TextEditingController issue,
+    BuildContext context,
+    TextEditingController issue,
+    TextEditingController issueTitle,
+    TextEditingController issueCategory,
+    List<XFile>? file,
 ) async {
-  if (maintenanceCategory.isEmpty) {
-    throw ArgumentError(context.loc.maintenanceListError);
-  }
   return showDialog(
     context: context,
     builder: (BuildContext context) {
@@ -87,141 +93,221 @@ Future<void> newReport(
         builder: (context, setStateOfDialog) {
           return AlertDialog(
             backgroundColor: Colors.white,
-            content: SizedBox(
-              height: MediaQuery.sizeOf(context).height * 0.7,
-              width: MediaQuery.sizeOf(context).width * 0.8,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  Row(
-                    mainAxisAlignment:MainAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      IconButton(
-                        onPressed:(){},
-                        icon: Icon(Icons.arrow_back),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      Text(context.loc.maintenanceReport),
+            content: SingleChildScrollView(
+              physics: BouncingScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.7,
+                width: MediaQuery.sizeOf(context).width * 0.8,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Row(
+                      mainAxisAlignment:MainAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        IconButton(
+                          onPressed:(){},
+                          icon: Icon(Icons.arrow_back),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        Text(context.loc.maintenanceReport),
 
 
-                    ],),
-                  SizedBox(height: 20,),
-                  DropdownMenu<String>(
-                    width: MediaQuery.sizeOf(context).width * 0.7,
-                    inputDecorationTheme: InputDecorationTheme(
-                      fillColor: HexColor("#f0f2f5"),
-                      filled: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
+                      ],),
+                    SizedBox(height: 20,),
+                    DropdownMenu<MaintenanceCategory>(
+                      width: MediaQuery.sizeOf(context).width * 0.7,
+                      inputDecorationTheme: InputDecorationTheme(
+                        fillColor: HexColor("#f0f2f5"),
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        labelStyle: GoogleFonts.plusJakartaSans(
+                          color: HexColor("#111518"),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        constraints: const BoxConstraints(maxHeight: 50),
                       ),
-                      labelStyle: GoogleFonts.plusJakartaSans(
-                        color: HexColor("#111518"),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                      menuStyle:  MenuStyle(
+                          backgroundColor:WidgetStateProperty.all(Colors.white),
+                        fixedSize: WidgetStateProperty.all<Size>(
+                          Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
+                        ),
                       ),
-                      constraints: const BoxConstraints(maxHeight: 50),
-                    ),
-                    menuStyle:  MenuStyle(
-                        backgroundColor:WidgetStateProperty.all(Colors.white),
-                      fixedSize: WidgetStateProperty.all<Size>(
-                        Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
-                      ),
-                    ),
-                    label: Text(context.loc.maintenanceIssueSelect),
-                    dropdownMenuEntries:
-                        maintenanceCategory.map<DropdownMenuEntry<String>>(
-                      (String value) {
-                        return DropdownMenuEntry<String>(
-                          value: value,
-                          label: value,
-                        );
+                      onSelected: (value){
+                        setStateOfDialog(() {
+                          issueCategory.text = value?.name ?? 'other';
+                        });
+                        debugPrint(issueCategory.text);
                       },
-                    ).toList(),
-                  ),
-                  const SizedBox(height: 15),
-                  Container(
-                    height: MediaQuery.sizeOf(context).height * 0.15,
-                    width: MediaQuery.sizeOf(context).width * 0.8,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: HexColor("#f0f2f5"),
-                      borderRadius: BorderRadius.circular(8),
+                      label: Text(context.loc.maintenanceIssueSelect),
+                      dropdownMenuEntries:
+                          MaintenanceCategory.values.map<DropdownMenuEntry<MaintenanceCategory>>(
+                        (MaintenanceCategory category) {
+                          return DropdownMenuEntry<MaintenanceCategory>(
+                            value: category,
+                            label: category.name.toUpperCase(),
+                          );
+                        },
+                      ).toList(),
                     ),
-                    child: TextFormField(
-                      keyboardType: TextInputType.multiline,
-                      controller: issue,
-                      minLines: 5,
-                      maxLines: 10,
+                    const SizedBox(height: 15),
+                    TextFormField(
+                      keyboardType: TextInputType.text,
+                      controller: issueTitle,
                       decoration: InputDecoration(
-                        border: InputBorder.none,
-                        labelText: context.loc.issueDescription,
+                        filled:true,
+                        fillColor: HexColor("#f0f2f5"),
+                        isDense: false,
+                        border: OutlineInputBorder(),
+                        enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(7)// default border color
+                        ),
+                        labelText: context.loc.issueTitle,
                         labelStyle: GoogleFonts.plusJakartaSans(
                           color: HexColor("#60768a"),
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 0.2,
                         ),
-                        alignLabelWithHint: true,
+                        // alignLabelWithHint: true,
                       ),
                     ),
-                  ),
-                  const SizedBox(height:15,),
-                  Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
-                  const SizedBox(height:15,),
-                  DottedBorder(
-                    options: RoundedRectDottedBorderOptions(
-                        radius: Radius.circular(8),
-                      strokeWidth: 2,
-                      color: Colors.grey.shade400,
-                      dashPattern: [5],
-                    ),
-                    child: Container(
-                      alignment: AlignmentDirectional.center,
-                        height: MediaQuery.sizeOf(context).height*0.2,
-                        width: MediaQuery.sizeOf(context).width*0.8,
-                        decoration: BoxDecoration(
-
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
-                          Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
-                          MaterialButton(
-                            onPressed: (){},
-                            color:HexColor("f0f2f5"),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18.0),
-                            ),
-                            child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
-
+                    const SizedBox(height: 15),
+                    Container(
+                      height: MediaQuery.sizeOf(context).height * 0.15,
+                      width: MediaQuery.sizeOf(context).width * 0.8,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: HexColor("#f0f2f5"),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TextFormField(
+                        keyboardType: TextInputType.multiline,
+                        controller: issue,
+                        minLines: 5,
+                        maxLines: 10,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          labelText: context.loc.issueDescription,
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            color: HexColor("#60768a"),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.2,
                           ),
-
-
-                        ],
+                          alignLabelWithHint: true,
+                        ),
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  MaterialButton(
-                    onPressed: (){},
-                    color:Colors.blue,
-                    elevation: 0,
-                    minWidth: double.infinity,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18.0),
+                    const SizedBox(height:15,),
+                    Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
+                    const SizedBox(height:15,),
+
+                    Stack(
+                      alignment: AlignmentDirectional.topEnd,
+                      children: [
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount:
+                            2, // Number of columns in the grid
+                            crossAxisSpacing:
+                            8.0, // Spacing between columns
+                            mainAxisSpacing: 8.0, // Spacing between rows
+                          ),
+                          itemCount: file?.length ?? 0,
+                          itemBuilder: (context, index) {
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(file![index].path),
+                                fit: BoxFit.cover,
+                              ),
+                            );
+                          },
+                        ),
+                        file != null
+                            ? IconButton(
+                          onPressed: () {},
+                          icon: Icon(Icons.close),
+                        )
+                            : DottedBorder(
+                          options: RoundedRectDottedBorderOptions(
+                            radius: Radius.circular(8),
+                            strokeWidth: 2,
+                            color: Colors.grey.shade400,
+                            dashPattern: [5],
+                          ),
+                          child: Container(
+                            alignment: AlignmentDirectional.center,
+                            height: MediaQuery.sizeOf(context).height*0.2,
+                            width: MediaQuery.sizeOf(context).width*0.8,
+                            decoration: BoxDecoration(
+
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                                Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+                                MaterialButton(
+                                  onPressed: () async{
+                                    List<XFile>? result = await ImagePicker()
+                                        .pickMultiImage(
+                                      imageQuality: 70,
+                                      maxWidth: 1440,
+                                    );
+
+                                    if (result.isEmpty) return;
+
+                                    file = result;
+                                    setStateOfDialog(() {});
+                                  },
+                                  color:HexColor("f0f2f5"),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18.0),
+                                  ),
+                                  child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
+
+                                ),
+
+
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
-                  ),
-                ],
+
+                    const Spacer(),
+                    MaterialButton(
+                      onPressed: () async {
+                       await AppCubit.get(context).reportSubmit(issueTitle.text, issue.text, issueCategory.text, file);
+                       Navigator.pop(context);
+                      },
+                      color:Colors.blue,
+                      elevation: 0,
+                      minWidth: double.infinity,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18.0),
+                      ),
+                      child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
+                    ),
+                  ],
+                ),
               ),
             ),
           );

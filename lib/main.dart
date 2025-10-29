@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,8 +9,9 @@ import 'package:super_app/Components/Constants.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
 import 'package:super_app/Network/CacheHelper.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 import 'package:super_app/Themes/lightTheme.dart';
+import 'package:super_app/sevices/PresenceManager.dart';
 import 'Components/BlocObserver.dart';
 import 'Confg/supabase.dart';
 import 'Layout/SignUp.dart';
@@ -20,6 +23,8 @@ import 'l10n/l10n.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   Bloc.observer = const SimpleBlocObserver();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await Supabase.initialize(
     // ⚠️ IMPORTANT: Replace with your own URL and Anon Key
     url: 'https://nouradawysupabase.duckdns.org',
@@ -27,6 +32,7 @@ void main() async{
   );
   supabase = Supabase.instance.client;
   await CacheHelper.init();
+
   String?Compounds = await CacheHelper.getData(key: "MyCompounds", type: "String");
   if (Compounds != null) {
     MyCompounds = json.decode(Compounds);
@@ -78,10 +84,11 @@ class MyApp extends StatelessWidget {
               context.read<AppCubit>().getPostsData(selectedCompoundId);
               // User is logged in, show the HomePage
               UserData = snapshot.data!.session!.user; // You can set your global UserData here
-              requestPermision();
+              requestPermission();
+              getFireBaseToken();
               return  HomePage();
             } else {
-              requestPermision();
+              requestPermission();
               // User is not logged in, show the SignUp page
               return  SignUp();
             }
@@ -92,12 +99,3 @@ class MyApp extends StatelessWidget {
   }
 }
 
-Future<void> requestPermision() async {
-  if(await Permission.microphone.status.isDenied || await Permission.storage.status.isDenied)
-  {
-    await [
-      Permission.microphone,
-      Permission.storage
-    ].request();
-  }
-}

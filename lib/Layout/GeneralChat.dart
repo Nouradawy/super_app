@@ -22,8 +22,10 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../Components/Constants.dart';
 import '../Confg/supabase.dart';
 import 'package:http/http.dart' as http;
+import 'chatWidget/ChatMember.dart';
 import 'chatWidget/MessageWidget.dart';
 import 'chatWidget/UploadProgressMessage.dart';
+
 
 
 class GeneralChat extends StatefulWidget {
@@ -41,6 +43,8 @@ class _GeneralChatState extends State<GeneralChat> {
 
   bool _isInitializing = true;
   late final String _userId;
+  RealtimeChannel? _presenceChannel;
+  final Set<String> _presentUserIds = {};
 ///Initialize _userCache from supabase
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
@@ -59,6 +63,7 @@ class _GeneralChatState extends State<GeneralChat> {
 
 
   RealtimeChannel? _realtimeChannel;
+
   types.User? messageUser ;
 
   @override
@@ -76,8 +81,13 @@ class _GeneralChatState extends State<GeneralChat> {
   final Map<String, Timer> _pollingTimers = {};
   @override
   void dispose() {
-    _pollingTimers.values.forEach((timer) => timer.cancel());
+
+    _presenceChannel?.unsubscribe();
+    for (var timer in _pollingTimers.values) {
+      timer.cancel();
+    }
     _realtimeChannel?.unsubscribe();
+
     _chatController.dispose();
     _scrollController.dispose();
     _saveMessagesToCache(_chatController.messages);
@@ -132,6 +142,8 @@ class _GeneralChatState extends State<GeneralChat> {
       // Handle the error, maybe show a message to the user
     }
   }
+
+
   void _subscribeToRealtime() {
     if (_channelId == null) return;
 
@@ -141,56 +153,54 @@ class _GeneralChatState extends State<GeneralChat> {
       event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'messages',
-        filter: PostgresChangeFilter(
-          type: PostgresChangeFilterType.eq,
-          column: 'channel_id',
-          value: _channelId,
-        ),
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'channel_id',
+        value: _channelId,
+      ),
       callback: (payload) {
-        // ADD LOGIC TO HANDLE DIFFERENT EVENT TYPES
-        if (payload.eventType == PostgresChangeEvent.insert) {
-          final newMessageMap = payload.newRecord;
-          final localId = newMessageMap['metadata']?['localId'];
+
+        if (payload.eventType == PostgresChangeEvent.update) {
+          final updatedMessage = _mapToMessage(payload.newRecord);
+
+          try {
+            final originalMessage = _chatController.messages.firstWhere(
+                  (msg) => msg.id == updatedMessage.id,
+            );
+            _chatController.updateMessage(originalMessage, updatedMessage);
+
+          } catch (e) {
+            print('Could not find original message to update: ${updatedMessage.id}');
+          }
+        } else if (payload.eventType == PostgresChangeEvent.insert) {
+
+          final newMessage = _mapToMessage(payload.newRecord);
+          final localId = newMessage.metadata?['localId'];
 
           if (localId != null) {
             try {
-              final placeholder = _chatController.messages.firstWhere((m) =>
-              m.id == localId);
+              final placeholder = _chatController.messages.firstWhere((m) => m.id == localId);
               _chatController.removeMessage(placeholder);
             } catch (e) {
               print('Could not find placeholder to remove: $e');
             }
           }
-          final newMessage = _mapToMessage(newMessageMap);
-          if (newMessage is types.AudioMessage && newMessage.metadata?['status'] == 'processing') {
-            _startPollingForMessage(newMessage);
-          }
           if (!_chatController.messages.any((m) => m.id == newMessage.id)) {
             _chatController.insertMessage(newMessage);
           }
-        } else if (payload.eventType == PostgresChangeEvent.update) {
-          // THIS IS THE NEW LOGIC FOR UPDATES
-          final updatedMessageMap = payload.newRecord;
-          final updatedMessage = _mapToMessage(updatedMessageMap);
-
-          try{
-            final originalMessage  = _chatController.messages.firstWhere(
-                    (msg) => msg.id == updatedMessage.id
-            );
-
-            // This finds and replaces the message in the chat list, triggering a UI refresh.
-            _chatController.updateMessage(originalMessage , updatedMessage);
-          } catch (e){
-            print('Could not find the original message to update: ${updatedMessage.id}');
+          if (newMessage is types.AudioMessage && newMessage.metadata?['status'] == 'processing') {
+            _startPollingForMessage(newMessage);
           }
         }
+        debugPrint("a new update recived trying to apply changes");
+        _saveMessagesToCache(_chatController.messages);
 
-        _saveMessagesToCache(
-            _chatController.messages); // Save cache on any change
       },
     )
         .subscribe();
   }
+
+
 
   void _startPollingForMessage(types.AudioMessage message) {
     // Prevent starting multiple timers for the same message
@@ -217,17 +227,14 @@ class _GeneralChatState extends State<GeneralChat> {
   }
 
   Future<void> _deleteMessage(types.Message message) async {
-
     await supabase.from('messages').update({
       'text': "this message deleted by the user",
       'uri':null,
-    'metadata': {
-    'type': 'text',
-    },
-
-
+      'metadata': {
+        'type': 'text',
+      },
+      'deleted_at': DateTime.now().toIso8601String(),
   }).eq('id', message.id);
-
   }
   // Helper function for checking the URL (can also be in this file)
   Future<bool> _checkUrlIsReady(String url) async {
@@ -256,6 +263,7 @@ class _GeneralChatState extends State<GeneralChat> {
         'author_id': msg.authorId,
         'created_at':msg.createdAt?.toIso8601String(),
         'id': msg.id,
+        'isSeen': msg.metadata?['isSeen'] ?? false,
         'metadata': {
           ...?msg.metadata, // Use the spread operator to copy existing metadata
           if (msg.replyToMessageId != null) 'reply_to': msg.replyToMessageId,
@@ -328,9 +336,8 @@ class _GeneralChatState extends State<GeneralChat> {
         {
           'message_id': messageId,
           'user_id': _userId,
-          'seen_at': DateTime.now().toIso8601String(),
+          'seen_at': (await NTP.now()).toIso8601String(),
         },
-        onConflict: 'message_id, user_id',
       );
 
       // Optional: A success message to confirm the upsert worked.
@@ -348,77 +355,135 @@ class _GeneralChatState extends State<GeneralChat> {
 
     // Fetch messages using _lastMessageId for pagination
     final response = await supabase
-        .rpc('get_messages_with_seen_status', params: {
-          'p_channel_id': _channelId,
-          'page_size': _pageSize,
-          'page_num': _currentPage,
-        });
+        .rpc('get_messages_with_pagnation', params:
+    {
+      'p_channel_id': _channelId,
+      'p_current_user_id': _userId,
+      'page_size': _pageSize,
+      'page_num': _currentPage,
+    });
 
+    debugPrint('RAW RPC RESPONSE for messages: ${response.toString()}');
 
-
-    final List<types.Message> newMessages = (response as List)
+    final List<types.Message> freshMessages = (response as List)
         .map((map) => _mapToMessage(map as Map<String, dynamic>))
         .toList();
-    if (newMessages.isEmpty) {
-      _hasMore = false;
-    } else {
 
-      final existingIds = _chatController.messages.map((m) => m.id).toSet();
-      final uniqueNewMessages = newMessages.where((m) => !existingIds.contains(m.id)).toList().reversed.toList();
+    // If the server returns no messages, we've loaded everything.
+    if (freshMessages.isEmpty) {
+      setState(() {
+        _hasMore = false;
+        _isLoading = false;
+      });
+      return;
+    }
 
-      if (uniqueNewMessages.isNotEmpty) {
-        await _chatController.insertAllMessages(uniqueNewMessages, index: 0);
-        _currentPage++;
+    // 2. This is the core sync logic. We intelligently merge the fresh data.
+    bool hasNewMessages = false;
+    final List<types.Message> messagesToAdd = [];
 
-        // Save updated list to cache
-        _saveMessagesToCache(_chatController.messages);
+    // Create a map for fast lookups of existing messages
+    final existingMessagesMap = {
+      for (var msg in _chatController.messages) msg.id: msg
+    };
+
+    for (final freshMessage in freshMessages) {
+      final existingMessage = existingMessagesMap[freshMessage.id];
+
+      if (existingMessage != null) {
+        // ✅ UPDATE: If a message from the server already exists locally,
+        // update it. This handles changes like 'isSeen' status.
+        _chatController.updateMessage(existingMessage, freshMessage);
+      } else {
+        // ✅ ADD: If the message doesn't exist locally, it's new.
+        messagesToAdd.add(freshMessage);
+        hasNewMessages = true;
       }
     }
-    AppCubit.get(context).chatController = _chatController;
-    setState(() => _isLoading = false);
+
+    // 3. Add any truly new messages to the chat list.
+    //    We reverse because the server sends newest-first.
+    if (messagesToAdd.isNotEmpty) {
+      // If we're loading older pages, add to the bottom (top of the list view).
+      // If it's the initial load/refresh, add to the top (bottom of the list view).
+      if (_currentPage > 0) {
+        _chatController.insertAllMessages(messagesToAdd.reversed.toList(), index: 0);
+      } else {
+        // For the very first page, a simple replaceAll is often cleaner
+        // if you've already loaded from cache. Or insert at the end.
+        // Let's stick with a consistent insert for pagination.
+        _chatController.insertAllMessages(messagesToAdd.reversed.toList());
+      }
+    }
+
+    // 4. IMPORTANT: Save the newly synced list back to the local cache.
+    await _saveMessagesToCache(_chatController.messages);
+
+    // 5. Update pagination and loading state.
+    setState(() {
+      if (hasNewMessages) {
+        _currentPage++;
+      }
+      _isLoading = false;
+    });
 
   }
 
 
   types.Message _mapToMessage(Map<String, dynamic> map) {
-    final seenAtTimestamp = map['latest_seen_at'] != null
-        ? DateTime.parse(map['latest_seen_at'])
-        : null;
-    final metadata = map['metadata'] as Map<String, dynamic>?;
-    final messageType = metadata?['type'] ?? map['type'];
+    DateTime? parseDate(String? dateStr) {
+      return dateStr != null ? DateTime.parse(dateStr) : null;
+    }
 
+    final createdAt = parseDate(map['created_at']);
+    final deletedAt = parseDate(map['deleted_at']);
+    final failedAt = parseDate(map['failed_at']);
+    final bool isSeen = map['isSeen'] ?? false;
+    final sentAt = parseDate(map['sent_at']);
+    final deliveredAt = parseDate(map['delivered_at']);
+    final updatedAt = parseDate(map['updated_at']);
+
+    final metadata = map['metadata'] as Map<String, dynamic>? ?? {};
+
+    // Add all timestamps to metadata for universal access
+    metadata['deletedAt'] = deletedAt?.toIso8601String();
+    metadata['failedAt'] = failedAt?.toIso8601String();
+    metadata['sentAt'] = sentAt?.toIso8601String();
+    metadata['deliveredAt'] = deliveredAt?.toIso8601String();
+    metadata['isSeen'] = isSeen;
+    metadata['updatedAt'] = updatedAt?.toIso8601String();
+    final messageType = metadata['type'] ?? map['type'];
+    const String deletedUserId = 'deleted_user';
 
     switch (messageType) {
       case 'image':
-
-
         return types.ImageMessage(
-          createdAt: DateTime.parse(map['created_at']),
+          createdAt: createdAt,
           id: map['id'],
-          text:metadata?['name'] ?? 'image',
-          authorId:  map['author_id'],
-          size: metadata?['size'] ?? 0,
-          height: metadata?['height']?.toDouble(),
-          width: metadata?['width']?.toDouble(),
+          text:metadata['name'] ?? 'image',
+          authorId:  map['author_id'] ?? deletedUserId,
+          size: metadata['size'] ?? 0,
+          height: metadata['height']?.toDouble(),
+          width: metadata['width']?.toDouble(),
           source: map['uri'],
           metadata: metadata,
-          replyToMessageId: metadata?['reply_to']
+          replyToMessageId: metadata['reply_to'],
         );
       case 'file':
 
         return types.FileMessage(
-          createdAt: DateTime.parse(map['created_at']),
+          createdAt: createdAt,
           id: map['id'],
-          authorId:  map['author_id'],
-          name: metadata?['name'] ?? 'File',
-          size: metadata?['size'] ?? 0,
-          mimeType: metadata?['mimeType'],
+          authorId:  map['author_id'] ?? deletedUserId,
+          name: metadata['name'] ?? 'File',
+          size: metadata['size'] ?? 0,
+          mimeType: metadata['mimeType'],
           source: map['uri'],
           metadata: metadata,
-          replyToMessageId: metadata?['reply_to']
+          replyToMessageId: metadata['reply_to']
         );
       case 'audio':
-        final durationString = metadata?['duration'] ?? '00:00';
+        final durationString = metadata['duration'] ?? '00:00';
         final parts = durationString.split(':');
         final duration = Duration(
           minutes: int.tryParse(parts[0]) ?? 0,
@@ -426,25 +491,24 @@ class _GeneralChatState extends State<GeneralChat> {
         );
 
         return types.AudioMessage(
-          createdAt: DateTime.parse(map['created_at']),
+          createdAt: createdAt,
           id: map['id'],
-          authorId: map['author_id'],
-          size: metadata?['size'] ?? 0,
+          authorId: map['author_id'] ?? deletedUserId,
+          size: metadata['size'] ?? 0,
           source: map['uri'], // This will be the Google Drive link
           duration: duration,
           metadata: metadata,
-          replyToMessageId: metadata?['reply_to'],
+          replyToMessageId: metadata['reply_to'],
         );
       default: // 'text'
         return types.TextMessage(
-          createdAt: DateTime.parse(map['created_at']),
+          createdAt: createdAt,
           id: map['id'],
-          authorId:  map['author_id'],
+          authorId:  map['author_id'] ?? deletedUserId,
           text: map['text'] ?? '',
           metadata: metadata,
-          replyToMessageId: metadata?['reply_to'],
-          deliveredAt: DateTime.parse(map['created_at']),
-          seenAt: seenAtTimestamp,
+          replyToMessageId: metadata['reply_to'],
+          deliveredAt: deliveredAt,
 
 
         );
@@ -518,7 +582,7 @@ class _GeneralChatState extends State<GeneralChat> {
       });
     } else {
       // Handle failure: maybe update the placeholder to show a "failed" state
-      print('Upload failed for local message ID: $localId');
+      debugPrint('Upload failed for local message ID: $localId');
       // You could update the progress map with a special value like -1 to indicate failure
       setState(() {
         _uploadProgress.remove(localId); // Or simply remove it
@@ -645,16 +709,14 @@ class _GeneralChatState extends State<GeneralChat> {
       'text': text,
       'channel_id': _channelId,
       'created_at' :  (await NTP.now()).toIso8601String(),
+      'sent_at' :  (await NTP.now()).toIso8601String(),
       'metadata': {
         'type': 'text',
         if (_repliedMessage != null) 'reply_to': _repliedMessage!.id,
 
       },
-
     });
-
     setState(() {
-
       _repliedMessage = null; // Clear after sending
     });
   }
@@ -724,6 +786,9 @@ class _GeneralChatState extends State<GeneralChat> {
   }
 
   Future<types.User?> _resolveUser(String id) async {
+    if (id == 'deleted_user') {
+      return const types.User(id: 'deleted_user', name: 'Deleted User');
+    }
     // THIS IS THE KEY: Replace your old resolveUser with this new version
     if(_userCache.containsKey(id)){
       return _userCache[id]!;
@@ -759,29 +824,27 @@ class _GeneralChatState extends State<GeneralChat> {
 
   void _handleTypingStatus() {
     // Determine the new typing state based on the text field's content.
-    final bool isCurrentlyTyping = _chatTextController.text.isNotEmpty;
+    final bool isInputEmpty = _chatTextController.text.isEmpty;
 
-    // Only update the state if the new state is different from the old one.
-    if (isCurrentlyTyping != _isTyping) {
-      setState(() {
-        _isTyping = isCurrentlyTyping;
-      });
-
-      // The logic for showing/hiding the mic is the inverse of the typing status.
-      AppCubit.get(context).showHideMic(!isCurrentlyTyping);
-
-      // Optional: A cleaner way to log the change.
-      print(isCurrentlyTyping ? "User has started typing." : "User has stopped typing.");
-    }
+      AppCubit.get(context).showHideMic(isInputEmpty);
   }
 
   Widget chatWrapper (
       types.Message message ,
       int index ,
-      String userNameString ,
+      bool isSentByMe,
       {String? fileId}
       ){
-    return ChatMessageWrapper(
+    final user = _userCache[message.authorId];
+    // Use the user's name if available, otherwise show a placeholder.
+    final userNameString = user?.name ?? '...';
+    // If the user wasn't in the cache, kick off a fetch.
+    // This will update the cache and trigger a rebuild to show the correct name.
+    if (user == null) {
+      _resolveUser(message.authorId);
+    }
+    List<Widget> messageBody = [
+      ChatMessageWrapper(
         messageId: message.id,
         controller:_reactionsController,
         config: const ChatReactionsConfig(
@@ -805,28 +868,72 @@ class _GeneralChatState extends State<GeneralChat> {
         },
 
         child: MessageWidget(
-            message: message,
-            controller: _reactionsController,
-            messageIndex:index ,
-            chatController: _chatController,
-            userName :  userNameString,
-            userCache: _userCache,
-            fileId:fileId,
+          message: message,
+          controller: _reactionsController,
+          messageIndex:index ,
+          chatController: _chatController,
+          userName :  userNameString,
+          userCache: _userCache,
+          isSentByMe: isSentByMe,
+          fileId:fileId,
 
-        ));
+        )),
+      Avatar(userId: message.authorId)];
+    return VisibilityDetector(
+        key: Key(message.id),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 5,
+          children: isSentByMe?messageBody:messageBody.reversed.toList(),
+        ),
+        onVisibilityChanged: (VisibilityInfo info) {
+          if (info.visibleFraction  >= 0.8 ) {
+
+            // Call a function to mark the message as seen
+            if(message.authorId != _userId) _markMessageAsSeen(message.id);
+          }
+        },);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
       return Scaffold(
-        appBar: AppBar(title: const Text("General Chat")),
+        appBar: AppBar(
+            title: MaterialButton(
+              onPressed: (){
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      // Navigate to the new screen you just created
+                      builder: (context) => ChatMembersScreen(
+                        compoundId: widget.compoundId,
+                      ),
+                    ),
+               );
+              },
+                child: const Text("General Chat"))
+
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
       appBar:AppBar(
-          title:Text("General Chat"),
+          title:MaterialButton(
+              onPressed: (){
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    // Navigate to the new screen you just created
+                    builder: (context) => ChatMembersScreen(
+                      compoundId: widget.compoundId,
+                    ),
+                  ),
+                );
+              },
+              child: const Text("General Chat"))
       ),
       body: Stack(
         children: [
@@ -835,149 +942,52 @@ class _GeneralChatState extends State<GeneralChat> {
             currentUserId: _userId,
             resolveUser: _resolveUser,
             onMessageSend: (text) {
-                _handleSendPressed(text);
+              _handleSendPressed(text);
             },
             onAttachmentTap:_handleAttachmentPressed,
             builders: types.Builders(
-              textMessageBuilder:
-                  (
-                  context,
-                  message,
-                  index,
+              textMessageBuilder: (context, message, index,
                   {
-                required bool isSentByMe,
-                types.MessageGroupStatus? groupStatus,
-              }) {
+                    required bool isSentByMe,
+                    types.MessageGroupStatus? groupStatus
+                  }) => chatWrapper(
+                    message,
+                    index,
+                    isSentByMe),
+              chatMessageBuilder: (context, message, index, animation, child,
+                  {
+                    bool? isRemoved,
+                    required bool isSentByMe,
+                    types.MessageGroupStatus? groupStatus,
+                  })=> ChatMessage(
+                  message: message,
+                  index: index,
+                  animation: animation,
+                  child: child
+                ),
 
-                    final user = _userCache[message.authorId];
-                    final userNameString = user?.name ?? '...';
-                    if (user == null) {
-                      _resolveUser(message.authorId);
-                    }
-
-
-                    return VisibilityDetector(
-                      key: Key(message.id),
-                      onVisibilityChanged: (VisibilityInfo info) {
-                        if (info.visibleFraction  >= 0.8 ) {
-
-                          // Call a function to mark the message as seen
-                         if(message.authorId != _userId) _markMessageAsSeen(message.id);
-                        }
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
-                        children: [
-                          chatWrapper(
-                            message,
-                            index,
-                            userNameString,
-                          ),
-                          Avatar(userId: message.authorId)
-                        ],
-                      ),
-                    );
-                  },
-              chatMessageBuilder: (context,
-              message,
-              index,
-              animation,
-              child, {
-                bool? isRemoved,
-                required bool isSentByMe,
-                types.MessageGroupStatus? groupStatus,
-                  }) {
-
-                return ChatMessage(
-                    message: message,
-                    index: index,
-                    animation: animation,
-                    child: child
-                );
-              },
-              chatAnimatedListBuilder: (context,itemBuilder){
-                return ChatAnimatedList(
+              chatAnimatedListBuilder: (context,itemBuilder)=>
+                ChatAnimatedList(
                   itemBuilder: itemBuilder,
                   onEndReached: _loadMessages,
-
                   initialScrollToEndMode:InitialScrollToEndMode.none,
-                );
-              },
-        audioMessageBuilder:(context,
-            message,
-            index,{
-          required bool isSentByMe,
-              types.MessageGroupStatus? groupStatus,
-            }){
-
-          final user = _userCache[message.authorId];
-          final userNameString = user?.name ?? '...';
-          if (user == null) {
-            _resolveUser(message.authorId);
-          }
-          return Stack(
-            children: [
-              VisibilityDetector(
-                key: Key(message.id),
-                onVisibilityChanged: (VisibilityInfo info) {
-                  if (info.visibleFraction  >= 0.8 ) {
-
-                    // Call a function to mark the message as seen
-                    if(message.authorId != _userId) _markMessageAsSeen(message.id);
-                  }
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: isSentByMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
-                  children: [
-                    chatWrapper(
-                      message,
-                      index,
-                      userNameString,
-                    ),
-                    Avatar(userId: message.authorId)
-                  ],
                 ),
-              ),
-              // if (repliedMessage != null && repliedMessage is types.TextMessage)
-              // Container(
-              //   margin: EdgeInsets.only(bottom: 4),
-              //   padding: EdgeInsets.all(6),
-              //   decoration: BoxDecoration(
-              //     color: Colors.grey[300],
-              //     borderRadius: BorderRadius.circular(6),
-              //   ),
-              //   child: Text(
-              //     (repliedMessage).text,
-              //     style: TextStyle(fontSize: 12, color: Colors.black87),
-              //   ),
-              // ),
-            ],
-          );
-        },
 
-
-              imageMessageBuilder: (
-                  context,
+                audioMessageBuilder:(context, message, index,{
+                  required bool isSentByMe,
+                  types.MessageGroupStatus? groupStatus,
+                })=>chatWrapper(
                   message,
-                  index, {
+                  index,
+                  isSentByMe,
+                ),
+                imageMessageBuilder: (
+                    context,
+                    message,
+                    index, {
                     required bool isSentByMe,
                     types.MessageGroupStatus? groupStatus,
                   }) {
-                final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
-
-                final user = _userCache[message.authorId];
-
-                // Use the user's name if available, otherwise show a placeholder.
-                final userNameString = user?.name ?? '...';
-
-                // If the user wasn't in the cache, kick off a fetch.
-                // This will update the cache and trigger a rebuild to show the correct name.
-                if (user == null) {
-                  _resolveUser(message.authorId);
-                }
-
                 String? extractDriveFileId(String url) {
                   try {
                     final uri = Uri.parse(url);
@@ -999,48 +1009,13 @@ class _GeneralChatState extends State<GeneralChat> {
                 }
 
                 // 2. Use a FutureBuilder to download and display the image
-                return Stack(
-                  children: [
-                    VisibilityDetector(
-                      key: Key(message.id),
-                      onVisibilityChanged: (VisibilityInfo info) {
-                        if (info.visibleFraction  >= 0.8 ) {
-
-                          // Call a function to mark the message as seen
-                          if(message.authorId != _userId) _markMessageAsSeen(message.id);
-                        }
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: isMe?CrossAxisAlignment.start:CrossAxisAlignment.end,
-                        children: [
-                          chatWrapper(
-                            message,
-                            index,
-                            userNameString,
-                            fileId: fileId
-                          ),
-                          Avatar(userId: message.authorId)
-                        ],
-                      ),
-                    ),
-                    // if (repliedMessage != null && repliedMessage is types.TextMessage)
-                    // Container(
-                    //   margin: EdgeInsets.only(bottom: 4),
-                    //   padding: EdgeInsets.all(6),
-                    //   decoration: BoxDecoration(
-                    //     color: Colors.grey[300],
-                    //     borderRadius: BorderRadius.circular(6),
-                    //   ),
-                    //   child: Text(
-                    //     (repliedMessage).text,
-                    //     style: TextStyle(fontSize: 12, color: Colors.black87),
-                    //   ),
-                    // ),
-                  ],
+                return chatWrapper(
+                    message,
+                    index,
+                    isSentByMe,
+                    fileId: fileId
                 );
               },
-
 
               customMessageBuilder: (
                   context,
@@ -1061,6 +1036,7 @@ class _GeneralChatState extends State<GeneralChat> {
               },
               composerBuilder: (context) {
                 return BlocBuilder<AppCubit,AppCubitStates>(
+                    buildWhen: (previous, current) => current is ShowHideMicStates,
                   builder: (context,state) {
 
                     return Visibility(
@@ -1072,7 +1048,7 @@ class _GeneralChatState extends State<GeneralChat> {
                         handleSafeArea: true,
                         sigmaX: 3,
                         sigmaY: 3,
-                        sendButtonHidden:_chatTextController.text.isEmpty?true:false,
+                        sendButtonHidden:AppCubit.get(context).isChatInputEmpty,
 
                       ),
                     );

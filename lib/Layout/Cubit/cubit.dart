@@ -10,6 +10,7 @@ import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ntp/ntp.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
@@ -25,6 +26,9 @@ import '../../sevices/gumletService.dart';
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
   static AppCubit get(context) => BlocProvider.of(context);
+  RealtimeChannel? _presenceChannel;
+  final supabase = Supabase.instance.client;
+  String? _userId;
 
   int bottomNavIndex = 0;
   bool isPassword = true;
@@ -40,6 +44,17 @@ class AppCubit extends Cubit<AppCubitStates> {
   List<type.Category> compoundSuggestions = categories;
   types.InMemoryChatController? chatController ;
 
+  Map<String, dynamic> get currentPresence {
+    final state = _presenceChannel?.presenceState();
+    if (state == null) return {};
+
+    final Map<String, dynamic> map = {};
+    for (final item in state) {
+      map[item.key] = item.presences.map((p) => p.payload).toList();
+    }
+    debugPrint('Cubit presence map: $map');
+    return map;
+  }
 
   /// used to Switch TabBar Index at [Social] page
   void tabBarIndexSwitcher(index){
@@ -53,6 +68,60 @@ class AppCubit extends Cubit<AppCubitStates> {
     if (isChatInputEmpty != isEmpty) {
       isChatInputEmpty = isEmpty;
       emit(ShowHideMicStates());
+    }
+  }
+
+  void initializePresence() {
+    _userId = Supabase.instance.client.auth.currentUser?.id;
+    if (_userId == null) {
+      debugPrint('Presence: No user ID found');
+      return;
+    }
+
+    // Important: Always use the same channel name everywhere
+    const channelName = 'global_presence';
+    _presenceChannel = supabase.channel(channelName);
+
+    // Optional — helpful to debug who else is online in the cubit
+    _presenceChannel!
+        .onPresenceSync((_) {
+      final state = _presenceChannel!.presenceState();
+      debugPrint('CUBIT presence sync: $state');
+      emit(PresenceUpdated());
+    });
+
+    // Subscribe and track AFTER the server confirms subscription
+    _presenceChannel!.subscribe((status, [error]) async {
+      debugPrint('Presence channel status: $status ${error ?? ''}');
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        await Future.delayed(const Duration(milliseconds: 300)); // give it a moment
+        await updatePresenceStatus('online');
+        debugPrint('Presence tracked for user $_userId');
+      }
+    });
+  }
+
+
+  // Method to update the status payload
+  Future<void> updatePresenceStatus(String status) async {
+    if (_presenceChannel == null || _userId == null) return;
+    await _presenceChannel!.track({
+      'user_id': _userId,
+      'status': status, // The important part: 'online' or 'available'
+    });
+    debugPrint('user set as online success');
+  }
+
+  // Method to untrack (signals leaving)
+  Future<void> untrackPresence() async {
+    if (_presenceChannel == null) return;
+    await _presenceChannel!.untrack();
+  }
+
+  // Method for cleanup
+  void disconnectPresence() {
+    if (_presenceChannel != null) {
+      _presenceChannel!.unsubscribe();
     }
   }
 
@@ -91,8 +160,8 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(isRecordingStates());
   }
 
-  void SignupRoleName(Roles? roleName){
-    roleName = roleName;
+  void SignupRoleName(Roles? newRoleName){
+    roleName = newRoleName;
     emit(SignupRoleChangeState());
   }
 
@@ -270,6 +339,62 @@ class AppCubit extends Cubit<AppCubitStates> {
   final List _uploadProgress = [];
 
   final List<Map<String, String>> imageSources = [];
+
+  Future<void> reportSubmit (String title , String description , String category, List<XFile>? files ) async {
+    final formattedCategory = category.isNotEmpty
+        ? '${category[0].toUpperCase()}${category.substring(1)}'
+        : '';
+    final newReport =
+    await supabase.from('reports').insert({
+      'user_id': Userid,
+      'title': title,
+      'description': description,
+      'category':formattedCategory
+    })
+        .select('id')
+        .single();
+
+    final reportId = newReport['id'];
+
+    if(files != null || files!.isNotEmpty){
+
+      for (final xfile in files) {
+        final bytes = await xfile.readAsBytes();
+        final image = await decodeImageFromList(bytes);
+        int index =0;                     //count the number of items in files List used for _uploadProgress
+        _uploadProgress.add(0);           //adding new item to the list and using index to update it's progress
+        final file = File(xfile.path);
+        final fileName = xfile.name;
+
+
+        // 1. Upload the file to Google Drive
+        final driveLink = await driveService.uploadFile(
+          file,
+          fileName,
+          'image',
+        );
+        if(driveLink !=null){
+          imageSources.add({
+            'uri': driveLink,
+            'name': fileName,
+            'size': bytes.length.toString(),
+            'height': image.height.toString(),
+            'width': image.width.toString(),
+          });
+        }
+        index++;
+      }
+
+      await supabase.from('report_attachments').insert({
+
+        'report_id': reportId,
+        'source_url': imageSources,
+      });
+    }
+
+    imageSources.clear();
+    emit(NewReportSubmitState());
+  }
 
   Future<void> fetchPostsData (String postHead , bool getCalls , String? type , List<XFile>? files , int compoundId ) async {
 

@@ -26,6 +26,7 @@ class MessageWidget extends StatelessWidget {
     required this. userName,
     this.fileId,
     required this.userCache,
+    required this.isSentByMe,
 
 
 
@@ -38,6 +39,7 @@ class MessageWidget extends StatelessWidget {
   final String userName;
   final String? fileId;
   final Map<String, types.User> userCache;
+  final bool isSentByMe;
 
   @override
   Widget build(BuildContext context) {
@@ -46,15 +48,13 @@ class MessageWidget extends StatelessWidget {
     ).firstOrNull;
 
     final repliedUser = userCache.putIfAbsent(repliedMessage?.authorId !=null?repliedMessage!.authorId :"0", ()=>types.User(id:"0" , name: 'Unknown'));
-
-    final bool isMe = message.authorId == supabase.auth.currentUser!.id?true:false;
     final hasReactions = controller.getReactionCounts(message.id).isNotEmpty;
     final msgPadding = const EdgeInsets.only(bottom: 2.0);
 
-    final msgBackgroundColor = isMe
+    final msgBackgroundColor = isSentByMe
         ? Colors.indigo
         : Colors.purple;
-    final msgTextColor =  isMe
+    final msgTextColor =  isSentByMe
         ? Theme.of(context).colorScheme.onPrimary
         : Theme.of(context).colorScheme.onSecondary;
     final createdAt = message.createdAt;
@@ -64,7 +64,7 @@ class MessageWidget extends StatelessWidget {
 
 
     return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isSentByMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.9,
@@ -80,7 +80,7 @@ class MessageWidget extends StatelessWidget {
               ),
               child: messageBuilder(
                   context,
-                  isMe,
+                  isSentByMe,
                   hasReactions,
                   msgPadding,
                   msgTextColor,
@@ -97,7 +97,7 @@ class MessageWidget extends StatelessWidget {
             //reactions
             buildReactions(
               context,
-              isMe,
+              isSentByMe,
               message
             ),
           ],
@@ -140,7 +140,7 @@ bool isPrevPost(message){
 }
 
   Widget messageBuilder(
-      context ,bool isMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor ,DateTime? createdAt , DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
+      context ,bool isSentByMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor ,DateTime? createdAt , DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
       ){
 
     final List<Widget> UserInformation =[
@@ -185,7 +185,7 @@ bool isPrevPost(message){
           ),
           child: ChatBubble(
             padding: EdgeInsets.symmetric(horizontal: 15,vertical: 4),
-            clipper: isMe
+            clipper: isSentByMe
                 ? isPrevPost(message)? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
                 type:BubbleType.sendBubble,
                 radius: 10,
@@ -200,12 +200,12 @@ bool isPrevPost(message){
                 nipHeight: 14,
                 nipWidth: 5
             ),
-            alignment: isMe
+            alignment: isSentByMe
                 ?Alignment.topRight
                 :Alignment.topLeft,
             backGroundColor: msgBackgroundColor,
             child:Column(
-              crossAxisAlignment: isMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
+              crossAxisAlignment: isSentByMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
 
               children: [
@@ -213,7 +213,7 @@ bool isPrevPost(message){
                 Row(
                   spacing: 15,
                   mainAxisSize: MainAxisSize.min,
-                  children: isMe?UserInformation.reversed.toList():UserInformation,
+                  children: isSentByMe?UserInformation.reversed.toList():UserInformation,
                 ),
                 SizedBox(height: 4,),
                 if(repliedMessage !=null)
@@ -240,7 +240,7 @@ bool isPrevPost(message){
           
                 const SizedBox(height: 3),
                 Row(
-                  mainAxisAlignment: isMe?MainAxisAlignment.end:MainAxisAlignment.start,
+                  mainAxisAlignment: isSentByMe?MainAxisAlignment.end:MainAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
@@ -252,15 +252,7 @@ bool isPrevPost(message){
                       ),
                     ),
                     const SizedBox(width: 5),
-                    seenAt !=null ?Icon(
-                      Icons.done_all,
-                      color: Colors.greenAccent,
-                      size: 13,
-                    ):Icon(
-                      Icons.done_all,
-                      color: Colors.grey,
-                      size: 13,
-                    ),
+                    MessageStatusIcon(message: message),
                   ],
                 ),
               ],
@@ -499,3 +491,29 @@ class _AudioMessageBuilderState extends State<AudioMessageBuilder> {
 }
 
 
+class MessageStatusIcon extends StatelessWidget {
+  final types.Message message;
+  const MessageStatusIcon({super.key, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+
+    final bool isSeen = message.metadata?['isSeen'] == true;
+
+    IconData iconData = Icons.check;
+    Color iconColor = Colors.grey;
+
+    // The logic is now much simpler
+    if (isSeen) {
+      iconData = Icons.done_all;
+      iconColor = Colors.blueAccent;
+    } else if (message.metadata?['deliveredAt'] != null) {
+      iconData = Icons.done_all;
+      iconColor = Colors.grey;
+    } else if (message.metadata?['sentAt'] != null) {
+      iconData = Icons.check;
+    }
+
+    return Icon(iconData, color: iconColor, size: 13);
+  }
+}

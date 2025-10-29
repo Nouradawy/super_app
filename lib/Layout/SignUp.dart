@@ -10,6 +10,7 @@ import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/GeneralChat.dart';
 import 'package:super_app/Layout/wellcomingPage.dart';
 import 'package:super_app/Themes/lightTheme.dart';
+import 'package:super_app/sevices/PresenceManager.dart';
 import '../Components/Constants.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -191,7 +192,7 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum  ) {
           ),
         ),
       SizedBox(height: 10),
-      if (AppCubit.get(context).roleName != Roles.manager)  /// Hide Manger Container to view the User Form (apartmentInfo)
+      if (AppCubit.get(context).roleName != Roles.user)  /// Hide Manger Container to view the User Form (apartmentInfo)
         Container(
           width: MediaQuery.of(context).size.width * 0.85,
           height: 80,
@@ -372,7 +373,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
             data: {
               "display_name": fullName.text.trim().split(r'\s+').first,
               "FullName": fullName.text,
-              "role_id": AppCubit.get(context).roleName?.index ?? Roles.user.index,
+              "role_id": AppCubit.get(context).roleName!.index+1,
               'compound_id':selectedCompoundId.toString(),
               'building_num': buildingNum.text,
               'apartment_num': apartmentNum.text
@@ -395,12 +396,12 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
         UserData = Supabase.instance.client.auth.currentSession?.user;
         Userid =  UserData!.id;
 
-        context.read<AppCubit>().getPostsData(selectedCompoundId);
+        AppCubit.get(context).getPostsData(selectedCompoundId);
         if (UserData != null) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => HomePage(),
+              builder: (context) => PresenceManager(child: HomePage()),
             ),
           );
         }
