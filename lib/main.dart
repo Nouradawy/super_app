@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -23,8 +21,8 @@ import 'l10n/l10n.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   Bloc.observer = const SimpleBlocObserver();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // await Firebase.initializeApp();
+  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await Supabase.initialize(
     // ⚠️ IMPORTANT: Replace with your own URL and Anon Key
     url: 'https://nouradawysupabase.duckdns.org',
@@ -85,7 +83,7 @@ class MyApp extends StatelessWidget {
               // User is logged in, show the HomePage
               UserData = snapshot.data!.session!.user; // You can set your global UserData here
               requestPermission();
-              getFireBaseToken();
+              // getFireBaseToken();
               return  HomePage();
             } else {
               requestPermission();

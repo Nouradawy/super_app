@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:super_app/Themes/lightTheme.dart';
 import 'package:super_app/sevices/GoogleDriveService.dart';
 import '../Confg/supabase.dart';

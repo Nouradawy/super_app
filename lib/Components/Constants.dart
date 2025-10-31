@@ -100,8 +100,10 @@ Widget PostTextForm(
 }
 
 
-String formatTimestampToAmPm(String timestamp) {
-  DateTime dateTime = DateTime.parse(timestamp).toLocal(); // Convert Firestore Timestamp to DateTime
-  String formattedTime = DateFormat('h:mm a').format(dateTime); // e.g., "2:30 PM"
-  return formattedTime;
+String formatTimestampToAmPm(DateTime dt) {
+  final local = dt.toLocal();
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final ampm = local.hour >= 12 ? 'PM' : 'AM';
+  return '$hour:$minute $ampm';
 }

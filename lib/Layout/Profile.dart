@@ -10,7 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Confg/supabase.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 
 import '../Components/Constants.dart';
 import '../main.dart';
@@ -81,7 +81,9 @@ class Profile extends StatelessWidget {
 
 
                   MaterialButton(onPressed: () async {
-                    AppCubit.get(context).googleSignin();
+                    AppCubit.get(context).googleSignin(
+
+                    );
 
                   },
                     child: Text(googleUser ==  null?"Link Drive":"Unlink"),),

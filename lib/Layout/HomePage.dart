@@ -12,7 +12,7 @@ import 'package:social_media_recorder/audio_encoder_type.dart';
 import 'package:social_media_recorder/screen/social_media_recorder.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:super_app/Layout/Maintenance.dart';
 import 'package:super_app/Layout/chatWidget/AudioWaveformPainter.dart';
 import 'package:super_app/Layout/wellcomingPage.dart';
@@ -65,7 +65,7 @@ class HomePage extends StatelessWidget {
           return current is BottomNavIndexChangeStates || current is AppInitialState;
         },
         builder: (context,state) {
-      
+
           return Scaffold(
               backgroundColor:Colors.white,
               appBar: AppBar(
@@ -74,7 +74,7 @@ class HomePage extends StatelessWidget {
                   initialSelection: selectedCompoundId?.toString(),
                   width: MediaQuery.sizeOf(context).width * 0.7,
                   inputDecorationTheme: InputDecorationTheme(
-      
+
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
@@ -92,7 +92,7 @@ class HomePage extends StatelessWidget {
                       Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
                     ),
                   ),
-      
+
                   dropdownMenuEntries:
                   (MyCompounds.entries.toList().reversed).map(
                         (entry) {
@@ -134,7 +134,7 @@ class HomePage extends StatelessWidget {
                     );
                   }, icon: Icon(Icons.join_full))
                 ],
-      
+
               ),
               bottomNavigationBar: BottomNavigationBar(
                   type:BottomNavigationBarType.fixed,
@@ -178,7 +178,7 @@ class HomePage extends StatelessWidget {
                                 const SizedBox(
                                   height:30,
                                 ),
-      
+
                                 //<-----------------ListView for Services---------------->
                                 Container(
                                   margin:EdgeInsets.only(left:MediaQuery.of(context).size.width*0.075),
@@ -213,7 +213,7 @@ class HomePage extends StatelessWidget {
                                           child: Column(
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               crossAxisAlignment: CrossAxisAlignment.center,
-      
+
                                               children: [
                                                 const SizedBox(height: 15),
                                                 Container(
@@ -225,7 +225,7 @@ class HomePage extends StatelessWidget {
                                                       color: service["icon bg"]
                                                   ),
                                                   child: SvgPicture.asset(
-      
+
                                                       colorFilter:ColorFilter.mode(
                                                         service["icon color"],
                                                         BlendMode.srcIn,
@@ -238,7 +238,7 @@ class HomePage extends StatelessWidget {
                                                     width: 100,
                                                     child: Text(service['Name'] ,textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize:13,fontWeight: FontWeight.bold , color: service["text Color"]
                                                     ),)),
-      
+
                                               ]
                                           ),
                                         ),
@@ -246,7 +246,7 @@ class HomePage extends StatelessWidget {
                                     },
                                   ),
                                 ),
-      
+
                               ],
                             ),
                           ),
@@ -260,7 +260,7 @@ class HomePage extends StatelessWidget {
                             {
                               context.read<AppCubit>().getPostsData(selectedCompoundId!);
                             }
-      
+
                         },
                         buildWhen: (previousState, currentState) {
                           // Only rebuild if the state is AppInitialState and the compound ID has changed.
@@ -271,18 +271,18 @@ class HomePage extends StatelessWidget {
                           return false;
                         },
                         builder: (context, state) {
-      
+
                           if (selectedCompoundId == null) {
                             return const Center(child: CircularProgressIndicator());
                           }
-      
+
                           // 3. Pass the key to Social, which is now a clean StatelessWidget
                           return Social(key: ValueKey(selectedCompoundId));
                         },
                       ),
                     ),
                   ),
-      
+
                   ),
                   BlocBuilder<AppCubit,AppCubitStates>(
                     buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates ,
@@ -311,16 +311,16 @@ class HomePage extends StatelessWidget {
                                   final minutes = int.tryParse(parts[0]) ?? 0;
                                   final seconds = int.tryParse(parts[1]) ?? 0;
                                   final parsedDuration = Duration(minutes: minutes, seconds: seconds);
-      
+
                                   final amplitudesToUpload = AppCubit.get(context).recordedAmplitudes;
                                   AppCubit.get(context).uploadVoiceNote(soundFile, parsedDuration ,amplitudesToUpload ,selectedCompoundId!);
-      
+
                                 },
-      
+
                                 fullRecordPackageHeight: 80,
-      
+
                                 // Customize the appearance to match your app
-      
+
                                 backGroundColor: ChatColors
                                     .light()
                                     .surfaceContainerHigh
@@ -329,7 +329,7 @@ class HomePage extends StatelessWidget {
                                 initialButtonHight: 40,
                                 finalButtonWidth: 60,
                                 finalButtonHight: 60,
-      
+
                                 encode: AudioEncoderType.AAC,
                                 waveformBuilder: (amplitudes) {
                                   AppCubit.get(context).recordedAmplitudes = amplitudes;
@@ -337,11 +337,11 @@ class HomePage extends StatelessWidget {
                                     painter: AudioWaveformPainter(
                                       amplitudes: amplitudes,
                                       waveColor: Colors.black,
-      
+
                                     ),
                                   );
                                 },
-      
+
                                 // You can add more customizations here
                                 // lockButton: const Icon(Icons.lock, color: Colors.white),
                                 // slideToCancelText: "Slide to Cancel",

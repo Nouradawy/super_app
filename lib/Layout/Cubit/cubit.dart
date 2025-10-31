@@ -12,7 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:ntp/ntp.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/GeneralChat.dart';
+import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../Model/CompoundsList.dart';
@@ -246,6 +246,16 @@ class AppCubit extends Cubit<AppCubitStates> {
 
     emit(CompoundSuggestionsUpdated());
   }
+
+  void attachChatController(types.InMemoryChatController controller) {
+    chatController = controller;
+  }
+
+  /// Detach/clear the controller when the chat view is disposed.
+  void detachChatController() {
+    chatController = null;
+  }
+
   Future<void> uploadVoiceNote(File soundFile, Duration duration , List<double> amplitudes , int compoundId) async {
     // 1. Instantiate your Google Drive service
     final googleDriveService = GoogleDriveService();
@@ -256,7 +266,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     final placeholderMessage = types.AudioMessage(
       id: localId,
       authorId: Userid,
-      createdAt: await NTP.now(),
+      createdAt: (await NTP.now()).toUtc(),
       metadata: {
         'type': 'soundFile',
         'localId': localId,
@@ -314,7 +324,7 @@ class AppCubit extends Cubit<AppCubitStates> {
         'id': const Uuid().v4(),
         'author_id': Userid, // Assuming Userid is accessible here
         'uri': gumleturl, // The public link from Google Drive
-        'created_at': (await NTP.now()).toIso8601String(),
+        'created_at': (await NTP.now()).toUtc().toIso8601String(),
         'channel_id': _channelId,
         'metadata': {
           'type': 'audio',

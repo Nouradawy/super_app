@@ -6,7 +6,7 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
 
 class GoogleDriveService {
-  final List<String> scopes = [gdrive.DriveApi.driveFileScope];
+  final List<String> scopes = ['email',gdrive.DriveApi.driveFileScope];
   final Map<String, Uint8List> _imageCache = {};
   late final GoogleSignIn _googleSignIn;
 
@@ -14,6 +14,7 @@ class GoogleDriveService {
   GoogleDriveService() {
     _googleSignIn = GoogleSignIn(
       scopes: scopes,
+
     );
   }
 // You can change this to whatever you want your app's folder to be named.

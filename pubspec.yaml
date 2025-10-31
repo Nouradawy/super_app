@@ -48,10 +48,11 @@ dependencies:
   ntp: ^2.0.0
 #  carousel_slider: ^5.1.1
   dotted_border: ^3.1.0
-  flutter_chat_ui: ^2.9.0
+  flutter_chat_ui: ^2.9.1
   flutter_chat_core: ^2.7.1
   flyer_chat_text_message: ^2.5.0
   flyer_chat_image_message: ^2.2.0
+  flyer_chat_system_message: ^2.1.13
   uuid: ^4.5.1
   image_picker: ^1.1.2
   file_picker: ^10.2.0
@@ -61,7 +62,7 @@ dependencies:
   flutter_chat_bubble: ^2.0.2
   visibility_detector: ^0.4.0+2
   googleapis_auth: ^2.0.0
-  google_sign_in: ^6.1.4
+  google_sign_in: ^6.3.0
   flutter_polls: ^0.1.6
   audioplayers: ^6.5.0
   dio: ^5.9.0
@@ -70,8 +71,6 @@ dependencies:
   http: ^1.5.0
   path_provider: ^2.1.5
   flutter_typeahead: ^5.2.0
-  firebase_core: ^4.2.0
-  firebase_messaging: ^16.0.3
 
   social_media_recorder:
     git:

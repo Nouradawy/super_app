@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
-import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+
 import 'package:google_fonts/google_fonts.dart';
 import '../../Components/Constants.dart';
-import '../../Confg/supabase.dart';
-import '../GeneralChat.dart';
-import 'package:intl/intl.dart';
+
 import '../../sevices/GoogleDriveService.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:audioplayers/audioplayers.dart';
@@ -24,9 +23,11 @@ class MessageWidget extends StatelessWidget {
     required this.messageIndex,
     required this.chatController,
     required this. userName,
+
     this.fileId,
     required this.userCache,
     required this.isSentByMe,
+    required this.isPreviousMessageFromSameUser,
 
 
 
@@ -40,6 +41,7 @@ class MessageWidget extends StatelessWidget {
   final String? fileId;
   final Map<String, types.User> userCache;
   final bool isSentByMe;
+  final bool isPreviousMessageFromSameUser;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +59,8 @@ class MessageWidget extends StatelessWidget {
     final msgTextColor =  isSentByMe
         ? Theme.of(context).colorScheme.onPrimary
         : Theme.of(context).colorScheme.onSecondary;
-    final createdAt = message.createdAt;
+    final createdAt = getReliableCreatedAt(message);
+
     final seenAt = message.seenAt;
 
 
@@ -132,15 +135,53 @@ class MessageWidget extends StatelessWidget {
     );
   }
 
-bool isPrevPost(message){
-    if(messageIndex>0 && chatController.messages[messageIndex-1].authorId == message?.authorId ){
-      return true;
+  DateTime? getReliableCreatedAt(types.Message message) {
+    // 1) Prefer explicit DateTime on the message (convert to local)
+    final msgCreated = message.createdAt;
+    if (msgCreated != null) {
+      return msgCreated.toLocal();
     }
-    return false;
-}
+
+    // 2) Prefer epoch ms stored in metadata (unambiguous UTC)
+    final createdAtMsRaw = message.metadata?['createdAtMs'] ??
+        message.metadata?['created_at_ms'] ??
+        message.metadata?['createdAtMillis']; // check legacy keys
+    int? ms;
+    if (createdAtMsRaw is String) {
+      ms = int.tryParse(createdAtMsRaw);
+    } else if (createdAtMsRaw is num) {
+      ms = createdAtMsRaw.toInt();
+    }
+    if (ms != null) {
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
+    }
+
+    // 3) Fallback: try ISO string in metadata (ensure we treat naive strings as UTC)
+    final isoRaw = message.metadata?['created_at'] ?? message.metadata?['createdAt'];
+    if (isoRaw is String && isoRaw.isNotEmpty) {
+      try {
+        final tzRegex = RegExp(r'(Z|[+\-]\d{2}:\d{2})$');
+        DateTime parsed;
+        if (tzRegex.hasMatch(isoRaw)) {
+          parsed = DateTime.parse(isoRaw);
+        } else {
+          parsed = DateTime.parse('${isoRaw}Z'); // treat naive as UTC
+        }
+        return parsed.toLocal();
+      } catch (e) {
+        debugPrint('created_at ISO parse failed: $e ($isoRaw)');
+      }
+    }
+
+    // 4) Nothing found
+    return null;
+  }
+
+
+
 
   Widget messageBuilder(
-      context ,bool isSentByMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor ,DateTime? createdAt , DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
+      context ,bool isSentByMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor  , DateTime? createdAt ,  DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
       ){
 
     final List<Widget> UserInformation =[
@@ -160,18 +201,6 @@ bool isPrevPost(message){
           child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
     ];
 
-    String? extractDriveFileId(String url) {
-      try {
-        final uri = Uri.parse(url);
-        // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
-        if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
-          return uri.pathSegments[2];
-        }
-      } catch (e) {
-        print("Error parsing Drive URL: $e");
-      }
-      return null;
-    }
 
 
     return Material(
@@ -186,7 +215,7 @@ bool isPrevPost(message){
           child: ChatBubble(
             padding: EdgeInsets.symmetric(horizontal: 15,vertical: 4),
             clipper: isSentByMe
-                ? isPrevPost(message)? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
+                ? isPreviousMessageFromSameUser? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
                 type:BubbleType.sendBubble,
                 radius: 10,
                 nipRadius: 0,
@@ -245,7 +274,7 @@ bool isPrevPost(message){
                   children: [
                     Text(
                       //TODO:: Change Time sent logic for Messages Widget
-                      createdAt !=null ?formatTimestampToAmPm(createdAt.toString()):"null",
+                      createdAt !=null ?formatTimestampToAmPm(createdAt):"null",
                       style: TextStyle(
                         fontSize: 10,
                         color: msgTextColor,
@@ -516,4 +545,29 @@ class MessageStatusIcon extends StatelessWidget {
 
     return Icon(iconData, color: iconColor, size: 13);
   }
+}
+
+Future fullScreenImageViewer (imageData , context) {
+  return showDialog(
+    builder: (BuildContext context)=> Center(
+      child: InteractiveViewer(
+        panEnabled: true,
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Image.memory(imageData),
+      ),
+    ), context: context,
+  );
+}
+String? extractDriveFileId(String url) {
+  try {
+    final uri = Uri.parse(url);
+    // The file ID is usually the third segment in the path: /file/d/{FILE_ID}
+    if (uri.pathSegments.length > 2 && uri.pathSegments[1] == 'd') {
+      return uri.pathSegments[2];
+    }
+  } catch (e) {
+    print("Error parsing Drive URL: $e");
+  }
+  return null;
 }
