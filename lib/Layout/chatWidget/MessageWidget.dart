@@ -1,19 +1,24 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
-
+import 'package:flutter_polls/flutter_polls.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../Components/Constants.dart';
 
-import '../../sevices/GoogleDriveService.dart';
+
+
+import '../../Components/Constants.dart';
+import '../../Confg/supabase.dart';
+
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:audioplayers/audioplayers.dart';
 
+import '../../Services/GoogleDriveService.dart';
 import 'AudioWaveformPainter.dart';
+import 'GeneralChat/GeneralChat.dart';
 
 class MessageWidget extends StatelessWidget {
   const MessageWidget({
@@ -23,11 +28,11 @@ class MessageWidget extends StatelessWidget {
     required this.messageIndex,
     required this.chatController,
     required this. userName,
-
     this.fileId,
     required this.userCache,
     required this.isSentByMe,
     required this.isPreviousMessageFromSameUser,
+    required this.localMessages,
 
 
 
@@ -42,6 +47,7 @@ class MessageWidget extends StatelessWidget {
   final Map<String, types.User> userCache;
   final bool isSentByMe;
   final bool isPreviousMessageFromSameUser;
+  final List<types.Message> localMessages;
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +299,10 @@ class MessageWidget extends StatelessWidget {
   }
 Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId ,
     {bool isReply = false}){
-
+  final meta = message.metadata ?? {};
+  if (message.metadata?['type'] == 'poll') {
+    return _pollMessageWidget(message, meta);
+  }
   msgTextColor = isReply ? Colors.black : msgTextColor;
 
   if(message is types.TextMessage){
@@ -317,19 +326,340 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
         // This handles both integers and doubles from the database.
         final List<double> amplitudes = rawAmplitudes.map((e) => (e as num).toDouble()).toList();
         return AudioMessageBuilder(audioUrl: message.source, duration: message.duration, amplitudes: amplitudes , audioMessage: message,);
-      } else {
+      }  else {
         return const SizedBox.shrink();
       }
 
 }
 
-  types.Message? msgType(TextMessage? textMessage , ImageMessage? imageMessage , AudioMessage? audioMessage){
-    if (textMessage !=null) return textMessage;
-    else if (imageMessage != null) return imageMessage;
-    else if (audioMessage !=null) return audioMessage;
-    else return null;
-}
 
+  Future<void> _handlePollVote(types.Message message, Map<String, dynamic> meta, String optionId) async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final sid = optionId.toString();
+    final suid = userId.toString();
+
+    // Shallow copies for rollback
+    final originalMeta = Map<String, dynamic>.from(meta);
+    final originalOptions = (meta['options'] as List<dynamic>?)
+        ?.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+        .toList() ??
+        [];
+
+    // Defensive: normalize raw votes (handle Map<dynamic,dynamic>, List shapes, null)
+    final rawVotesAny = meta['votes'];
+    final Map<String, dynamic> rawVotes = {};
+    if (rawVotesAny is Map) {
+      rawVotesAny.forEach((k, v) => rawVotes[k.toString()] = v);
+    }
+
+    // Build normalized votes: optionId -> Map<userId, bool>
+    final votes = <String, Map<String, bool>>{};
+    rawVotes.forEach((k, v) {
+      final key = k.toString();
+      // It is a Map
+      if (v is Map) {
+        final m = <String, bool>{};
+        v.forEach((kk, vv) {
+          if (kk != null) m[kk.toString()] = vv == true || vv == 1 || vv == 'true';
+        });
+        votes[key] = m;
+      } else if (v is List) {
+        final m = <String, bool>{};
+        for (final item in v) {
+          if (item != null) m[item.toString()] = true;
+        }
+        votes[key] = m;
+      } else {
+        votes[key] = <String, bool>{};
+      }
+    });
+
+    // Detect previous vote by this user
+    String? previousOptionId;
+    votes.forEach((optId, voters) {
+      if (voters.containsKey(suid)) previousOptionId = optId;
+    });
+
+    final bool isUnvote = previousOptionId == sid;
+
+    try {
+      // Toggle/unvote logic
+      if (isUnvote) {
+        votes[sid]?.remove(suid);
+        if (votes[sid]?.isEmpty ?? true) votes.remove(sid);
+      } else {
+        if (previousOptionId != null && previousOptionId != sid) {
+          votes[previousOptionId!]?.remove(suid);
+          if (votes[previousOptionId!]?.isEmpty ?? false) votes.remove(previousOptionId!);
+        }
+        votes.putIfAbsent(sid, () => <String, bool>{});
+        votes[sid]![suid] = true;
+      }
+
+      // Update option counts (use stable id: option['id'] or fallback to index)
+      final options = (meta['options'] as List<dynamic>?)
+          ?.map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+          .toList() ??
+          [];
+
+      for (var i = 0; i < options.length; i++) {
+        final opt = options[i];
+        final id = opt['id']?.toString() ?? i.toString();
+        opt['votes'] = votes[id]?.length ?? 0;
+      }
+
+      // Prepare updated meta (votes stored as Map<optionId, Map<userId,true>>)
+      final updatedMeta = Map<String, dynamic>.from(meta);
+      updatedMeta['votes'] = votes.map((k, v) => MapEntry(k, Map<String, dynamic>.from(v)));
+      updatedMeta['options'] = options;
+
+      // Optimistic local update: preserve runtime message type when possible
+      final existing = chatController.messages.firstWhere((m) => m.id == message.id, orElse: () => message);
+      types.Message updatedMessage;
+      if (existing is types.TextMessage) {
+        updatedMessage = types.TextMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          text: existing.text,
+          metadata: updatedMeta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+        );
+      } else if (existing is types.ImageMessage) {
+        updatedMessage = types.ImageMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          height: existing.height,
+          width: existing.width,
+          size: existing.size,
+          source: existing.source,
+          metadata: updatedMeta,
+          replyToMessageId: existing.replyToMessageId,
+        );
+      } else if (existing is types.AudioMessage) {
+        updatedMessage = types.AudioMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          size: existing.size,
+          source: existing.source,
+          duration: existing.duration,
+          metadata: updatedMeta,
+          replyToMessageId: existing.replyToMessageId,
+        );
+      } else if (existing is types.FileMessage) {
+        updatedMessage = types.FileMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          name: existing.name,
+          size: existing.size,
+          mimeType: existing.mimeType,
+          source: existing.source,
+          metadata: updatedMeta,
+          replyToMessageId: existing.replyToMessageId,
+        );
+      } else {
+        updatedMessage = types.CustomMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          metadata: updatedMeta,
+        );
+      }
+
+      // Apply optimistic update to controller and local cache
+      try {
+        chatController.updateMessage(existing, updatedMessage);
+      } catch (_) {}
+      final idx = localMessages.indexWhere((m) => m.id == message.id);
+      if (idx != -1) localMessages[idx] = updatedMessage;
+
+      // Persist to Supabase (votes/options in metadata)
+      await supabase.from('messages').update({'metadata': updatedMeta}).eq('id', message.id);
+    } catch (e) {
+      // Rollback local change on any error
+      try {
+        final existing = chatController.messages.firstWhere((m) => m.id == message.id, orElse: () => message);
+        final rollbackMeta = <String, dynamic>{...originalMeta, 'options': originalOptions};
+        final rollbackMessage = existing is types.TextMessage
+            ? types.TextMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          text: existing is types.TextMessage ? existing.text : '',
+          metadata: rollbackMeta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+        )
+            : types.CustomMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          metadata: rollbackMeta,
+        );
+        chatController.updateMessage(existing, rollbackMessage);
+        final idx = localMessages.indexWhere((m) => m.id == message.id);
+        if (idx != -1) localMessages[idx] = rollbackMessage;
+      } catch (_) {}
+    }
+  }
+
+  Future<Map<String, String>> _fetchAvatarsForUserIds(Set<String> userIds) async {
+    if (userIds.isEmpty) return {};
+    try {
+      final rows = await supabase
+          .from('profiles')
+          .select('id, avatar_url')
+          .inFilter('id', userIds.toList());
+
+      final Map<String, String> map = {};
+      for (final r in (rows as List)) {
+        final id = r['id']?.toString();
+        final url = r['avatar_url']?.toString();
+        if (id != null && url != null && url.isNotEmpty) {
+          map[id] = url;
+        }else if(id !=null && url ==null){
+          map[id] = "https://thumbs.dreamstime.com/b/default-profile-picture-avatar-photo-placeholder-vector-illustration-default-profile-picture-avatar-photo-placeholder-vector-189495158.jpg";
+        }
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Widget _pollMessageWidget(types.Message message, Map<String, dynamic> meta) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final question = meta['question']?.toString() ?? '';
+    final expiresAt = meta['expiresAt'] != null
+        ? DateTime.tryParse(meta['expiresAt']?.toString() ?? '')
+        : null;
+
+    // Normalize options to List<Map<String, dynamic>>
+    final rawOptionsAny = meta['options'];
+    final List<Map<String, dynamic>> rawOptions = [];
+    if (rawOptionsAny is List) {
+      for (final item in rawOptionsAny) {
+        if (item is Map) {
+          rawOptions.add(Map<String, dynamic>.from(item));
+        } else if (item is String) {
+          try {
+            final decoded = jsonDecode(item);
+            if (decoded is Map) rawOptions.add(Map<String, dynamic>.from(decoded));
+            else rawOptions.add(<String, dynamic>{});
+          } catch (_) {
+            rawOptions.add(<String, dynamic>{});
+          }
+        } else {
+          rawOptions.add(<String, dynamic>{});
+        }
+      }
+    }
+
+    // Normalize votes: accept Map<dynamic,dynamic> or other shapes and convert keys to String
+    final votesAny = meta['votes'];
+    final Map<String, dynamic> votesRaw = {};
+    if (votesAny is Map) {
+      votesAny.forEach((k, v) => votesRaw[k.toString()] = v);
+    }
+
+    // Determine which option the current user voted for
+    String? userVotedOptionId;
+    votesRaw.forEach((optionId, votersRaw) {
+      if (currentUserId == null) return;
+      if (votersRaw is Map) {
+        if (votersRaw.containsKey(currentUserId) || votersRaw.containsKey(currentUserId.toString())) {
+          userVotedOptionId = optionId;
+        }
+      } else if (votersRaw is List) {
+        if (votersRaw.any((it) => it?.toString() == currentUserId)) {
+          userVotedOptionId = optionId;
+        }
+      }
+    });
+    // Build optionId -> List<userId> for all options
+    final Map<String, List<String>> optionVoterIds = {};
+    votesRaw.forEach((optId, votersRaw) {
+      final list = <String>[];
+      if (votersRaw is Map) {
+        votersRaw.forEach((uid, val) {
+          final isTrue = val == true || val == 1 || val == 'true';
+          if (isTrue && uid != null) list.add(uid.toString());
+        });
+      } else if (votersRaw is List) {
+        for (final uid in votersRaw) {
+          if (uid != null) list.add(uid.toString());
+        }
+      }
+      optionVoterIds[optId] = list;
+    });
+
+    // Fetch avatars once for all unique voter ids in this poll
+    final Set<String> allUserIds =
+    optionVoterIds.values.expand((e) => e).toSet();
+
+    return FutureBuilder<Map<String,String>>(
+      future:_fetchAvatarsForUserIds(allUserIds),
+      builder: (context , snapshot){
+        final idToAvatar = snapshot.data ?? const  <String  , String>{};
+        // Build poll options (use index as fallback id). Limit title overflow.
+        final pollOptions = rawOptions.asMap().entries.map((entry) {
+          final i = entry.key;
+          final option = entry.value;
+          final id = option['id']?.toString() ?? i.toString();
+          final titleText = option['title']?.toString() ??
+              option['label']?.toString() ??
+              option['text']?.toString() ??
+              'Option ${i + 1}';
+          final votes = option['votes'] is int
+              ? option['votes'] as int
+              : int.tryParse(option['votes']?.toString() ?? '0') ?? 0;
+          final voterUrls = (optionVoterIds[id] ?? [])
+              .map((uid) => idToAvatar[uid])
+              .whereType<String>()
+              .toList();
+
+
+          return PollOption(
+            id: id,
+            title: Text(
+              titleText,
+              style: const TextStyle(fontSize: 16),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            votes: votes,
+            voterAvatars: voterUrls,
+          );
+        }).toList();
+
+        return FlutterPolls(
+          pollId: message.id,
+          createdBy: message.authorId,
+          allowToggleVote:true,
+          pollProgressbarHeight: 5,
+          hasVoted: userVotedOptionId != null,
+          userVotedOptionId: userVotedOptionId,
+          userToVote: currentUserId,
+          pollTitle: Text(question, overflow: TextOverflow.ellipsis),
+          pollOptions: pollOptions,
+          onVoted: (PollOption option, int totalVotes) async {
+            try {
+              await _handlePollVote(message, meta, option.id!);
+              return true;
+            } catch (_) {
+              return false;
+            }
+          },
+        );
+      },
+    );
+  }
 
 }
 class DriveImageMessage extends StatefulWidget {
@@ -559,6 +889,7 @@ Future fullScreenImageViewer (imageData , context) {
     ), context: context,
   );
 }
+
 String? extractDriveFileId(String url) {
   try {
     final uri = Uri.parse(url);

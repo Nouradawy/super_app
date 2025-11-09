@@ -3,18 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:googleapis/admob/v1.dart';
 import 'package:hexcolor/hexcolor.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:super_app/Layout/wellcomingPage.dart';
 import 'package:super_app/Themes/lightTheme.dart';
-import 'package:super_app/sevices/PresenceManager.dart';
+import 'package:super_app/services/PresenceManager.dart';
 import '../Components/Constants.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 import '../Confg/supabase.dart';
+import '../OTPScreen.dart';
 import '../l10n/app_localizations.dart';
 import 'HomePage.dart';
 bool _signInToggler = false;
@@ -379,11 +379,14 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
               'apartment_num': apartmentNum.text
             },
           );
-
-          await supabase.auth.signInWithPassword(
-            email: email.text,
-            password: password.text,
+          if (!context.mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const OtpScreen().copyWithEmail(email.text)),
           );
+
+          return;
+
         }
         ///Sign in case......
         else {

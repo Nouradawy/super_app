@@ -56,7 +56,8 @@
   "issue" : "Issue",
   "date" : "Date",
   "inProcess" : "In Process",
-  "completed" : "Completed"
+  "completed" : "Completed",
+  "newBrainStorm" : "BrainStorming"
 
 
 

@@ -9,11 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+import 'package:flutter_polls/flutter_polls.dart';
 import 'package:flyer_chat_system_message/flyer_chat_system_message.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase/supabase.dart';
+
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:uuid/uuid.dart';
@@ -21,7 +23,10 @@ import 'package:ntp/ntp.dart';
 
 import '../../../Components/Constants.dart';
 import '../../../Confg/supabase.dart';
-import '../ChatMember.dart';
+import '../../Cubit/ChatDetailsCubit/cubit.dart';
+import '../BrainStorming.dart';
+import '../Details/ChatDetails.dart';
+import '../Details/ChatMember.dart';
 import '../MessageWidget.dart';
 import '../UploadProgressMessage.dart';
 import 'ChatCacheService.dart';
@@ -29,6 +34,7 @@ import 'ChatService.dart';
 import 'ReplyBar.dart';
 import 'chat_mapper.dart';
 import 'message_row_wrapper.dart';
+
 
 
 class GeneralChat extends StatefulWidget {
@@ -53,6 +59,7 @@ class _GeneralChatState extends State<GeneralChat> {
 
   // State
   bool _isInitializing = true;
+
   int? _channelId;
   late final String _userId;
   List<types.Message> _messages = [];
@@ -112,6 +119,15 @@ class _GeneralChatState extends State<GeneralChat> {
     _chatTextController.removeListener(_handleTypingStatus);
     _chatTextController.dispose();
     super.dispose();
+  }
+
+  void BrainStormingSwitch(){
+    setState(() {
+      isBrainStorming = !isBrainStorming;
+    });
+    AppCubit.get(context).showHideMicBrain();
+
+
   }
 
   void _addOrUpdateMessages(List<types.Message> newOrUpdatedMessages) {
@@ -328,45 +344,240 @@ class _GeneralChatState extends State<GeneralChat> {
     }
     showModalBottomSheet<void>(
       context: context,
-      builder: (BuildContext context) => SafeArea(
-        child: SizedBox(
-          height: 144,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleImageSelection();
-                },
-                child: const Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text('Photo'),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleFileSelection();
-                },
-                child: const Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text('File'),
-                ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text('Cancel'),
+      isScrollControlled:true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black12,
+      builder: (BuildContext context) {
+        final width = MediaQuery.of(context).size.width;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: ()=>Navigator.pop(context),
+          child: SafeArea(
+            bottom: true,
+            maintainBottomViewPadding : true,
+          child: Stack(
+
+            children: [
+              Positioned(
+                left:0,
+                bottom: MediaQuery.of(context).padding.bottom+110,
+                child: Padding(
+                  padding: const EdgeInsets.only(left:12 , bottom: 12),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: width*0.5),
+                    child: Material(
+                      elevation: 0,
+                      color:Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(
+                        10
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children:[
+                          ListTile(
+                            leading: const Icon(Icons.image_outlined),
+                            title:Text('Photo'),
+                            onTap: (){
+                              Navigator.pop(context);
+                              _handleImageSelection();
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.attach_file),
+                            title: const Text('File'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _handleFileSelection();
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.how_to_vote_outlined),
+                            title: const Text('Poll'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _showPollComposer();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-      ),
+                ),
+        );
+      },
     );
   }
+
+  Future<void> _showPollComposer() async {
+    final questionController = TextEditingController();
+    final optionControllers = <TextEditingController>[
+      TextEditingController(),
+      TextEditingController(),
+    ];
+    int durationDays = 1;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Create Poll'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: questionController,
+                    decoration: const InputDecoration(labelText: 'Question'),
+                  ),
+                  const SizedBox(height: 8),
+                  ...List.generate(optionControllers.length, (i) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: optionControllers[i],
+                            decoration: InputDecoration(labelText: 'Option ${i + 1}'),
+                          ),
+                        ),
+                        if (optionControllers.length > 2)
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: () {
+                              setState(() {
+                                optionControllers.removeAt(i).dispose();
+                              });
+                            },
+                          ),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add option'),
+                        onPressed: optionControllers.length >= 6
+                            ? null
+                            : () {
+                          setState(() {
+                            optionControllers.add(TextEditingController());
+                          });
+                        },
+                      ),
+                      const Spacer(),
+                      DropdownButton<int>(
+                        value: durationDays,
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('1 day')),
+                          DropdownMenuItem(value: 7, child: Text('1 week')),
+                          DropdownMenuItem(value: 30, child: Text('30 days')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => durationDays = v);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () async {
+                  final question = questionController.text.trim();
+                  final optionsList = <Map<String, dynamic>>[];
+                  for (final controller in optionControllers) {
+                    final title = controller.text.trim();
+                    if (title.isEmpty) continue;
+                    optionsList.add({
+                      'id': optionsList.length, // contiguous index among non-empty options
+                      'title': title,
+                      'votes': 0,
+                    });
+                  }
+                  if (question.isEmpty || optionsList.length < 2) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a question and at least 2 options')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context);
+                  final expiresAt = (await NTP.now()).toUtc().add(Duration(days: durationDays));
+                  await _createPollMessage(question, optionsList, expiresAt);
+                  // dispose controllers
+                  questionController.dispose();
+                  for (var c in optionControllers) c.dispose();
+                },
+                child: const Text('Create'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _createPollMessage(String question, List<Map<String, dynamic>> options, DateTime expiresAt) async {
+    final localId = const Uuid().v4();
+    final now = await NTP.now();
+    final nowUtc = now.toUtc();
+
+    // Build metadata with poll structure. Votes map is empty initially.
+    final pollMeta = {
+      'type': 'poll',
+      'localId': localId,
+      'question': question,
+      'options': options,
+      'votes': {}, // e.g. { "optionIndex": { "userId": true } } — backend will manage actual votes
+      'expiresAt': expiresAt.toIso8601String(),
+      'createdAtMs': nowUtc.millisecondsSinceEpoch,
+    };
+
+    // Insert a local placeholder so UI shows instantly
+    final placeholder = types.TextMessage(
+      id: localId, // stable local id so matching works
+      authorId: _userId,
+      createdAt: now,
+      text: question, // visible immediately
+      metadata: pollMeta,
+    );
+
+    try {
+      _chatController.insertMessage(placeholder);
+
+      // Persist to Supabase
+      await supabase.from('messages').insert({
+        'id': const Uuid().v4(),
+        'author_id': _userId,
+        'created_at': nowUtc.toIso8601String(),
+        'channel_id': _channelId,
+        'metadata': pollMeta,
+      });
+      // Realtime subscription will deliver the canonical message and you may remove/replace placeholder there
+    } catch (e) {
+      // cleanup placeholder
+      try {
+        _chatController.removeMessage(placeholder);
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create poll: $e')),
+        );
+      }
+    }
+  }
+
+
+
   void _handleFileSelection() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.any);
 
@@ -594,6 +805,7 @@ class _GeneralChatState extends State<GeneralChat> {
       onVisibilityForHeader: (messageId, itemIndex, fraction, createdAt) {
         _onVisibilityForHeader(messageId, itemIndex, fraction, createdAt);
       },
+      localMessages: _messages,
     );
   }
 
@@ -606,90 +818,109 @@ class _GeneralChatState extends State<GeneralChat> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-          title: MaterialButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatMembersScreen(
-                      compoundId: widget.compoundId,
-                    ),
-                  ),
-                );
-              },
-              child: const Text("General Chat"))),
-      body: Stack(
-        children: [
-          Chat(
-            chatController: _chatController,
-            currentUserId: _userId,
-            onMessageSend: (text) => _handleSendPressed(text),
-            onAttachmentTap: _handleAttachmentPressed,
-            resolveUser: (id) async {
-              await _resolveUser(id);
-              return _userCache[id];
-            },
-            builders: types.Builders(
-              textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                  _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-              imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                  _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-              audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                  _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-              customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) {
-                // Your custom message logic
-                return const SizedBox();
-              },
-              systemMessageBuilder: (context, message, index, {
-                required bool isSentByMe,
-                types.MessageGroupStatus? groupStatus,
-              }) => FlyerChatSystemMessage(message: message, index: index),
+   if(isBrainStorming ==false){
+     return Scaffold(
+       appBar: AppBar(
+         title: MaterialButton(
+             onPressed: () {
+               Navigator.push(
+                 context,
+                 MaterialPageRoute(
+                   builder: (context) => BlocProvider(
+                     create:(context) => ChatDetailsCubit(),
+                     child: ChatDetails(
+                       compoundId: widget.compoundId,
+                     ),
+                   ),
+                 ),
+               );
+             },
 
-              chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
-                itemBuilder: itemBuilder,
-                initialScrollToEndMode: InitialScrollToEndMode.none,
-              ),
-              composerBuilder: (context) {
-                return BlocBuilder<AppCubit, AppCubitStates>(
-                    buildWhen: (previous, current) => current is ShowHideMicStates,
-                    builder: (context, state) {
-                      return Visibility(
-                        visible: !AppCubit.get(context).isRecording,
-                        child: Composer(
-                          gap: 0,
-                          sendIcon: Icon(Icons.send),
-                          textEditingController: _chatTextController,
-                          handleSafeArea: true,
-                          sigmaX: 3,
-                          sigmaY: 3,
-                          sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
-                        ),
-                      );
-                    });
-              },
-            ),
-          ),
-          // sticky date header overlay
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildStickyDateHeader(),
-          ),
+             child: const Text("General Chat")),
+         actions:[IconButton(onPressed: () {
+           BrainStormingSwitch();
+         }, icon: Icon(Icons.analytics_outlined),)],
 
-          if (_repliedMessage != null)
-            Positioned(
-              bottom: 65,
-              left: MediaQuery.of(context).size.width * 0.1,
-              child: ReplyBar(
-                repliedMessage: _repliedMessage!,
-                onCancel: () => setState(() => _repliedMessage = null),
-              ),
-            ),
-        ],
-      ),
-    );
+       ),
+
+       body: Stack(
+         children: [
+           Chat(
+             chatController: _chatController,
+             currentUserId: _userId,
+             onMessageSend: (text) => _handleSendPressed(text),
+             onAttachmentTap: _handleAttachmentPressed,
+             resolveUser: (id) async {
+               await _resolveUser(id);
+               return _userCache[id];
+             },
+             builders: types.Builders(
+               textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+               imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+               audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+               customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
+                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+               systemMessageBuilder: (context, message, index, {
+                 required bool isSentByMe,
+                 types.MessageGroupStatus? groupStatus,
+               }) => FlyerChatSystemMessage(message: message, index: index),
+
+               chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
+                 itemBuilder: itemBuilder,
+                 initialScrollToEndMode: InitialScrollToEndMode.none,
+               ),
+               composerBuilder: (context) {
+                 return BlocBuilder<AppCubit, AppCubitStates>(
+                     buildWhen: (previous, current) => current is ShowHideMicStates,
+                     builder: (context, state) {
+                       return Visibility(
+                         visible: !AppCubit.get(context).isRecording,
+                         child: Composer(
+                           gap: 0,
+                           sendIcon: Icon(Icons.send),
+                           textEditingController: _chatTextController,
+                           handleSafeArea: true,
+                           sigmaX: 3,
+                           sigmaY: 3,
+                           sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
+                         ),
+                       );
+                     });
+               },
+             ),
+           ),
+           // sticky date header overlay
+           Positioned(
+             top: 0,
+             left: 0,
+             right: 0,
+             child: _buildStickyDateHeader(),
+           ),
+
+           if (_repliedMessage != null)
+             Positioned(
+               bottom: 65,
+               left: MediaQuery.of(context).size.width * 0.1,
+               child: ReplyBar(
+                 repliedMessage: _repliedMessage!,
+                 onCancel: () => setState(() => _repliedMessage = null),
+               ),
+             ),
+         ],
+       ),
+     );
+   } else {
+     return BrainStorming(
+       onClose: (){
+         BrainStormingSwitch();
+       },
+     );
+   }
   }
 }
+
+
+

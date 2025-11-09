@@ -18,7 +18,7 @@ import 'package:super_app/Layout/chatWidget/AudioWaveformPainter.dart';
 import 'package:super_app/Layout/wellcomingPage.dart';
 import 'package:super_app/Network/CacheHelper.dart';
 import 'package:super_app/Themes/lightTheme.dart';
-import 'package:super_app/sevices/PresenceManager.dart';
+import 'package:super_app/Services/PresenceManager.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
@@ -126,7 +126,7 @@ class HomePage extends StatelessWidget {
                     context,
                     MaterialPageRoute(builder: (context) => Profile()),
                   );
-                }, icon: Icon(Icons.settings)),
+                }, icon: Icon(Icons.notifications)),
                   IconButton(onPressed: (){
                     Navigator.push(
                       context,
@@ -287,7 +287,7 @@ class HomePage extends StatelessWidget {
                   BlocBuilder<AppCubit,AppCubitStates>(
                     buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates ,
                       builder: (context,state){
-                        if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty) {
+                        if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
                           return Positioned(
                             bottom: 0,
                             right: 0,

@@ -1,27 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
-
-
-import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_polls/flutter_polls.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ntp/ntp.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
 import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
-
 import '../../Model/CompoundsList.dart';
 import '../../Model/CompoundsList.dart' as type;
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
 import '../../Network/CacheHelper.dart';
-import '../../sevices/GoogleDriveService.dart';
-import '../../sevices/gumletService.dart';
+import '../../Services//GoogleDriveService.dart';
+import '../../Services/gumletService.dart';
 
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
@@ -69,6 +65,11 @@ class AppCubit extends Cubit<AppCubitStates> {
       isChatInputEmpty = isEmpty;
       emit(ShowHideMicStates());
     }
+  }
+
+  void showHideMicBrain(){
+
+      emit(ShowHideMicStates());
   }
 
   void initializePresence() {
@@ -132,20 +133,37 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
   Future<void> selectCompound({Compound? compound , required bool atWelcome} ) async {
+    final args = {
+      'url': 'https://nouradawysupabase.duckdns.org', // Your URL
+      'anonKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
+      'CompoundIndex' : compound!.id
+    };
     if(atWelcome){
       MyCompounds.addAll({
-        compound!.id.toString(): compound.name
+        compound.id.toString(): compound.name
             .toString()
       });
 
       await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
       selectedCompoundId = compound.id;
+      emit(CompoundIdChange());
+      //TODO: Fixing on signup fetching compound posts here
+      ChatMembers = await compute(fetchCompoundMembers,args);
     }
     emit(CompoundIdChange());
 
   }
 
-  void compoundIdSelected()=>emit(CompoundIdChange());
+  Future<void> loadCompoundMembers(int compoundIndex)async{
+    final args = {
+      'url': 'https://nouradawysupabase.duckdns.org', // Your URL
+      'anonKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
+      'CompoundIndex' : compoundIndex
+    };
+
+
+    ChatMembers = await compute(fetchCompoundMembers,args);
+  }
 
 
   void Passon(){
@@ -464,7 +482,155 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
 
+  Future<void> createNewBrainStorm (String title , List<XFile>? image , options )async {
+    final now = await NTP.now();
+    final nowUtc = now.toUtc();
 
+    if(image != null){
+
+      for (final xfile in image) {
+        final bytes = await xfile.readAsBytes();
+        final image = await decodeImageFromList(bytes);
+        int index =0;                     //count the number of items in files List used for _uploadProgress
+        _uploadProgress.add(0);           //adding new item to the list and using index to update it's progress
+        final file = File(xfile.path);
+        final fileName = xfile.name;
+
+
+        // 1. Upload the file to Google Drive
+        final driveLink = await driveService.uploadFile(
+          file,
+          fileName,
+          'image',
+        );
+        if(driveLink !=null){
+          imageSources.add({
+            'uri': driveLink,
+            'name': fileName,
+            'size': bytes.length.toString(),
+            'height': image.height.toString(),
+            'width': image.width.toString(),
+          });
+        }
+        index++;
+      }
+    }
+
+    try{
+      await supabase.from("BrainStorming").insert({
+        'id': const Uuid().v4(),
+        'author_id' : Userid,
+        'created_at' : nowUtc.toIso8601String(),
+        'compound_id' : selectedCompoundId,
+        'Title' : title,
+        'Image' : imageSources,
+        'Options' : options,
+      });
+    } catch (error){
+      debugPrint("Error during inserting at BrainStorming Table : ${error.toString()}");
+    }
+    imageSources.clear();
+    emit(CreateNewBrainStormState());
+  }
+
+  List brainStormData=[];
+  Future<void> getBrainStormData() async{
+    try{
+      brainStormData = await supabase.from("BrainStorming").select('*').eq('compound_id',selectedCompoundId!);
+      debugPrint(brainStormData.toString());
+      debugPrint(brainStormData.first['id'].toString());
+      debugPrint(brainStormData.first['Options'].toString());
+    } catch(error){
+      debugPrint('Error during pulling BrainStorm Data : ${error.toString()}');
+    }
+    emit(CreateNewBrainStormState());
+  }
+  String? previousOptionId;
+  Map<String, List<String>> optionVoterIds = {};
+  List<String> votersIds = [];
+
+  Future<void> handleBrainStormVote(PollOption option) async{
+
+
+    // Reset per-call caches
+    previousOptionId = null;
+
+    optionVoterIds = {};
+
+    // Normalize Votes -> Map<String, Map<String,bool>>
+    final rawVotesAny = brainStormData.first['Votes'];
+    final Map<String, Map<String, bool>> votes = {};
+    if (rawVotesAny is Map) {
+      rawVotesAny.forEach((k, v) {
+        final key = k.toString();
+        final Map<String, bool> inner = {};
+        if (v is Map) {
+          v.forEach((vk, vv) => inner[vk.toString()] = vv == true);
+        }
+        votes[key] = inner;
+      });
+    }
+    print(votes.toString());
+    final List<Map<String, dynamic>> options = (brainStormData.first['Options'] as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    print(options.toString());
+    votes.forEach((opId, voters) {
+      final ids = voters.keys.map((k) => k.toString()).toList(growable: false);
+      optionVoterIds[opId] = ids;
+      if (voters.containsKey(Userid)) previousOptionId = opId;
+    });
+
+
+    final bool isUnvote = previousOptionId == option.id.toString();
+
+    try{
+      if(isUnvote) {
+        votes[option.id.toString()]?.remove(Userid);
+        if(votes[option.id.toString()]?.isEmpty ?? true) {
+          votes.remove(option.id.toString());
+          optionVoterIds.remove(option.id.toString());
+        }  else {
+          optionVoterIds[option.id.toString()] =
+              votes[option.id.toString()]!.keys.map((k) => k.toString()).toList(growable: false);
+        }
+      } else {
+        if(previousOptionId !=null && previousOptionId != option.id.toString()){
+          votes[previousOptionId]?.remove(Userid);
+          if (votes[previousOptionId!]?.isEmpty ?? false) {
+            votes.remove(previousOptionId!);
+            optionVoterIds.remove(previousOptionId!);
+          } else {
+            optionVoterIds[previousOptionId!] =
+                votes[previousOptionId!]!.keys.map((k) => k.toString()).toList(growable: false);
+          }
+        }
+        votes.putIfAbsent(option.id.toString(), () => <String, bool>{});
+        votes[option.id.toString()]![Userid] = true;
+        optionVoterIds[option.id.toString()] =
+            votes[option.id.toString()]!.keys.map((k) => k.toString()).toList(growable: false);
+      }
+
+
+      for (final o in options) {
+        final idStr = o['id'].toString();
+        o['votes'] = votes[idStr]?.length ?? 0;
+      }
+
+
+      await supabase.from("BrainStorming").update({
+        'Votes':votes ,
+        'Options':options
+      }).eq('id', brainStormData.first['id'].toString());
+
+      getBrainStormData();
+
+    } catch(e){
+      debugPrint("error${e}");
+    }
+
+
+  }
 
 
 }

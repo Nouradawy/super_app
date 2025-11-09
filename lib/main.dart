@@ -3,17 +3,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:super_app/Components/Constants.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
 import 'package:super_app/Network/CacheHelper.dart';
 
 import 'package:super_app/Themes/lightTheme.dart';
-import 'package:super_app/sevices/PresenceManager.dart';
+
 import 'Components/BlocObserver.dart';
 import 'Confg/supabase.dart';
 import 'Layout/SignUp.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'OTPScreen.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/l10n.dart';
 
@@ -67,7 +69,8 @@ class MyApp extends StatelessWidget {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ] ,
-        home: StreamBuilder<AuthState>(
+         home:
+         StreamBuilder<AuthState>(
           stream: Supabase.instance.client.auth.onAuthStateChange,
           builder: (context, snapshot) {
             // 1. While waiting for the first auth event, you can show a loading screen
@@ -79,14 +82,18 @@ class MyApp extends StatelessWidget {
 
             // 2. Once data is received, check if there is a session
             if (snapshot.hasData && snapshot.data!.session != null) {
-              context.read<AppCubit>().getPostsData(selectedCompoundId);
-              // User is logged in, show the HomePage
-              UserData = snapshot.data!.session!.user; // You can set your global UserData here
-              requestPermission();
-              // getFireBaseToken();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                // safe to call cubit and other side-effects now
+                context.read<AppCubit>().getPostsData(selectedCompoundId);
+                context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
+                UserData = snapshot.data!.session!.user;
+                requestPermission();
+              });
               return  HomePage();
             } else {
-              requestPermission();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                requestPermission();
+              });
               // User is not logged in, show the SignUp page
               return  SignUp();
             }

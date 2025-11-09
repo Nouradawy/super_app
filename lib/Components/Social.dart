@@ -8,9 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:super_app/Themes/lightTheme.dart';
-import 'package:super_app/sevices/GoogleDriveService.dart';
+import 'package:super_app/Services/GoogleDriveService.dart';
 import '../Confg/supabase.dart';
-import '../sevices/DriveImageWidget.dart';
+import '../Services/DriveImageWidget.dart';
 import 'Constants.dart';
 
 bool Mounted =false;

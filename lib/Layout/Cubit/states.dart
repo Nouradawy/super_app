@@ -21,3 +21,5 @@ class BottomNavIndexChangeStates extends AppCubitStates{}
 class CompoundSuggestionsUpdated extends AppCubitStates{}
 class CategoriesLoadedSuccess extends AppCubitStates{}
 class AppSignOutSuccessState extends AppCubitStates{}
+class CreateNewBrainStormState extends AppCubitStates{}
+class HandelNewBrainStormState extends AppCubitStates{}

@@ -22,6 +22,7 @@ class MessageRowWrapper extends StatelessWidget {
   final bool isPreviousMessageFromSameUser;
   final Map<String, types.User> userCache;
   final Future<void> Function(String) resolveUser; // Function to fetch user
+  final List<types.Message> localMessages;
 
   // NEW: notify parent about visibility for sticky header computation
   final void Function(String messageId, int index, double visibleFraction, DateTime? createdAt) onVisibilityForHeader;
@@ -41,6 +42,7 @@ class MessageRowWrapper extends StatelessWidget {
     required this.userCache,
     required this.resolveUser,
     required this.onVisibilityForHeader,
+    required this.localMessages,
   });
 
   @override
@@ -87,6 +89,7 @@ class MessageRowWrapper extends StatelessWidget {
         isPreviousMessageFromSameUser: isPreviousMessageFromSameUser,
         isSentByMe: isSentByMe,
         fileId: fileId,
+        localMessages: localMessages,
       ),
     );
 

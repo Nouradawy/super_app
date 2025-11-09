@@ -5,8 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v2.dart' as drive;
 import 'package:hexcolor/hexcolor.dart';
+import 'package:supabase/supabase.dart';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:super_app/Confg/supabase.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/states.dart';
@@ -14,7 +15,7 @@ import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 
 import '../Components/Constants.dart';
 import '../main.dart';
-import '../sevices/GoogleDriveService.dart';
+import '../Services/GoogleDriveService.dart';
 import 'SignUp.dart';
 
 class Profile extends StatelessWidget {

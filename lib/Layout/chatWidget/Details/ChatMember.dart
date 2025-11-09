@@ -2,16 +2,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:super_app/Layout/Cubit/ChatDetailsCubit/cubit.dart';
 
-import '../Cubit/cubit.dart';
+
+import '../../../Confg/supabase.dart';
+import '../../Cubit/cubit.dart';
+import 'User_details.dart';
 
 // A simple data class to hold user information
 class ChatMember {
   final String id;
   final String name;
   final String? avatarUrl;
+  final String building;
+  final String apartment;
 
-  ChatMember({required this.id, required this.name, this.avatarUrl});
+  ChatMember({required this.id, required this.name, this.avatarUrl , required this.building , required this.apartment});
 }
 
 class ChatMembersScreen extends StatefulWidget {
@@ -24,8 +30,7 @@ class ChatMembersScreen extends StatefulWidget {
 
 class _ChatMembersScreenState extends State<ChatMembersScreen> {
   final supabase = Supabase.instance.client;
-  RealtimeChannel? _presenceChannel;
-  List<ChatMember> _members = [];
+
   bool _isLoading = true;
 
 
@@ -41,7 +46,6 @@ class _ChatMembersScreenState extends State<ChatMembersScreen> {
   }
 
   Future<void> _initializeScreen() async {
-    await _fetchCompoundMembers();
 
     setState(() {
       _isLoading = false;
@@ -49,50 +53,7 @@ class _ChatMembersScreenState extends State<ChatMembersScreen> {
   }
 
   // Fetches the static list of all users in the compound
-  Future<void> _fetchCompoundMembers() async {
-    try {
-      // 1. Get all user_id's for the current compound from the 'user_apartments' table.
-      final userApartmentsResponse = await supabase
-          .from('user_apartments')
-          .select('user_id')
-          .eq('compound_id', widget.compoundId);
 
-      if (userApartmentsResponse.isEmpty) {
-        setState(() => _members = []);
-        return;
-      }
-
-      // 2. Extract the list of user IDs.
-      final userIds = userApartmentsResponse
-          .map((row) => row['user_id'] as String)
-          .toList();
-      final orFilter = userIds.map((id) => 'id.eq.$id').join(',');
-      // 3. Fetch all profiles that match the user IDs using an '.in()' filter.
-      final profilesResponse = await supabase
-          .from('profiles')
-          .select('id, display_name, avatar_url')
-          .or(orFilter);
-
-      final membersList = (profilesResponse as List)
-          .map((data) => ChatMember(
-        id: data['id'],
-        name: data['display_name'] ?? 'No Name',
-        avatarUrl: data['avatar_url'],
-      ))
-          .toList();
-
-      setState(() {
-        _members = membersList;
-      });
-    } catch (error) {
-      debugPrint('Error fetching members: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading members: $error'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
 
   // String _getUserStatus(Map<String, dynamic> presence, String userId) {
   //   for (final entry in presence.entries) {
@@ -127,31 +88,26 @@ class _ChatMembersScreenState extends State<ChatMembersScreen> {
     final presence = context.watch<AppCubit>().currentPresence;
     final statusMap = _getStatusesFromPresence(presence);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Chat Members'),
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : ListView.builder(
-        itemCount: _members.length,
-        itemBuilder: (context, index) {
-          final member = _members[index];
-          final status = statusMap[member.id] ?? 'offline';
+    return _isLoading
+        ? Center(child: CircularProgressIndicator())
+        : ListView.builder(
+      itemCount: ChatMembers.length,
+      itemBuilder: (context, index) {
+        final member = ChatMembers[index];
+        final status = statusMap[member.id] ?? 'offline';
 
-          return ListTile(
-            leading: CircleAvatar(
-              // Display user avatar or a default icon
-              backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
-              child: member.avatarUrl == null ? Icon(Icons.person) : null,
-            ),
+        return ListTile(
+          leading: CircleAvatar(
+            // Display user avatar or a default icon
+            backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
+            child: member.avatarUrl == null ? Icon(Icons.person) : null,
+          ),
+          onTap: ()=>ChatDetailsCubit.get(context).selectMember(member.id),
 
-            title: Text(member.name),
-            trailing: StatusIndicator(status: status),
-          );
-        },
-      ),
-    );
+          title: Text(member.name),
+          trailing: StatusIndicator(status: status),
+        );
+      });
   }
 }
 

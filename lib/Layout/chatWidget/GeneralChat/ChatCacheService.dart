@@ -15,14 +15,18 @@ class ChatCacheService {
     final seen = <String>{};
     final List<String> encodedMessages = messages.
         where((msg)=>seen.add(msg.id)).map((msg) {
-      // This is a simplified serialization; you might need to expand it
-      // based on all the fields in your _mapToMessage function.
+          // Avoid storing DateTime objects inside metadata; store metadata as JSON string.
+      final meta = msg.metadata ?? <String, dynamic>{};
+      // Ensure created timestamps in ISO + ms are present for sorting later.
+      final createdAtIso = msg.createdAt?.toUtc().toIso8601String();
+      final createdAtMs = msg.createdAt?.toUtc().millisecondsSinceEpoch;
+
       final messageMap = {
         'author_id': msg.authorId,
         'created_at': msg.createdAt?.toUtc().toIso8601String(),
         'created_at_ms': msg.createdAt?.toUtc().millisecondsSinceEpoch,
         'id': msg.id,
-        'metadata': msg.metadata,
+        'metadata': jsonEncode(meta),
         'uri': msg is types.FileMessage
             ? msg.source
             : (msg is types.ImageMessage ? msg.source : (msg is types.AudioMessage ? msg.source : null)),
@@ -45,9 +49,19 @@ class ChatCacheService {
       return [];
     }
 
-    final List<Map<String, dynamic>> messageMaps = encodedMessages
-        .map((encodedMsg) => jsonDecode(encodedMsg) as Map<String, dynamic>)
-        .toList();
+    final List<Map<String, dynamic>> messageMaps = encodedMessages.map((encodedMsg) {
+      final m = jsonDecode(encodedMsg) as Map<String, dynamic>;
+      // If metadata is a JSON string, decode it so mapToMessage receives either Map or String (normalize handles both)
+      if (m['metadata'] is String) {
+        try {
+          final decodedMeta = jsonDecode(m['metadata'] as String);
+          m['metadata'] = decodedMeta;
+        } catch (_) {
+          // Leave as-string if decode fails; mapToMessage.normalizeMeta will still handle it.
+        }
+      }
+      return m;
+    }).toList();
 
     int _tsFromMap(Map<String, dynamic> m) {
       final dynamic ms = m['created_at_ms'];

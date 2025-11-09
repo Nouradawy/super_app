@@ -1,6 +1,22 @@
 // lib/chat/utils/chat_mapper.dart
 
+import 'dart:convert';
+
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
+
+
+/// Normalize metadata to a Map\<String, dynamic\>.
+Map<String, dynamic> normalizeMeta(dynamic meta) {
+  if (meta == null) return <String, dynamic>{};
+  if (meta is Map) return Map<String, dynamic>.from(meta);
+  if (meta is String) {
+    try {
+      final decoded = jsonDecode(meta);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+  }
+  return <String, dynamic>{};
+}
 
 /// Maps a raw data map (from Supabase) to a `types.Message` object.
 types.Message mapToMessage(Map<String, dynamic> map) {
@@ -40,7 +56,7 @@ types.Message mapToMessage(Map<String, dynamic> map) {
   final deliveredAt = parseDate(map['delivered_at']);
   final updatedAt = parseDate(map['updated_at']);
 
-  final metadata = map['metadata'] as Map<String, dynamic>? ?? {};
+  final metadata = normalizeMeta(map['metadata']);
 
   // Add all timestamps to metadata for universal access
   metadata['deletedAt'] = deletedAt?.toIso8601String();
@@ -55,6 +71,22 @@ types.Message mapToMessage(Map<String, dynamic> map) {
   } else if (createdAtMsRaw != null) {
     metadata['createdAtMs'] = createdAtMsRaw;
   }
+
+  // Defensive: ensure poll options are maps if present (helps downstream code)
+  if (metadata['options'] is List) {
+    final raw = metadata['options'] as List;
+    metadata['options'] = raw.map((e) {
+      if (e is Map) return Map<String, dynamic>.from(e);
+      if (e is String) {
+        try {
+          final d = jsonDecode(e);
+          if (d is Map) return Map<String, dynamic>.from(d);
+        } catch (_) {}
+      }
+      return <String, dynamic>{};
+    }).toList();
+  }
+
   final messageType = metadata['type'] ?? map['type'];
   const String deletedUserId = 'deleted_user';
 

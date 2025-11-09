@@ -2,8 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:ntp/ntp.dart';
+import 'package:supabase/supabase.dart';
 import 'package:uuid/uuid.dart';
 
 import 'chat_mapper.dart';
