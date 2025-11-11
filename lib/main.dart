@@ -67,13 +67,19 @@ class MyApp extends StatelessWidget {
         debugShowMaterialGrid: false,
         theme: myLightTheme(),
         supportedLocales: L10n.all,
-        locale:const Locale('en'),
+        locale:const Locale('ar'),
         localizationsDelegates:const[
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ] ,
+         builder: (context, child) {
+           return Directionality(
+             textDirection: TextDirection.ltr,
+             child: child ?? const SizedBox.shrink(),
+           );
+         },
          home:
          StreamBuilder<AuthState>(
           stream: Supabase.instance.client.auth.onAuthStateChange,
