@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+import 'package:super_app/Confg/supabase.dart';
+import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../MessageWidget.dart';
@@ -68,15 +70,31 @@ class MessageRowWrapper extends StatelessWidget {
      final messageContent = ChatMessageWrapper(
       messageId: message.id,
       controller: reactionsController,
-      config: const ChatReactionsConfig(
+      config:  ChatReactionsConfig(
         dialogPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+        menuItems: [
+          MenuItem(label: 'Reply', icon: Icons.reply),
+          MenuItem(label: 'Copy', icon: Icons.copy),
+          isSentByMe?MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true):MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
+
+
+        ]
       ),
       onMenuItemTapped: (item) {
         if (item.label == "Reply") {
           onReply(message);
         }
         if (item.isDestructive) {
-          onDelete(message);
+          if(item.label == "Delete"){
+            onDelete(message);
+          } else {
+            ReportCubit.get(context).reportAuthorId = Userid;
+            ReportCubit.get(context).reportedUserId = message.authorId;
+            ReportCubit.get(context).messageId = message.id;
+
+            ///Add Report Logic
+          }
+
         }
       },
       child: MessageWidget(

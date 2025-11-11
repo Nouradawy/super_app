@@ -39,7 +39,8 @@ import 'message_row_wrapper.dart';
 
 class GeneralChat extends StatefulWidget {
   final int compoundId;
-  const GeneralChat({super.key, required this.compoundId});
+  final String channelName;
+  const GeneralChat({super.key, required this.compoundId , required this.channelName});
 
   @override
   State<GeneralChat> createState() => _GeneralChatState();
@@ -215,12 +216,23 @@ class _GeneralChatState extends State<GeneralChat> {
       _reactionsController = ReactionsController(currentUserId: _userId);
     });
     try {
-      final response = await supabase
-          .from('channels')
-          .select('id')
-          .eq('compound_id', widget.compoundId)
-          .eq('type', 'COMPOUND_GENERAL')
-          .single();
+      final buildingNo = ChatMembers.firstWhere((member)=>member.id.trim() ==userId).building;
+      final response =  widget.channelName == 'COMPOUND_GENERAL'?
+        await supabase
+            .from('channels')
+            .select('id')
+            .eq('compound_id', widget.compoundId)
+            .eq('type', widget.channelName)
+            .single()
+       :
+        await supabase
+            .from('channels')
+            .select('id')
+            .eq('compound_id', widget.compoundId)
+            .eq('type', widget.channelName)
+            .eq('building_id' ,buildingNo)
+            .single();
+
       _channelId = response['id'];
       await _loadMessagesFromCacheAndFetchLatest();
       _subscribeToRealtime();

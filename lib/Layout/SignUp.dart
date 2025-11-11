@@ -15,8 +15,7 @@ import '../Components/Constants.dart';
 
 import '../Confg/supabase.dart';
 import '../OTPScreen.dart';
-import '../l10n/app_localizations.dart';
-import 'HomePage.dart';
+import 'MainScreen.dart';
 bool _signInToggler = false;
 
 class SignUp extends StatelessWidget {
@@ -404,7 +403,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => PresenceManager(child: HomePage()),
+              builder: (context) => PresenceManager(child: MainScreen()),
             ),
           );
         }

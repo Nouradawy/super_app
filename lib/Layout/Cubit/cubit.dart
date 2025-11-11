@@ -128,6 +128,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   void bottomNavIndexChange(index){
     bottomNavIndex = index;
+    if(bottomNavIndex!=0) tabBarIndex=0;
     print(bottomNavIndex);
     emit(BottomNavIndexChangeStates());
   }

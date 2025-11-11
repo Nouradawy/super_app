@@ -88,26 +88,29 @@ class _ChatMembersScreenState extends State<ChatMembersScreen> {
     final presence = context.watch<AppCubit>().currentPresence;
     final statusMap = _getStatusesFromPresence(presence);
 
-    return _isLoading
+    return Scaffold(
+      appBar: AppBar(),
+      body: _isLoading
         ? Center(child: CircularProgressIndicator())
         : ListView.builder(
-      itemCount: ChatMembers.length,
-      itemBuilder: (context, index) {
-        final member = ChatMembers[index];
-        final status = statusMap[member.id] ?? 'offline';
+    itemCount: ChatMembers.length,
+    itemBuilder: (context, index) {
+    final member = ChatMembers[index];
+    final status = statusMap[member.id] ?? 'offline';
 
-        return ListTile(
-          leading: CircleAvatar(
-            // Display user avatar or a default icon
-            backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
-            child: member.avatarUrl == null ? Icon(Icons.person) : null,
-          ),
-          onTap: ()=>ChatDetailsCubit.get(context).selectMember(member.id),
+    return ListTile(
+    leading: CircleAvatar(
+    // Display user avatar or a default icon
+    backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
+    child: member.avatarUrl == null ? Icon(Icons.person) : null,
+    ),
+    onTap: ()=>ChatDetailsCubit.get(context).selectMember(member.id),
 
-          title: Text(member.name),
-          trailing: StatusIndicator(status: status),
-        );
-      });
+    title: Text(member.name),
+    trailing: StatusIndicator(status: status),
+    );
+    }),
+    );
   }
 }
 

@@ -259,7 +259,7 @@ class Social extends StatelessWidget {
                   ],
                 ),
               ),
-              GeneralChat(compoundId: selectedCompoundId!,),
+              GeneralChat(compoundId: selectedCompoundId!, channelName: 'COMPOUND_GENERAL'),
             ],
           ),
         ),

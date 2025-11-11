@@ -5,8 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:super_app/Components/Constants.dart';
+import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:super_app/Layout/Cubit/cubit.dart';
 import 'package:super_app/Layout/HomePage.dart';
+import 'package:super_app/Layout/MainScreen.dart';
 import 'package:super_app/Network/CacheHelper.dart';
 
 import 'package:super_app/Themes/lightTheme.dart';
@@ -54,8 +56,11 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create:(context) => AppCubit()..loadCompounds(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create:(context) => AppCubit()..loadCompounds(),),
+        BlocProvider(create: (context)=> ReportCubit()),
+      ],
       child: MaterialApp(
         title: 'Flutter Demo',
         debugShowCheckedModeBanner:false,
@@ -89,7 +94,7 @@ class MyApp extends StatelessWidget {
                 UserData = snapshot.data!.session!.user;
                 requestPermission();
               });
-              return  HomePage();
+              return  MainScreen();
             } else {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 requestPermission();

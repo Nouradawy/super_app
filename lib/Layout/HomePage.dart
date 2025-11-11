@@ -136,32 +136,7 @@ class HomePage extends StatelessWidget {
                 ],
 
               ),
-              bottomNavigationBar: BottomNavigationBar(
-                  type:BottomNavigationBarType.fixed,
-                  currentIndex: AppCubit.get(context).bottomNavIndex,
-                  onTap: (index)=>AppCubit.get(context).bottomNavIndexChange(index),
-                  items: [
-                    BottomNavigationBarItem(
-                      icon: Icon(Icons.home),
-                      label: "Home"
-                    ),
-                    BottomNavigationBarItem(
-                        icon: Icon(Icons.chat_outlined),
-                        label: "Chats"
-                    ),
-                    BottomNavigationBarItem(
-                        icon: Icon(Icons.handyman_outlined),
-                        label: "Services"
-                    ),
-                    BottomNavigationBarItem(
-                        icon: Icon(Icons.announcement_outlined),
-                        label: "announcements"
-                    ),
-                    BottomNavigationBarItem(
-                        icon: Icon(Icons.person),
-                        label: "Profile"
-                    )
-                  ]),
+
               body: Stack(
                 alignment: AlignmentDirectional.bottomEnd,
                 children: [
@@ -285,7 +260,7 @@ class HomePage extends StatelessWidget {
 
                   ),
                   BlocBuilder<AppCubit,AppCubitStates>(
-                    buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates ,
+                    buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates  || current is BottomNavIndexChangeStates,
                       builder: (context,state){
                         if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
                           return Positioned(
