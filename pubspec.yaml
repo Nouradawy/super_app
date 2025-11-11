@@ -1,0 +1,18 @@
+name: flutter_polls
+description: Customizable Polls for Flutter. Simple, easy to use and highly customizable.
+version: 0.1.6
+homepage: https://github.com/thenifemi/flutter_polls
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_hooks: ^0.20.4
+  percent_indicator: ^4.2.3
+
+dev_dependencies:
+  flutter_lints: ^3.0.1
+  flutter_test:
+    sdk: flutter
