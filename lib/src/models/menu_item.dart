@@ -5,6 +5,7 @@ class MenuItem {
   final IconData icon;
   final bool isDestructive;
 
+
   // contsructor
   const MenuItem({
     required this.label,

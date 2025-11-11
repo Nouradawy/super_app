@@ -30,8 +30,7 @@ class ChatReactionsConfig {
     this.menuItems = const [
       MenuItem(label: 'Reply', icon: Icons.reply),
       MenuItem(label: 'Copy', icon: Icons.copy),
-      MenuItem(
-          label: 'Delete', icon: Icons.delete_forever, isDestructive: true),
+      MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true),
     ],
     this.animationDuration = const Duration(milliseconds: 300),
     this.dialogTransitionDuration = const Duration(milliseconds: 300),
