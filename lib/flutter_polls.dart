@@ -273,7 +273,7 @@ class FlutterPolls extends HookWidget {
                               child: CircleAvatar(
                                 radius: 10,
                                 backgroundColor: Colors.grey.shade200,
-                                backgroundImage: NetworkImage(pollOption.voterAvatars[i]),
+                                backgroundImage: pollOption.voterAvatars[i] == "null"? const AssetImage("assets/defaultUser.webp") as ImageProvider :NetworkImage(pollOption.voterAvatars[i]),
                               ),
                             ),
                           ),
