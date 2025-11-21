@@ -5,9 +5,14 @@ import 'package:flutter_chat_reactions/src/models/chat_reactions_config.dart';
 import 'package:flutter_chat_reactions/src/models/menu_item.dart';
 import 'package:flutter_chat_reactions/src/widgets/message_bubble.dart';
 import 'package:flutter_chat_reactions/src/widgets/rections_row.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Model/ReportAUser.dart';
+
+import 'package:WhatsUnity/Layout/Cubit/MessageReceiptsCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/MessageReceiptsCubit/states.dart';
+import 'package:WhatsUnity/Confg/supabase.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Themes/lightTheme.dart';
+import 'package:WhatsUnity/Themes/lightTheme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 
@@ -86,6 +91,7 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
                 messageWidget: widget.messageWidget,
                 alignment: widget.alignment,
               ),
+              YourContextMenuWidget(messageId:widget.messageId),
               if (widget.config.showContextMenu) ...[
                 const SizedBox(height: 10),
                 _isReport == false?
@@ -107,7 +113,7 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 15),
-                          DropdownMenu<ReportType>(
+                          DropdownMenu<ReportAUserType>(
                             width: MediaQuery.sizeOf(context).width * 0.7,
                             inputDecorationTheme: InputDecorationTheme(
                               fillColor: HexColor("#f0f2f5"),
@@ -137,9 +143,9 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
                             },
                             label: Text(context.loc.maintenanceIssueSelect),
                             dropdownMenuEntries:
-                            ReportType.values.map<DropdownMenuEntry<ReportType>>(
-                                  (ReportType category) {
-                                return DropdownMenuEntry<ReportType>(
+                            ReportAUserType.values.map<DropdownMenuEntry<ReportAUserType>>(
+                                  (ReportAUserType category) {
+                                return DropdownMenuEntry<ReportAUserType>(
                                   value: category,
                                   label: category.name.toUpperCase(),
                                 );
@@ -183,13 +189,16 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
                               },
                               child: Text("File Report"),
                             ),
-                          )
+                          ),
+
                         ],
                       ),
                     ),
                   )
-                )
+                ),
+
               ],
+
             ],
           ),
         ),
@@ -211,9 +220,63 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
     Navigator.of(context).pop();
     widget.onMenuItemTap(item);
   }
+
+
 }
 
-
+Widget _showSeenUsersSheet(String messageId) {
+  return BlocProvider(
+    create: (_) => MessageReceiptsCubit(supabase)..fetchSeenUsers(messageId),
+    child: BlocBuilder<MessageReceiptsCubit, MessageReceiptsState>(
+      builder: (context, state) {
+        if (state is MessageReceiptsLoading) {
+          return const SizedBox(
+            height: 200,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (state is MessageReceiptsError) {
+          return SizedBox(
+            height: 200,
+            child: Center(child: Text('Error: ${state.message}')),
+          );
+        }
+        if (state is MessageReceiptsLoaded) {
+          final seen = state.seenUsers;
+          if (seen.isEmpty) {
+            return const SizedBox(
+              height: 120,
+              child: Center(child: Text('No viewers')),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: seen.length,
+            itemBuilder: (c, i) {
+              final su = seen[i];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: su.member.avatarUrl != null
+                      ? NetworkImage(su.member.avatarUrl!)
+                      : null,
+                  child: su.member.avatarUrl == null
+                      ? Text(su.member.name.isNotEmpty ? su.member.name[0] : '?')
+                      : null,
+                ),
+                title: Text(su.member.name),
+                subtitle: Text(
+                  su.seenAt.toLocal().toString(),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              );
+            },
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    ),
+  );
+}
 
 class ContextMenuWidget extends StatelessWidget {
   final List<MenuItem> menuItems;
@@ -290,3 +353,138 @@ class ContextMenuWidget extends StatelessWidget {
     );
   }
 }
+
+
+class YourContextMenuWidget extends StatefulWidget {
+  final String messageId;
+  const YourContextMenuWidget({super.key, required this.messageId});
+
+  @override
+  State<YourContextMenuWidget> createState() => _YourContextMenuWidgetState();
+}
+
+class _YourContextMenuWidgetState extends State<YourContextMenuWidget> {
+  Future<List<Map<String, dynamic>>>? _seenFuture; // 2) field
+
+  @override
+  void initState() {
+    super.initState();
+    _seenFuture = _loadSeenUsers(widget.messageId); // 2) init
+  }
+
+  @override
+  void didUpdateWidget(covariant YourContextMenuWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.messageId != widget.messageId) {
+      setState(() {
+        _seenFuture = _loadSeenUsers(widget.messageId);
+      });
+    }
+  }
+
+  // 3) fetch seen users
+  Future<List<Map<String, dynamic>>> _loadSeenUsers(String messageId) async {
+    try {
+      final receipts = await supabase
+          .from('message_receipts')
+          .select('user_id, seen_at')
+          .eq('message_id', messageId)
+          .not('seen_at', 'is', null)
+          .order('seen_at', ascending: false);
+
+      if (receipts.isEmpty) return [];
+
+      final userIds = receipts.map<String>((r) => r['user_id'] as String).toList();
+      final profiles = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url')
+          .inFilter('id', userIds);
+
+      final profileById = {for (final p in profiles) p['id'] as String: p};
+
+      return receipts.map<Map<String, dynamic>>((r) {
+        final id = r['user_id'] as String;
+        final p = profileById[id] ?? {};
+        return {
+          'id': id,
+          'name': (p['display_name'] ?? 'Unknown') as String,
+          'avatarUrl': p['avatar_url'] as String?,
+          'seenAt': DateTime.tryParse(r['seen_at']?.toString() ?? ''),
+        };
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // 4) render section
+  Widget _buildSeenBySection() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _seenFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+        final data = snapshot.data ?? [];
+        if (data.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Divider(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                child: Text('Seen by', style: Theme.of(context).textTheme.labelMedium),
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                itemCount: data.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, i) {
+                  final u = data[i];
+                  final avatarUrl = u['avatarUrl'] as String?;
+                  return Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                        child: (avatarUrl == null || avatarUrl.isEmpty)
+                            ? Text(
+                          (u['name'] as String).isNotEmpty ? (u['name'] as String)[0].toUpperCase() : '?',
+                          style: const TextStyle(fontSize: 12),
+                        )
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(u['name'] as String, overflow: TextOverflow.ellipsis)),
+                      if (u['seenAt'] is DateTime)
+                        Text(
+                          (u['seenAt'] as DateTime).toLocal().toIso8601String().substring(11, 16),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: _buildSeenBySection(),
+    );
+  }
+}
+
