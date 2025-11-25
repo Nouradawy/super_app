@@ -260,10 +260,10 @@ Widget _showSeenUsersSheet(String messageId) {
                       ? NetworkImage(su.member.avatarUrl!)
                       : null,
                   child: su.member.avatarUrl == null
-                      ? Text(su.member.name.isNotEmpty ? su.member.name[0] : '?')
+                      ? Text(su.member.displayName.isNotEmpty ? su.member.displayName[0] : '?')
                       : null,
                 ),
-                title: Text(su.member.name),
+                title: Text(su.member.displayName),
                 subtitle: Text(
                   su.seenAt.toLocal().toString(),
                   style: const TextStyle(fontSize: 12),
