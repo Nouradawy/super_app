@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:super_app/Layout/Cubit/ChatDetailsCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/cubit.dart';
 
 
 import '../../../Confg/supabase.dart';
@@ -12,12 +12,17 @@ import 'User_details.dart';
 // A simple data class to hold user information
 class ChatMember {
   final String id;
-  final String name;
+  final String displayName;
+  final String? fullName;
   final String? avatarUrl;
   final String building;
   final String apartment;
 
-  ChatMember({required this.id, required this.name, this.avatarUrl , required this.building , required this.apartment});
+  ChatMember({required this.id, required this.displayName, this.fullName, this.avatarUrl , required this.building , required this.apartment});
+  @override
+  String toString() {
+    return 'ChatMember(id: $id, name: $displayName, building: $building, apartment: $apartment)';
+  }
 }
 
 class ChatMembersScreen extends StatefulWidget {
@@ -106,7 +111,7 @@ class _ChatMembersScreenState extends State<ChatMembersScreen> {
     ),
     onTap: ()=>ChatDetailsCubit.get(context).selectMember(member.id),
 
-    title: Text(member.name),
+    title: Text(member.displayName),
     trailing: StatusIndicator(status: status),
     );
     }),

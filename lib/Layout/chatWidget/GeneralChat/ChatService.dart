@@ -55,6 +55,7 @@ class ChatService {
         'type': 'text',
         'createdAtMs': now.millisecondsSinceEpoch,
         if (repliedMessage != null) 'reply_to': repliedMessage.id,
+
       },
     });
   }
@@ -136,4 +137,6 @@ class ChatService {
     )
         .subscribe();
   }
+
+
 }

@@ -2,73 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:ntp/ntp.dart';
-import 'package:super_app/Confg/supabase.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/states.dart';
+import 'package:WhatsUnity/Confg/supabase.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/states.dart';
+
+import '../../../Model/ReportAUser.dart';
 
 
-class ReportUsers{
-  final int? id;
-  final String authorId;
-  final DateTime createdAt;
-  final String reportedUserId;
-  final String state;
-  final String description;
-  final String messageId;
-  final String reportedFor;
-
-
-  ReportUsers({
-    this.id,
-    required this.authorId,
-    required this.createdAt,
-    required this.reportedUserId,
-    required this.state,
-    required this.description,
-    required this.messageId,
-    required this.reportedFor,
-  });
-
-  factory ReportUsers.fromJson(Map<String,dynamic> json){
-    return ReportUsers(
-      id:json['id'],
-      authorId: json['authorId'],
-      createdAt: DateTime.tryParse(json['createdAt'])!,
-      reportedUserId: json['reportedUserId'],
-      state: json['state'],
-      description: json['description'],
-      messageId: json['messageId'],
-      reportedFor: json['reportedFor'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'authorId': authorId.trim(),
-      'createdAt': createdAt.toIso8601String(),
-      'reportedUserId': reportedUserId.trim(),
-      'state': state,
-      'description': description,
-      'messageId': messageId,
-      'reportedFor': reportedFor,
-    };
-  }
-
-
-}
-
-enum ReportsFilters{
-  All,
-  New,
-  inReview,
-  Resolved
-}
-
-enum ReportType{
-  spam,
-  harassment,
-  selling,
-  inappropriateContent
-}
 class ReportCubit extends Cubit<ReportCubitState> {
   ReportCubit():super(ReportInitialState());
   static ReportCubit get(context) =>BlocProvider.of(context);
@@ -80,9 +19,9 @@ class ReportCubit extends Cubit<ReportCubitState> {
   late String messageId;
 
   int index = 0;
-  ReportUsers? reportUser;
+  ReportAUsers? reportUser;
 
-  List<ReportUsers> reportListData = [];
+  List<ReportAUsers> reportListData = [];
 
 
 
@@ -119,7 +58,7 @@ ListView reportsList(){
                           crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(member.name),
+                              Text(member.displayName),
                               Text("Reported ${reportListData[index].createdAt.hour.toString()}")
                             ]),
                       ],),
@@ -145,7 +84,7 @@ ListView reportsList(){
               Divider(thickness: 0.7),
               Padding(
                   padding:const EdgeInsets.symmetric(vertical: 7),
-                child: Text("Reported by ${author_member.name} for ${ReportType.inappropriateContent.name}"),
+                child: Text("Reported by ${author_member.displayName} for ${ReportAUserType.inappropriateContent.name}"),
               ),
             ],
           ),
@@ -157,7 +96,7 @@ ListView reportsList(){
 
 Future<void> fileReportToUser()async {
   await supabase.from('Report_user').insert(
-      ReportUsers(
+      ReportAUsers(
         authorId: reportAuthorId,
         createdAt: DateTime.now().toUtc(),
         reportedUserId: reportedUserId,
@@ -171,7 +110,7 @@ Future<void> fileReportToUser()async {
 
 Future<void> getReportList() async{
   final result = await supabase.from('Report_user').select('*');
-  reportListData = result.map((element)=>ReportUsers.fromJson(element)).toList();
+  reportListData = result.map((element)=>ReportAUsers.fromJson(element)).toList();
 }
 
 }

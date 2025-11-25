@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Layout/Cubit/cubit.dart';
+
+import '../Layout/Cubit/cubit.dart';
 
 class PresenceManager extends StatefulWidget {
   final Widget child;

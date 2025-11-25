@@ -13,6 +13,7 @@ class GoogleDriveService {
   // Use google_sign_in to handle user authentication
   GoogleDriveService() {
     _googleSignIn = GoogleSignIn(
+      serverClientId: "979693285877-vnsab3eklg72or3ghe3tdrts3r08vfrt.apps.googleusercontent.com",
       scopes: scopes,
 
     );
@@ -36,6 +37,14 @@ class GoogleDriveService {
   // Try to sign in without a user prompt on app start
   Future<void> signInSilently() async {
     _currentUser = await _googleSignIn.signInSilently();
+
+  }
+
+  Future<String?> getIdToken() async {
+    final user = currentUser ?? await _googleSignIn.signInSilently();
+    if (user == null) return null;
+    final auth = await user.authentication;
+    return auth.idToken;
   }
 
   // Sign out the current user

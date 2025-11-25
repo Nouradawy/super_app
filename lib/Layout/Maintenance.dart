@@ -6,12 +6,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:super_app/Components/Constants.dart';
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Themes/lightTheme.dart';
-
+import '../Model/MaintenanceReport.dart';
+import '/Components/Constants.dart';
+import '/Layout/Cubit/cubit.dart';
+import '/Layout/Cubit/states.dart';
+import '/Themes/lightTheme.dart';
 import '../Confg/supabase.dart';
+import 'chatWidget/MessageWidget.dart';
+
+
 
 class Maintenance extends StatelessWidget {
   Maintenance({super.key});
@@ -28,7 +31,10 @@ class Maintenance extends StatelessWidget {
       (builder: (context,state){
         return Scaffold(
             appBar: AppBar(
-              title:Text(context.loc.maintenance)
+              title:Text(context.loc.maintenance),
+              actions: [
+                IconButton(onPressed: ()=>context.read<AppCubit>().getMaintenanceReports(MaintenanceReportType.maintenance), icon: Icon(Icons.sync))
+              ],
             ),
             floatingActionButton: FloatingActionButton.extended(
                 onPressed: (){
@@ -44,17 +50,24 @@ class Maintenance extends StatelessWidget {
               children: [
                 Text(context.loc.reportHistory),
                 ListView.builder(
+
                   shrinkWrap: true,
-                  itemCount:
-                    2,
-                    itemBuilder: (context,index)=>ListTile(
+                  itemCount: maintenanceReportsData.length,
+                    itemBuilder: (context,index) {
+                    final attachmentUrl = maintenanceReportsAttachmentsData.firstWhere((attach)=>attach.reportId ==maintenanceReportsData[index].id );
+
+                      return ListTile(
+                      onTap: () {
+
+                        context.read<AppCubit>().expandReport(index);
+                      },
                       title:Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
                         spacing: 10,
                         children: [
-                          Text("Leaky Faucet",style: GoogleFonts.plusJakartaSans(fontSize: 14,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
+                          Text(maintenanceReportsData[index].title,style: GoogleFonts.plusJakartaSans(fontSize: 14,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
                           Chip(
-                            label:Text(context.loc.inProcess,style: GoogleFonts.plusJakartaSans(fontSize: 11,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.white)),
+                            label:Text(maintenanceReportsData[index].states ,style: GoogleFonts.plusJakartaSans(fontSize: 11,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.white)),
                             backgroundColor: HexColor("#76b7f5"),
                             visualDensity: VisualDensity(vertical: -4),
                             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -62,16 +75,60 @@ class Maintenance extends StatelessWidget {
                           )
                         ],
                       ),
-                      subtitle:Text("${context.loc.report} #MR001 - 7/20/2025",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                      subtitle:AnimatedCrossFade(
+                        firstChild:Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                        crossFadeState: (context.watch<AppCubit>().isExpanded && context.watch<AppCubit>().reportIndex == index) ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 500),
+                        firstCurve: Curves.easeInOut,
+                        secondCurve: Curves.easeInOut,
+                        sizeCurve: Curves.easeInOut,
+                        secondChild: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+
+                              const SizedBox(height: 8),
+                              Text("Lorem ipsum dolor sit amet,"
+                                  " consectetur adipiscing elit. Nunc iaculis suscipit massa, sed laoreet mi gravida in."
+                                  " Donec est neque, hendrerit at vehicula quis, sagittis laoreet lorem. Maecenas mi libero, "
+                                  "posuere sit amet elit sit amet, tempus sagittis ligula. Duis enim ligula, condimentum eget mauris et, "
+                                  "bibendum commodo massa. Aenean velit augue, tempor quis sapien vitae, accumsan faucibus urna. Aliquam quis nisi orci"
+                                  ". Aenean volutpat, erat vel bibendum tincidunt, est risus sodales orci, eu venenatis felis turpis in arcu.",
+                                  style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: attachmentUrl.sourceUrl.map((item) => SizedBox(
+                                    width:80,
+                                    height:80,
+                                    child: DriveImageMessage(fileId: extractDriveFileId(item["uri"])!, driveService: driveService)),).toList(),
+                              )
+
+
+
+                          ],
+                        ),
+                      ),
                       leading:CircleAvatar(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
                         child: Icon(Icons.hourglass_top), // Icon for 'In Progress'
                       ),
-                      trailing: Icon(Icons.arrow_forward_ios_rounded , color: Colors.grey, size: 13,),
+                      trailing: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 500),
+                        transitionBuilder: (child, animation) => RotationTransition(turns: animation, child: child),
+                        child: Icon(
+                          context.watch<AppCubit>().isExpanded ? Icons.keyboard_arrow_down_outlined : Icons.arrow_forward_ios_rounded,
+                          key: ValueKey<bool>(context.watch<AppCubit>().isExpanded),
+                          color: Colors.grey,
+                          size: 13,
+                        ),
+                      ),
 
 
-                    ))
+                    );
+                    })
               ],
 
             ));
@@ -238,7 +295,10 @@ Future<void> newReport(
                         ),
                         file != null
                             ? IconButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            file = null;
+                            setStateOfDialog(() {});
+                          },
                           icon: Icon(Icons.close),
                         )
                             : DottedBorder(
@@ -295,7 +355,7 @@ Future<void> newReport(
                     const Spacer(),
                     MaterialButton(
                       onPressed: () async {
-                       await AppCubit.get(context).reportSubmit(issueTitle.text, issue.text, issueCategory.text, file);
+                       await AppCubit.get(context).reportSubmit(issueTitle.text, issue.text, issueCategory.text, file , MaintenanceReportType.maintenance);
                        Navigator.pop(context);
                       },
                       color:Colors.blue,

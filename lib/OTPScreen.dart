@@ -3,10 +3,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'Components/Constants.dart';
 import 'Confg/supabase.dart';
-import 'Layout/HomePage.dart';
+
+import 'Layout/Cubit/cubit.dart';
+import 'Layout/MainScreen.dart';
+import 'Services/PresenceManager.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key, this.email});
@@ -138,7 +143,15 @@ class _OtpScreenState extends State<OtpScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => HomePage()),
+        MaterialPageRoute(builder: (_) {
+          context.read<AppCubit>().getPostsData(selectedCompoundId);
+          context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
+          UserData = Supabase.instance.client.auth.currentSession?.user;
+          userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+          AppCubit.get(context).verificationFilesUpload();
+          AppCubit.get(context).signInSwitcher();
+          return PresenceManager(child: MainScreen());
+        }),
             (route) => false,
       );
     } catch (_) {

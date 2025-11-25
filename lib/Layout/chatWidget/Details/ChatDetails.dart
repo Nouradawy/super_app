@@ -1,10 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Layout/Cubit/ChatDetailsCubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/ChatDetailsCubit/states.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
-import 'package:super_app/Themes/lightTheme.dart';
+import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/states.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Themes/lightTheme.dart';
 
 import '../../../Confg/supabase.dart';
 import 'ChatMember.dart';

@@ -1,15 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:WhatsUnity/Model/MaintenanceReport.dart';
+import 'package:carousel_slider/carousel_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_polls/flutter_polls.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:mime/mime.dart';
 import 'package:ntp/ntp.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
+import 'package:WhatsUnity/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
 import '../../Model/CompoundsList.dart';
 import '../../Model/CompoundsList.dart' as type;
@@ -17,7 +20,10 @@ import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
 import '../../Network/CacheHelper.dart';
 import '../../Services//GoogleDriveService.dart';
+import '../../Services/PresenceManager.dart';
 import '../../Services/gumletService.dart';
+import '../MainScreen.dart';
+import '../chatWidget/Details/ChatMember.dart';
 
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
@@ -29,6 +35,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   int bottomNavIndex = 0;
   bool isPassword = true;
   Roles? roleName ;
+  bool apartmentConflict =false;
 
   IconData? suffixIcon = Icons.visibility;
   bool ActivateDropdown = false;
@@ -39,6 +46,14 @@ class AppCubit extends Cubit<AppCubitStates> {
   List<double> recordedAmplitudes = [];
   List<type.Category> compoundSuggestions = categories;
   types.InMemoryChatController? chatController ;
+
+  List<XFile>? verFiles;
+  bool signingIn = true;
+
+  ///Posts
+
+  int postsCarouselIndex = 0;
+
 
   Map<String, dynamic> get currentPresence {
     final state = _presenceChannel?.presenceState();
@@ -52,6 +67,10 @@ class AppCubit extends Cubit<AppCubitStates> {
     return map;
   }
 
+  void signInSwitcher(){
+    signingIn = !signingIn;
+    emit(SignInState());
+  }
   /// used to Switch TabBar Index at [Social] page
   void tabBarIndexSwitcher(index){
     tabBarIndex = index;
@@ -65,6 +84,11 @@ class AppCubit extends Cubit<AppCubitStates> {
       isChatInputEmpty = isEmpty;
       emit(ShowHideMicStates());
     }
+  }
+
+  void onChangedCarousel(index){
+    postsCarouselIndex = index;
+    emit(postsOnChangedCarsoleState());
   }
 
   void showHideMicBrain(){
@@ -134,12 +158,14 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
   Future<void> selectCompound({Compound? compound , required bool atWelcome} ) async {
-    final args = {
-      'url': 'https://nouradawysupabase.duckdns.org', // Your URL
-      'anonKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
-      'CompoundIndex' : compound!.id
-    };
+
     if(atWelcome){
+      final args = {
+        'url': 'https://nouradawysupabase.duckdns.org', // Your URL
+        'anonKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
+        'CompoundIndex' : compound!.id,
+        'role': userRole?.name,
+      };
       MyCompounds.addAll({
         compound.id.toString(): compound.name
             .toString()
@@ -147,9 +173,12 @@ class AppCubit extends Cubit<AppCubitStates> {
 
       await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
       selectedCompoundId = compound.id;
+      // await CacheHelper.saveData(key: "compoundCurrentIndex", value: json.encode(selectedCompoundId));
       emit(CompoundIdChange());
       //TODO: Fixing on signup fetching compound posts here
-      ChatMembers = await compute(fetchCompoundMembers,args);
+      final result =await compute(fetchCompoundMembers,args);
+      ChatMembers = result.members;
+      if(userRole == Roles.admin) MembersData = result.membersData;
     }
     emit(CompoundIdChange());
 
@@ -159,11 +188,17 @@ class AppCubit extends Cubit<AppCubitStates> {
     final args = {
       'url': 'https://nouradawysupabase.duckdns.org', // Your URL
       'anonKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA', // Your Anon Key
-      'CompoundIndex' : compoundIndex
+      'CompoundIndex' : compoundIndex,
+      'role': userRole?.name,
     };
+    final result =await compute(fetchCompoundMembers,args);
 
+    ChatMembers = result.members;
+    currentUser = ChatMembers.firstWhere((member) => member.id.trim() == Userid);
 
-    ChatMembers = await compute(fetchCompoundMembers,args);
+    if(userRole == Roles.admin) MembersData = result.membersData;
+
+    emit(CompoundMembersUpdated());
   }
 
 
@@ -199,6 +234,22 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
   Future<void> signOut() async {
+    final int existingIndex = prevSignIn.indexWhere(
+        (m) => m.containsKey(Userid));
+    final newValue = {
+      "googleUser": googleUser?.email,
+      "compoundIndex": selectedCompoundId,
+    };
+
+    if (existingIndex != -1){
+      prevSignIn[existingIndex][Userid] = newValue;
+    } else {
+      prevSignIn.add({
+        Userid: newValue,
+      });
+    }
+
+    await CacheHelper.saveData(key: "prevSignIn", value: json.encode(prevSignIn));
     try {
       // 1. Perform the asynchronous sign-out from Supabase.
       await supabase.auth.signOut();
@@ -220,6 +271,53 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
 
+  String? signupGoogleEmail;
+  String? signupGoogleUserName;
+
+  Future<void> supabaseSignInWithGoogle({bool isSignin = false}) async {
+    try {
+      // 1) Ensure Google account
+        final currentGoogle = await driveService.signIn();
+        if (currentGoogle == null) {
+          debugPrint('Google sign-in cancelled');
+          return;
+        }
+        googleUser = currentGoogle;
+
+      // 2) Fetch Google ID token
+      final idToken = await driveService.getIdToken();
+      if (idToken == null) {
+        debugPrint('Failed to get Google ID token');
+        return;
+      }
+
+      // 3) Sign in / sign up on local Supabase
+      final res = await supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+
+      final user = res.user;
+      debugPrint('Supabase Google auth success, user: ${user?.id}');
+
+      if(user != null && isSignin == false)
+        {
+          signupGoogleEmail = user.email;
+          signupGoogleUserName = googleUser?.displayName;
+
+          emit(GoogleSignupState());
+
+        }
+
+
+      // optional: set any local state (Userid, UserData, etc.)
+      // Userid = user?.id ?? Userid;
+
+      emit(GoogleSignupState());
+    } catch (e, st) {
+      debugPrint('Supabase Google auth error: $e\n$st');
+    }
+  }
   void googleSignin()async{
     if (googleUser == null) {
       final user = await driveService.signIn();
@@ -231,6 +329,74 @@ class AppCubit extends Cubit<AppCubitStates> {
       googleUser = null;
     }
     emit(GoogleSigninStates());
+  }
+
+  void continueGoogleRegistration( context , String fullName , int roleId , String buildingName , String apartmentNum ,OwnerTypes ownerType , String phoneNumber) async {
+    await supabase.from('profiles').update({
+      'full_name':fullName,
+      'owner_type': ownerType.name,
+      'phone_number' : phoneNumber
+    }
+    ).eq('id',Userid);
+
+    if(roleId != 1){
+      final updateRole = await supabase.from('user_roles').update({'role_id':roleId}).eq('user_id', Userid).single();
+    }
+
+    if(roleId !=2){
+      if (selectedCompoundId == null) {
+        debugPrint('continueGoogleRegistration: selectedCompoundId is null');
+        return;
+      }
+
+
+        final buildingRow = await supabase.from('buildings').upsert({
+          'building_name':buildingName,
+          'compound_id' : selectedCompoundId!,
+        },
+            onConflict: 'compound_id , building_name'
+        ).select('id').maybeSingle();
+
+      if (buildingRow == null || buildingRow['id'] == null) {
+        debugPrint('buildings upsert returned null / no id');
+        return;
+      }
+      final int buildingId = buildingRow['id'] as int;
+        debugPrint(
+          buildingId.toString());
+
+        final pictureUrl = await supabase.from('compounds').select('picture_url').eq('id', selectedCompoundId!).single();
+        await supabase.from('channels').upsert({
+          'name':'Building $buildingName Chat',
+          'type': 'BUILDING_CHAT',
+          'compound_id': selectedCompoundId,
+          'building_id' : buildingId,
+          'picture_url' : pictureUrl
+        },
+            onConflict: 'compound_id , building_id , type'
+        );
+        final apartmentNo = await supabase.from('user_apartments').insert({
+          'user_id':Userid,
+          'compound_id' : selectedCompoundId,
+          'building_num' : buildingName,
+          'apartment_num' : apartmentNum
+        });
+
+
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) {
+        getPostsData(selectedCompoundId);
+        loadCompoundMembers(selectedCompoundId!);
+        UserData = Supabase.instance.client.auth.currentSession?.user;
+        userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+        // verificationFilesUpload();
+        signupGoogleEmail = null;
+        return PresenceManager(child: MainScreen());
+      }),
+          (route) => false,
+    );
+
   }
 
 
@@ -369,16 +535,29 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   final List<Map<String, String>> imageSources = [];
 
-  Future<void> reportSubmit (String title , String description , String category, List<XFile>? files ) async {
+
+  ///Maintenance Reports
+  bool isExpanded = false;
+  int reportIndex = 0;
+  void expandReport (int currentIndex){
+    reportIndex = currentIndex;
+    if(currentIndex == reportIndex) {
+      isExpanded = !isExpanded;
+    }
+    emit(ExpandReportState());
+  }
+  Future<void> reportSubmit (String title , String description , String category, List<XFile>? files , MaintenanceReportType type ) async {
     final formattedCategory = category.isNotEmpty
         ? '${category[0].toUpperCase()}${category.substring(1)}'
         : '';
     final newReport =
-    await supabase.from('reports').insert({
+    await supabase.from('MaintenanceReports').insert({
       'user_id': Userid,
       'title': title,
       'description': description,
-      'category':formattedCategory
+      'category':formattedCategory,
+      'type':type.name,
+      'compound_id':selectedCompoundId
     })
         .select('id')
         .single();
@@ -414,15 +593,110 @@ class AppCubit extends Cubit<AppCubitStates> {
         index++;
       }
 
-      await supabase.from('report_attachments').insert({
+      await supabase.from('MReportsAttachments').insert({
 
         'report_id': reportId,
         'source_url': imageSources,
+        'compound_id':selectedCompoundId,
+        'type' : type.name
       });
     }
 
     imageSources.clear();
     emit(NewReportSubmitState());
+  }
+
+  Future<void> getMaintenanceReports(MaintenanceReportType type) async {
+    final reports = await supabase.from("MaintenanceReports").select("*").eq('compound_id',selectedCompoundId!).eq('type',type.name);
+    final attachments = await supabase.from("MReportsAttachments").select("*").eq('compound_id',selectedCompoundId!).eq('type',type.name);
+    maintenanceReportsData = reports.map((element) => MaintenanceReports.fromJson(element)).toList();
+    maintenanceReportsAttachmentsData = attachments.map((element) => MaintenanceReportsAttachments.fromJson(element)).toList();
+    emit(GetMaintenanceReportsState());
+  }
+
+  Future<void> verFileImport() async {
+    List<XFile>? result = await ImagePicker()
+        .pickMultiImage(
+      imageQuality: 70,
+      maxWidth: 1440,
+    );
+
+    if (result.isEmpty) return;
+
+    verFiles = result;
+    emit(ImportNewVerFileState());
+  }
+
+  Future<void> verificationFilesUpload () async {
+
+    if(verFiles != null || verFiles!.isNotEmpty){
+
+      try{
+        for (final xfile in verFiles!) {
+          final bytes = await xfile.readAsBytes();
+          final image = await decodeImageFromList(bytes);
+          int index =0;                     //count the number of items in files List used for _uploadProgress
+          _uploadProgress.add(0);           //adding new item to the list and using index to update it's progress
+          final file = File(xfile.path);
+          final fileName = xfile.name;
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final mime = lookupMimeType(xfile.path) ?? 'application/octet-stream';
+          final storage = supabase.storage.from("verification");
+          final objectKey = 'users/$Userid/verifications/$fileName';
+          String? driveLink;
+          String? supabaseLink;
+
+          if(storageType == Storage.googleDrive || storageType == Storage.both ){ // 1. Upload the file to Google Drive
+            driveLink = await driveService.uploadFile(
+              file,
+              fileName,
+              'image',
+            );
+
+          }
+          if(storageType == Storage.superbaseStorage || storageType == Storage.both )
+            {
+              await storage.upload(
+                objectKey,
+                file,
+                fileOptions: FileOptions(
+                  cacheControl: '3600',
+                  upsert: false,
+                  contentType: mime,
+                ),
+              );
+              supabaseLink = storage.getPublicUrl(objectKey);
+            }
+          imageSources.add({
+            if (driveLink != null)'uri': driveLink,
+            if(supabaseLink != null)'bucket' : 'verification',
+            if(supabaseLink != null)'path' : supabaseLink,
+            'name': fileName,
+            'size': bytes.length.toString(),
+            'height': image.height.toString(),
+            'width': image.width.toString(),
+          });
+          index++;
+        }
+
+      } catch(e) {
+        debugPrint("uploading verFiles Failed ${e.toString()}");
+      }
+
+    }
+    await supabase.from("profiles").update({
+      'verFiles' : imageSources,
+    }).eq("id", Userid);
+    imageSources.clear();
+    emit(UploadVerFileState());
+
+
+  }
+
+  OwnerTypes ownerType = OwnerTypes.owner;
+  void ownerTypeChange(selectionIndex){
+    ownerType = selectionIndex;
+    emit(OwnerNewSelectionState());
   }
 
   Future<void> fetchPostsData (String postHead , bool getCalls , String? type , List<XFile>? files , int compoundId ) async {
@@ -461,7 +735,6 @@ class AppCubit extends Cubit<AppCubitStates> {
       'id': const Uuid().v4(),
       'compound_id': compoundId,
       'author_id': Userid,
-      'user_name':UserData!.userMetadata!["display_name"].toString(),
       'post_head': postHead,
       'source_url': imageSources,
       'getCalls':getCalls,
@@ -483,6 +756,32 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
 
+  ///BrainStorming
+
+  int currentCarouselIndex =0;
+  void changeCarouselIndex (int index) {
+    _ensureVoteBuffers(index);
+    currentCarouselIndex = index;
+    emit(ChangeCarsoleIndexState());
+  }
+
+  void changeCarouselPage ({bool isPrev =false , bool isNext =false, required CarouselSliderController controller}) {
+
+    if (controller.ready != true) {
+      // One deferred attempt (optional); skip if still not ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.ready != true) return;
+        if (isPrev) controller.previousPage();
+        if (isNext) controller.nextPage();
+        emit(ChangeCarsolePageState());
+      });
+      return;
+    }
+
+    if (isPrev) controller.previousPage();
+    if (isNext) controller.nextPage();
+    emit(ChangeCarsolePageState());
+  }
   Future<void> createNewBrainStorm (String title , List<XFile>? image , options )async {
     final now = await NTP.now();
     final nowUtc = now.toUtc();
@@ -535,31 +834,48 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
   List brainStormData=[];
+
+  void _ensureVoteBuffers(int index) {
+    while (previousOptionId.length <= index) {
+      previousOptionId.add(null);
+    }
+    while (optionVoterIds.length <= index) {
+      optionVoterIds.add(<String, List<String>>{});
+    }
+  }
+
   Future<void> getBrainStormData() async{
     try{
       brainStormData = await supabase.from("BrainStorming").select('*').eq('compound_id',selectedCompoundId!);
-      debugPrint(brainStormData.toString());
-      debugPrint(brainStormData.first['id'].toString());
-      debugPrint(brainStormData.first['Options'].toString());
+      previousOptionId =
+      List<String?>.filled(brainStormData.length, null, growable: true);
+      optionVoterIds = List<Map<String, List<String>>>.generate(
+        brainStormData.length,
+            (_) => <String, List<String>>{},
+        growable: true,
+      );
     } catch(error){
       debugPrint('Error during pulling BrainStorm Data : ${error.toString()}');
     }
     emit(CreateNewBrainStormState());
   }
-  String? previousOptionId;
-  Map<String, List<String>> optionVoterIds = {};
-  List<String> votersIds = [];
 
-  Future<void> handleBrainStormVote(PollOption option) async{
+  List<String?> previousOptionId = [];
+  List<Map<String, List<String>>> optionVoterIds = [];
 
 
-    // Reset per-call caches
-    previousOptionId = null;
+  Future<void> addCurrentPollId (String index) async{
 
-    optionVoterIds = {};
+    emit(addIndexState());
+  }
 
-    // Normalize Votes -> Map<String, Map<String,bool>>
-    final rawVotesAny = brainStormData.first['Votes'];
+  Future<void> handleBrainStormVote(PollOption option, {required String pollId}) async {
+    // Locate poll index
+    final int idx = brainStormData.indexWhere((e) => e['id'] == pollId);
+    if (idx == -1) return;
+
+    // Normalize existing votes
+    final rawVotesAny = brainStormData[idx]['Votes'];
     final Map<String, Map<String, bool>> votes = {};
     if (rawVotesAny is Map) {
       rawVotesAny.forEach((k, v) {
@@ -571,66 +887,54 @@ class AppCubit extends Cubit<AppCubitStates> {
         votes[key] = inner;
       });
     }
-    print(votes.toString());
-    final List<Map<String, dynamic>> options = (brainStormData.first['Options'] as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-    print(options.toString());
+
+    // Detect previous user selection (for this poll only)
+    String? prevOptionIdLocal;
     votes.forEach((opId, voters) {
-      final ids = voters.keys.map((k) => k.toString()).toList(growable: false);
-      optionVoterIds[opId] = ids;
-      if (voters.containsKey(Userid)) previousOptionId = opId;
+      if (voters.containsKey(Userid)) prevOptionIdLocal = opId;
     });
 
+    final targetId = option.id.toString();
+    final bool isUnvote = prevOptionIdLocal == targetId;
 
-    final bool isUnvote = previousOptionId == option.id.toString();
-
-    try{
-      if(isUnvote) {
-        votes[option.id.toString()]?.remove(Userid);
-        if(votes[option.id.toString()]?.isEmpty ?? true) {
-          votes.remove(option.id.toString());
-          optionVoterIds.remove(option.id.toString());
-        }  else {
-          optionVoterIds[option.id.toString()] =
-              votes[option.id.toString()]!.keys.map((k) => k.toString()).toList(growable: false);
-        }
-      } else {
-        if(previousOptionId !=null && previousOptionId != option.id.toString()){
-          votes[previousOptionId]?.remove(Userid);
-          if (votes[previousOptionId!]?.isEmpty ?? false) {
-            votes.remove(previousOptionId!);
-            optionVoterIds.remove(previousOptionId!);
-          } else {
-            optionVoterIds[previousOptionId!] =
-                votes[previousOptionId!]!.keys.map((k) => k.toString()).toList(growable: false);
-          }
-        }
-        votes.putIfAbsent(option.id.toString(), () => <String, bool>{});
-        votes[option.id.toString()]![Userid] = true;
-        optionVoterIds[option.id.toString()] =
-            votes[option.id.toString()]!.keys.map((k) => k.toString()).toList(growable: false);
+    // Apply mutation locally (optimistic)
+    if (isUnvote) {
+      votes[targetId]?.remove(Userid);
+      if (votes[targetId]?.isEmpty ?? true) votes.remove(targetId);
+    } else {
+      if (prevOptionIdLocal != null && prevOptionIdLocal != targetId) {
+        votes[prevOptionIdLocal]?.remove(Userid);
+        if (votes[prevOptionIdLocal]?.isEmpty ?? true) votes.remove(prevOptionIdLocal);
       }
-
-
-      for (final o in options) {
-        final idStr = o['id'].toString();
-        o['votes'] = votes[idStr]?.length ?? 0;
-      }
-
-
-      await supabase.from("BrainStorming").update({
-        'Votes':votes ,
-        'Options':options
-      }).eq('id', brainStormData.first['id'].toString());
-
-      getBrainStormData();
-
-    } catch(e){
-      debugPrint("error${e}");
+      votes.putIfAbsent(targetId, () => <String, bool>{});
+      votes[targetId]![Userid] = true;
     }
 
+    // Recompute option vote counts
+    final List<Map<String, dynamic>> options =
+    (brainStormData[idx]['Options'] as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    for (final o in options) {
+      final idStr = o['id'].toString();
+      o['votes'] = votes[idStr]?.length ?? 0;
+    }
 
+    // Update local poll object
+    brainStormData[idx]['Votes'] = votes;
+    brainStormData[idx]['Options'] = options;
+
+    emit(BrainStormVoteUpdated());
+
+    // Persist (no full list refetch to avoid slide flicker)
+    try {
+      await supabase
+          .from("BrainStorming")
+          .update({'Votes': votes, 'Options': options})
+          .eq('id', pollId);
+    } catch (e) {
+      debugPrint("vote persist error $e");
+    }
   }
 
 

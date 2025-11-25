@@ -46,6 +46,11 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 
+	<key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>https</string>
+        <string>mailto</string>
+    </array>
 	<key>GIDClientID</key>
 	<string>979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254.apps.googleusercontent.com</string>
 

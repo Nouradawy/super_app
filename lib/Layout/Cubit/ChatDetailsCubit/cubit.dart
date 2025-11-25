@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Layout/Cubit/ChatDetailsCubit/states.dart';
+import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/states.dart';
 
 class ChatDetailsCubit extends Cubit<ChatDetailsStates> {
   ChatDetailsCubit():super(ChatInitialState());

@@ -31,7 +31,7 @@ extension ContextThemeExtension on BuildContext {
 
      ),
      colorScheme: ColorScheme.fromSeed(
-       seedColor: Colors.deepPurple,
+       seedColor: HexColor("#dae7f7"),
        brightness: Brightness.light, // Specify this is a light theme
      ),
 
@@ -58,6 +58,9 @@ class AppTextTheme {
   final TextStyle socialPostHead;
   final TextStyle commentsCount;
   final TextStyle reportSubmissionButton;
+  final TextStyle profileListHead;
+  final TextStyle userNameCard;
+  final TextStyle cardBody;
   final Color statusButtonColor;
   final Color socialBackgroundColor;
   final Color socialIconColor;
@@ -72,6 +75,9 @@ class AppTextTheme {
     required this.socialPostHead,
     required this.commentsCount,
     required this.reportSubmissionButton,
+    required this.profileListHead,
+    required this.userNameCard,
+    required this.cardBody,
     required this.statusButtonColor,
     required this.socialBackgroundColor,
     required this.socialIconColor,
@@ -84,8 +90,8 @@ class AppTextTheme {
       color: HexColor("#111418"),
     ),
       signSubtitle: GoogleFonts.manrope(
-      fontSize: 12,
-      fontWeight: FontWeight.w500,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
       color: HexColor("#637488"),
     ),
     role: GoogleFonts.manrope(
@@ -117,7 +123,17 @@ class AppTextTheme {
       fontWeight: FontWeight.w500,
       color: HexColor("#1c1e21").withAlpha(170),
       ),
+    userNameCard: GoogleFonts.manrope(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: HexColor("#1c1e21").withAlpha(170),
+    ),
+    cardBody: GoogleFonts.manrope(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: Colors.black87),
     reportSubmissionButton: GoogleFonts.plusJakartaSans(color: Colors.white , fontWeight: FontWeight.w600),
+    profileListHead: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700 ,fontSize: 12 , color: Colors.grey),
 
     statusButtonColor: HexColor("#F0F2F5"),
     socialBackgroundColor: HexColor("#F0EFF4"),

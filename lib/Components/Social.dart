@@ -1,20 +1,28 @@
 
 import 'dart:io';
+import 'package:WhatsUnity/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:googleapis/androidenterprise/v1.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
-import 'package:super_app/Themes/lightTheme.dart';
-import 'package:super_app/Services/GoogleDriveService.dart';
+import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
+import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
+import 'package:WhatsUnity/Themes/lightTheme.dart';
+import 'package:WhatsUnity/Services/GoogleDriveService.dart';
 import '../Confg/supabase.dart';
+import '../Layout/chatWidget/MessageWidget.dart';
 import '../Services/DriveImageWidget.dart';
 import 'Constants.dart';
 
+
 bool Mounted =false;
 class Social extends StatelessWidget {
+
   TextEditingController postHead = TextEditingController();
   List<XFile>? file;
 
@@ -22,6 +30,7 @@ class Social extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cubit = AppCubit.get(context);
     return Column(
       children: [
         TabBar(
@@ -41,16 +50,10 @@ class Social extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          height: 35,
-                          width: 35,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: SvgPicture.asset(
-                            "assets/person.svg",
-                          ),
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                         ),
                         const SizedBox(width: 10),
                         SizedBox(
@@ -77,8 +80,9 @@ class Social extends StatelessWidget {
                     Expanded(
                       child: ListView.builder(
                         shrinkWrap: false,
-                        itemCount: AppCubit.get(context).Posts.length,
+                        itemCount: cubit.Posts.length,
                         itemBuilder: (context, index) {
+                          final postUser = ChatMembers.firstWhere((member)=>member.id == cubit.Posts[index]["author_id"]);
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -110,8 +114,10 @@ class Social extends StatelessWidget {
                                               color: Colors.white,
                                               shape: BoxShape.circle,
                                             ),
-                                            child: SvgPicture.asset(
-                                              "assets/person.svg",
+                                            child: CircleAvatar(
+                                              radius: 16,
+                                              backgroundColor: Colors.grey.shade200,
+                                              backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                                             ),
                                           ),
 
@@ -121,18 +127,18 @@ class Social extends StatelessWidget {
                                             CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                AppCubit.get(context).Posts[index]["user_name"],
+                                                postUser.displayName,
                                                 style:context.txt.socialUserName
                                               ),
                                               Text(
-                                                "1d",
+                                                  formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
                                                 style:context.txt.socialPostSince
                                               ),
                                             ],
                                           ),
                                         ],
                                       ),
-                                      SizedBox(height: 3),
+                                      const SizedBox(height: 5),
                                       Align(
                                         alignment: AlignmentDirectional.topStart,
                                         child: Padding(
@@ -140,7 +146,7 @@ class Social extends StatelessWidget {
                                             horizontal: 10,
                                           ),
                                           child: Text(
-                                            AppCubit.get(context).Posts[index]["post_head"],
+                                            cubit.Posts[index]["post_head"],
                                             style: context.txt.socialPostHead
                                           ),
                                         ),
@@ -149,11 +155,25 @@ class Social extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              DriveImagesGridWidget( driveUrls: AppCubit.get(context).Posts[index]['source_url']
-                                  .map((item) => item['uri'] as String)
-                                  .toList()
-                                  .cast<String>(),
-                                  driveService: GoogleDriveService()),
+                              SizedBox(
+                                width: MediaQuery.sizeOf(context).width*0.95,
+                                child: BlocBuilder<AppCubit, AppCubitStates>(
+                                  builder: (context, states) {
+                                    final source = (cubit.Posts[index]['source_url'] as List<dynamic>?) ?? [];
+                                    return PostCarousel(
+                                      userName: postUser.displayName,
+                                      source: source,
+                                      onPageChanged: (i) => cubit.onChangedCarousel(i),
+                                    );
+                                  },
+                                ),
+                              ),
+
+                              // DriveImagesGridWidget( driveUrls: AppCubit.get(context).Posts[index]['source_url']
+                              //     .map((item) => item['uri'] as String)
+                              //     .toList()
+                              //     .cast<String>(),
+                              //     driveService: GoogleDriveService()),
 
                               Container(
                                 width: MediaQuery.sizeOf(context).width * 0.95,
@@ -179,7 +199,7 @@ class Social extends StatelessWidget {
                                         MainAxisAlignment.end,
                                         children: [
                                           Text(
-                                            "${(AppCubit.get(context).Posts[index]['Comments']  as List?  ?? [] ).length} ${context.loc.comment}",
+                                            "${(cubit.Posts[index]['Comments']  as List?  ?? [] ).length} ${context.loc.comment}",
                                             style: context.txt.commentsCount
                                           ),
                                         ],
@@ -214,7 +234,7 @@ class Social extends StatelessWidget {
                                           ),
                                           MaterialButton(
                                             onPressed: () {
-                                              commentPopUp(context , postHead,index);
+                                              commentPopUp(context ,postHead, index ,postUser);
                                             },
                                             child: Row(
                                               crossAxisAlignment:
@@ -465,11 +485,15 @@ class Social extends StatelessWidget {
       BuildContext context,
       TextEditingController postHead,
       int index,
+      ChatMember postUser,
+
       ) async {
 
     return showDialog(
       context: context,
       builder: (BuildContext context) {
+        final cubit = AppCubit.get(context);
+        bool isSending = false;
         return StatefulBuilder(
           builder: (context, setStateOfDialog) {
             List newComments= [];
@@ -504,19 +528,12 @@ class Social extends StatelessWidget {
                           ),
                           child: Column(
                             children: [
-                              ///TODO:Fetch data from sublease
                               Row(
                                 children: [
-                                  Container(
-                                    height: 35,
-                                    width: 35,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: SvgPicture.asset(
-                                      "assets/person.svg",
-                                    ),
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: Colors.grey.shade200,
+                                    backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                                   ),
 
                                   SizedBox(width: 10),
@@ -525,11 +542,11 @@ class Social extends StatelessWidget {
                                     CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        AppCubit.get(context).Posts[index]["user_name"],
+                                        postUser.displayName,
                                         style: context.txt.socialUserName
                                       ),
                                       Text(
-                                        "1d",
+                                          formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
                                         style:
                                         context.txt.socialPostSince
                                       ),
@@ -537,7 +554,7 @@ class Social extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 3),
+                              const SizedBox(height: 6),
                               Align(
                                 alignment: AlignmentDirectional.topStart,
                                 child: Padding(
@@ -545,7 +562,7 @@ class Social extends StatelessWidget {
                                     horizontal: 10,
                                   ),
                                   child: Text(
-                                    AppCubit.get(context).Posts[index]["post_head"],
+                                    cubit.Posts[index]["post_head"],
                                     style: context.txt.socialPostHead
                                   ),
                                 ),
@@ -554,11 +571,20 @@ class Social extends StatelessWidget {
                           ),
                         ),
                       ),
-                      DriveImagesGridWidget( driveUrls: AppCubit.get(context).Posts[index]['source_url']
-                          .map((item) => item['uri'] as String)
-                          .toList()
-                          .cast<String>(),
-                          driveService: GoogleDriveService()),
+                      SizedBox(
+                        width: MediaQuery.sizeOf(context).width*0.95,
+                        child: BlocBuilder<AppCubit, AppCubitStates>(
+                          builder: (context, states) {
+                            final source = (cubit.Posts[index]['source_url'] as List<dynamic>?) ?? [];
+                            return PostCarousel(
+                              userName: postUser.displayName,
+                              source: source,
+                              onPageChanged: (i) => cubit.onChangedCarousel(i),
+                            );
+                          },
+                        ),
+                      ),
+
                       Container(
                         width: MediaQuery.sizeOf(context).width * 0.95,
                         decoration: BoxDecoration(
@@ -582,7 +608,7 @@ class Social extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   Text(
-                                    "${(AppCubit.get(context).Posts[index]['Comments'] as List? ?? []).length} ${context.loc.comment}",
+                                    "${(cubit.Posts[index]['Comments'] as List? ?? []).length} ${context.loc.comment}",
                                     style: context.txt.commentsCount
                                   ),
                                 ],
@@ -623,7 +649,6 @@ class Social extends StatelessWidget {
                                   ),
                                   MaterialButton(
                                     onPressed: () {
-                                      commentPopUp(context , postHead,index);
                                     },
                                     child: Row(
                                       crossAxisAlignment:
@@ -661,14 +686,18 @@ class Social extends StatelessWidget {
                           ],
                         ),
                       ),
-                      SizedBox(height: 10,),
+                      SizedBox(height: 10),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
 
                         children: [
-                          SvgPicture.asset("assets/person.svg"),
-                          SizedBox(width: 8,),
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
+                          ),
+                          SizedBox(width: 8),
                           Container(
                             decoration: BoxDecoration(
                                 color: Colors.black12,
@@ -686,24 +715,35 @@ class Social extends StatelessWidget {
                                     context,
                                     controller: newComment,
                                     keyboardType: TextInputType.text,
-                                    hintText: '${context.loc.commentAs} ${UserData!.userMetadata!["display_name"]}',
+                                    hintText: '${context.loc.commentAs} ${currentUser?.displayName}',
                                   ),),
                                 ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxHeight: 28,
                                   ),
                                   child: IconButton(
-                                      onPressed: () async {
-                                        newComments = AppCubit.get(context).Posts[index]['Comments']?? [];
-                                        newComments.add({'authorid':Userid,
-                                            'comment':newComment.text,});
+                                      onPressed: isSending == true
+                                          ? null 
+                                          : () async {
+                                        isSending = true;
+                                        setStateOfDialog((){
+
+                                        });
+                                        newComments = cubit.Posts[index]['Comments']?? [];
+                                        newComments.add({
+                                          'author_id':Userid,
+                                          'comment':newComment.text,});
                                         debugPrint(newComments.toString());
                                         await supabase.from('Posts').update({
                                           'Comments':newComments
-                                        }).eq('id',AppCubit.get(context).Posts[index]['id']).select();
+                                        }).eq('id',cubit.Posts[index]['id']).select();
                                         newComments.clear();
-                                        ///TODO:Rebuild the comments section instead of popping
-                                        Navigator.pop(context);
+                                        await cubit.getPostsData(selectedCompoundId);
+                                        isSending = false;
+                                        setStateOfDialog((){
+                                          
+                                        });
+
                                       },
                                       icon: Icon(Icons.send_rounded),
                                       iconSize:15,
@@ -718,19 +758,34 @@ class Social extends StatelessWidget {
                         ],
                       ),
                       ListView.builder(
+                        physics: NeverScrollableScrollPhysics(),
                           padding:EdgeInsets.only(left:5),
                         shrinkWrap: true,
-                          itemCount: (AppCubit.get(context).Posts[index]['Comments'] as List?  ?? []).length,
+                          itemCount: (cubit.Posts[index]['Comments'] as List?  ?? []).length,
                           itemBuilder: (context , commentIndex){
+                            final comments = (cubit.Posts[index]['Comments'] as List);
+                            final authorId = comments[commentIndex]['author_id']?.toString();
 
+                            final commentUser = ChatMembers.firstWhere(
+                                  (member) => member.id.trim() == authorId,
+                              orElse: () => ChatMember(
+                                id: authorId ?? 'unknown',
+                                displayName: 'Unknown',
+                                building: 'null',
+                                apartment: 'null',
+                                avatarUrl: '',
+                              ),
+                            );
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                SvgPicture.asset(
-                                  "assets/person.svg",
-                                ),
+                                  CircleAvatar(
+                                    radius: 13,
+                                    backgroundColor: Colors.grey.shade200,
+                                    backgroundImage: (commentUser.avatarUrl != null ||commentUser.avatarUrl != '') ? NetworkImage(commentUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
+                                  ),
                                   SizedBox(width: 9,),
                                   Container(
                                     padding: EdgeInsets.symmetric(vertical: 2,horizontal: 11),
@@ -742,7 +797,7 @@ class Social extends StatelessWidget {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text('Name'),
+                                      Text(commentUser.displayName),
                                       Text((AppCubit.get(context).Posts[index]['Comments'] as List)[commentIndex]['comment'].toString()),
                                     ],
                                   ),

@@ -1,0 +1,63 @@
+class ReportAUsers{
+  final int? id;
+  final String authorId;
+  final DateTime createdAt;
+  final String reportedUserId;
+  final String state;
+  final String description;
+  final String messageId;
+  final String reportedFor;
+
+
+  ReportAUsers({
+    this.id,
+    required this.authorId,
+    required this.createdAt,
+    required this.reportedUserId,
+    required this.state,
+    required this.description,
+    required this.messageId,
+    required this.reportedFor,
+  });
+
+  factory ReportAUsers.fromJson(Map<String,dynamic> json){
+    return ReportAUsers(
+      id:json['id'],
+      authorId: json['authorId'],
+      createdAt: DateTime.tryParse(json['createdAt'])!,
+      reportedUserId: json['reportedUserId'],
+      state: json['state'],
+      description: json['description'],
+      messageId: json['messageId'],
+      reportedFor: json['reportedFor'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'authorId': authorId.trim(),
+      'createdAt': createdAt.toIso8601String(),
+      'reportedUserId': reportedUserId.trim(),
+      'state': state,
+      'description': description,
+      'messageId': messageId,
+      'reportedFor': reportedFor,
+    };
+  }
+
+
+}
+
+enum ReportAUserFilter{
+  All,
+  New,
+  inReview,
+  Resolved
+}
+
+enum ReportAUserType{
+  spam,
+  harassment,
+  selling,
+  inappropriateContent
+}

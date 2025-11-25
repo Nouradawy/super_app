@@ -1,6 +1,10 @@
 
 import 'dart:io';
 
+import 'package:WhatsUnity/Layout/chatWidget/MessageWidget.dart';
+import 'package:carousel_slider/carousel_controller.dart';
+import 'package:carousel_slider/carousel_options.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,35 +13,69 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:googleapis/admob/v1.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:super_app/Components/Constants.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
-import 'package:super_app/Layout/chatWidget/GeneralChat/GeneralChat.dart';
-import 'package:super_app/Themes/lightTheme.dart';
+import 'package:WhatsUnity/Components/Constants.dart';
+import 'package:WhatsUnity/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
+import 'package:WhatsUnity/Themes/lightTheme.dart';
 
 import '../../Confg/supabase.dart';
 import '../Cubit/cubit.dart';
 
-class BrainStorming extends StatelessWidget {
+class BrainStorming extends StatefulWidget {
   BrainStorming({super.key, required this.onClose});
   final VoidCallback onClose;
+
+  @override
+  State<BrainStorming> createState() => _BrainStormingState();
+}
+
+class _BrainStormingState extends State<BrainStorming> {
+  final CarouselSliderController controller = CarouselSliderController();
   final TextEditingController title = TextEditingController();
+
   final optionControllers = <TextEditingController>[
     TextEditingController(),
     TextEditingController(),
   ];
+
   List<XFile>? file;
 
+  Map<String, Map<String, bool>> _normalizeVotes(dynamic raw) {
+    final Map<String, Map<String, bool>> votes = {};
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        final key = k.toString();
+        final Map<String, bool> inner = {};
+        if (v is Map) {
+          v.forEach((vk, vv) => inner[vk.toString()] = vv == true);
+        }
+        votes[key] = inner;
+      });
+    }
+    return votes;
+  }
+
+  bool _hasUserVoted(dynamic rawVotes, String userId) {
+    final votes = _normalizeVotes(rawVotes);
+    return votes.values.any((m) => m.containsKey(userId));
+  }
+
+  String? _userVotedOptionId(dynamic rawVotes, String userId) {
+    final votes = _normalizeVotes(rawVotes);
+    for (final entry in votes.entries) {
+      if (entry.value.containsKey(userId)) return entry.key;
+    }
+    return null;
+  }
+
   // Fetch avatars once for all unique voter ids in this poll
-
-
-
   @override
   Widget build(BuildContext context) {
-
+    final cubit = AppCubit.get(context);
     return Scaffold(
       appBar: AppBar(
         title:Text("Brain Storming"),
-        actions:[IconButton(onPressed:onClose, icon: Icon(Icons.analytics_outlined),)],
+        actions:[IconButton(onPressed:widget.onClose, icon: Icon(Icons.analytics_outlined),)],
 
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -48,67 +86,184 @@ class BrainStorming extends StatelessWidget {
         icon: Icon(Icons.add, color: HexColor("#121416")),
         backgroundColor: HexColor("#dce8f3"),
       ),
-      body:BlocBuilder<AppCubit,AppCubitStates>(
-        builder: (context,states) {
-          return Column(
-            children: [
-              TextButton(onPressed: ()=>context.read<AppCubit>().getBrainStormData(),child: Text("get BrainStorm Data"),),
-              FutureBuilder<Map<String,String>>(
-                  future:fetchAvatarsForUserIds(context),
-                  builder: (context,snapshot) {
-                    final idToAvatar = snapshot.data ?? const  <String  , String>{};
+      body:SingleChildScrollView(
+        physics:NeverScrollableScrollPhysics(),
+        child: BlocBuilder<AppCubit,AppCubitStates>(
+          builder: (context,states) {
+            return Column(
+              children: [
+                TextButton(onPressed: ()=>cubit.getBrainStormData(),child: Text("get BrainStorm Data"),),
 
-                  return FlutterPolls(
-                    pollId: context.read<AppCubit>().brainStormData.first['id'],
-                    createdBy: context.read<AppCubit>().brainStormData.first['author_id'],
-                    allowToggleVote: true,
-                    pollProgressbarHeight: 5,
-                    hasVoted: AppCubit.get(context).previousOptionId !=null,
-                    userVotedOptionId:AppCubit.get(context).previousOptionId,
-                    userToVote: Userid,
-                    onVoted: (PollOption pollOption, int newTotalVotes) async{
-                      try{
-                        await context.read<AppCubit>().handleBrainStormVote(pollOption);
-                        return true;
-                      } catch(error){
-                        return false;
-                      }
+                FutureBuilder<Map<String,dynamic>>(
+                    future:fetchAvatarsForUserIds(context),
+                    builder: (context,snapshot) {
+                      final idToAvatar = snapshot.data ?? const  <String  , dynamic>{};
 
-                    },
-                    pollTitle: Text(context.read<AppCubit>().brainStormData.first['Title'].toString()),
-                    pollOptions: context.read<AppCubit>().brainStormData.first['Options'].map<PollOption>((o){
-                      final m = Map<String, dynamic>.from(o as Map);
-                      final votesRaw = m['votes'];
-                      final votes = votesRaw is String
-                          ? int.tryParse(votesRaw) ?? 0
-                          : (votesRaw as num?)?.toInt() ?? 0;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CarouselSlider(
+                          items: cubit.brainStormData.map<Widget>((item){
 
-                      final voterUrls = (AppCubit.get(context).optionVoterIds[m['id'].toString()] ?? [])
-                          .map((uid) => idToAvatar[uid])
-                          .whereType<String>()
-                          .toList();
-                      return PollOption(
-                        id: m['id'].toString(),
-                        title: Text(m['title'].toString()),
-                        votes: votes,
-                        voterAvatars: voterUrls,
-                      );
-                    }).toList(),
-                  );
-                }
-              ),
-            ],
-          );
-        }
+                            return KeyedSubtree(
+                              key:ValueKey('poll-slide-${item['id']}'),
+                              child: Column(
+                                children: [
+                                  if(item['Image'].length != 0)
+                                    item['Image'].map((image)=>
+                                        SizedBox(
+                                            width: MediaQuery.sizeOf(context).width,
+                                            height: 250,
+                                            child: DriveImageMessage(
+                                              key: ValueKey('poll-image-${item['id']}-${image['uri']}'),
+                                              fileId: extractDriveFileId(image['uri'])!, driveService: driveService ,isRounded: false,)))
+                                        .toList().first,
+
+
+                                  SizedBox(
+                                    width:MediaQuery.sizeOf(context).width*0.80,
+                                    child: FlutterPolls(
+                                      key: ValueKey('poll-widget-${item['id']}'),
+                                      pollId: item['id'],
+                                      createdBy: item['author_id'],
+                                      allowToggleVote: true,
+                                      pollProgressbarHeight: 5,
+                                      hasVoted: _hasUserVoted(item['Votes'], Userid),
+                                      userVotedOptionId:_userVotedOptionId(item['Votes'], Userid),
+                                      userToVote: Userid,
+                                      onVoted: (PollOption pollOption, int newTotalVotes) async{
+                                        try{
+                                          await cubit.handleBrainStormVote(pollOption , pollId: item['id']);
+                                          return true;
+                                        } catch(error){
+                                          return false;
+                                        }
+
+                                      },
+                                      pollTitle: Text(item['Title'].toString()),
+                                      pollOptions: (item['Options'] as List).map<PollOption>((o) {
+                                        final m = Map<String, dynamic>.from(o as Map);
+                                        final votesRaw = m['votes'];
+                                        final votes = votesRaw is String
+                                            ? int.tryParse(votesRaw) ?? 0
+                                            : (votesRaw as num?)?.toInt() ?? 0;
+                                        final votesByOption = _normalizeVotes(item['Votes']);
+                                        final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
+                                        final voterUrls = voterIds
+                                            .map((uid) => idToAvatar[uid])
+                                            .whereType<String>()
+                                            .toList();
+                                        return PollOption(
+                                          id: m['id'].toString(),
+                                          title: Text(m['title'].toString()),
+                                          votes: votes,
+                                          voterAvatars: voterUrls,
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          carouselController: controller,
+                          options: CarouselOptions(
+                            viewportFraction: 1.0,
+                            enableInfiniteScroll: false,
+                            height: MediaQuery.sizeOf(context).height*0.5,
+                            onPageChanged: (index, reason) {
+                              cubit.changeCarouselIndex(index);
+                            },
+                            enlargeCenterPage: false,
+                          ),
+
+
+                        ),
+                        if(context.read<AppCubit>().brainStormData.length >1) ...[
+                          // left arrow
+                          Positioned(
+                            left: 8,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black38,
+                              child: IconButton(
+                                icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
+                                onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isPrev: true , controller: controller),
+                                padding: EdgeInsets.zero,
+                                splashRadius: 18,
+                              ),
+                            ),
+                          ),
+
+                          // right arrow
+                          Positioned(
+                            right: 8,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black38,
+                              child: IconButton(
+                                icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                                onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isNext: true , controller: controller),
+                                padding: EdgeInsets.zero,
+                                splashRadius: 18,
+                              ),
+                            ),
+                          ),
+
+                          // dots
+                          Positioned(
+                            bottom: 8,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(context.read<AppCubit>().brainStormData.length, (i) {
+                                final active = i == context.read<AppCubit>().currentCarouselIndex;
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  width: active ? 10 : 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: active ? Colors.indigo : Colors.indigoAccent,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  }
+                ),
+              ],
+            );
+          }
+        ),
       ),
     );
   }
 }
 
 Future<Map<String, String>> fetchAvatarsForUserIds(context) async {
+  final cubit = AppCubit.get(context);
+  if (cubit.brainStormData.isEmpty ||
+      cubit.currentCarouselIndex >= cubit.brainStormData.length) {
+    return {};
+  }
+  final raw = cubit.brainStormData[cubit.currentCarouselIndex]['Votes'];
+  final Map<String, Map<String, bool>> votes = {};
+  if (raw is Map) {
+    raw.forEach((k, v) {
+      final key = k.toString();
+      final inner = <String, bool>{};
+      if (v is Map) {
+        v.forEach((vk, vv) => inner[vk.toString()] = vv == true);
+      }
+      votes[key] = inner;
+    });
+  }
+
   final Set<String> userIds =
-  AppCubit.get(context).optionVoterIds.values.expand((e) => e).toSet();
-  print("My id's : ${userIds}");
+  votes.values.expand((m) => m.keys.map((e) => e.toString())).toSet();
+
   if (userIds.isEmpty) return {};
   try {
     final rows = await supabase
@@ -122,8 +277,8 @@ Future<Map<String, String>> fetchAvatarsForUserIds(context) async {
       final url = r['avatar_url']?.toString();
       if (id != null && url != null && url.isNotEmpty) {
         map[id] = url;
-      }else if(id !=null && url ==null){
-        map[id] = "https://thumbs.dreamstime.com/b/default-profile-picture-avatar-photo-placeholder-vector-illustration-default-profile-picture-avatar-photo-placeholder-vector-189495158.jpg";
+      } else if (id != null && url == null) {
+        map[id] = "null";
       }
     }
     return map;

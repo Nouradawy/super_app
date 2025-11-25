@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/states.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/states.dart';
+
+import '../../../Model/ReportAUser.dart';
 
 class Reports extends StatelessWidget {
   const Reports({super.key});
@@ -19,9 +21,9 @@ class Reports extends StatelessWidget {
             children: [
               Wrap(
                 spacing: 8,
-                children: List.generate(ReportsFilters.values.length, (i){
+                children: List.generate(ReportAUserFilter.values.length, (i){
                   return FilterChip(
-                      label: Text(i==2?'In Review':ReportsFilters.values[i].name),
+                      label: Text(i==2?'In Review':ReportAUserFilter.values[i].name),
                       selected: cubit.index == i,
                       onSelected: (selected) {
 

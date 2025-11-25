@@ -5,13 +5,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:super_app/Confg/supabase.dart';
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Confg/supabase.dart';
+import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Layout/MainScreen.dart';
 import '../Components/Constants.dart';
-import '../Model/CompoundsList.dart';
-import '../Network/CacheHelper.dart';
-import 'HomePage.dart';
+
 
 class JoinCommunity extends StatelessWidget {
   const JoinCommunity({super.key});
@@ -39,10 +38,11 @@ class JoinCommunity extends StatelessWidget {
                  child: BlocConsumer<AppCubit,AppCubitStates>(
                    listener: (context , states) {
                      if(states is CompoundIdChange && UserData !=null){
+
                        Navigator.pushAndRemoveUntil(
                          context,
                          MaterialPageRoute(
-                             builder: (context) => HomePage()),
+                             builder: (context) => MainScreen()),
                              (Route<
                              dynamic> route) => false, // This predicate removes all previous routes
                        );

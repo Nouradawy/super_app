@@ -3,6 +3,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
+import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'chat_mapper.dart';
@@ -89,5 +90,33 @@ class ChatCacheService {
     }
 
       return unique.values.toList();
+  }
+
+  void hydrateReactionsFromMessages(
+      types.InMemoryChatController chatController,
+      ReactionsController reactionsController,
+      ) {
+    for (final msg in chatController.messages) {
+      final meta = msg.metadata;
+      if (meta == null) continue;
+
+      final raw = meta['reactions'];
+      if (raw is! Map) continue;
+
+      // raw shape: { "😀": { "userId1": true, "userId2": true }, ... }
+      raw.forEach((emoji, usersRaw) {
+        if (emoji == null || usersRaw is! Map) return;
+        final e = emoji.toString();
+
+        // We do not know *which* user added it here, but
+        // ReactionsController usually only needs counts & per\-message emoji set.
+        // So we just "add" once per user.
+        usersRaw.forEach((uid, val) {
+          final isTrue = val == true || val == 1 || val == 'true';
+          if (!isTrue) return;
+          reactionsController.addReaction(msg.id, e);
+        });
+      });
+    }
   }
 }

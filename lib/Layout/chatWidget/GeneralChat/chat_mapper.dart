@@ -142,6 +142,7 @@ types.Message mapToMessage(Map<String, dynamic> map) {
         metadata: metadata,
         replyToMessageId: metadata['reply_to'],
         deliveredAt: deliveredAt,
+
       );
   }
 }

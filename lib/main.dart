@@ -1,23 +1,24 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:super_app/Components/Constants.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/HomePage.dart';
-import 'package:super_app/Layout/MainScreen.dart';
-import 'package:super_app/Network/CacheHelper.dart';
-
-import 'package:super_app/Themes/lightTheme.dart';
 
 import 'Components/BlocObserver.dart';
+import 'Components/Constants.dart';
 import 'Confg/supabase.dart';
+import 'Layout/Cubit/AdminDashboard/cubit.dart';
+import 'Layout/Cubit/ReportCubit/cubit.dart';
+import 'Layout/Cubit/cubit.dart';
+import 'Layout/MainScreen.dart';
 import 'Layout/SignUp.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'OTPScreen.dart';
+import 'Network/CacheHelper.dart';
+import 'Services/PresenceManager.dart';
+import 'Themes/lightTheme.dart';
+import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/l10n.dart';
 
@@ -25,8 +26,11 @@ import 'l10n/l10n.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   Bloc.observer = const SimpleBlocObserver();
-  // await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   await Supabase.initialize(
     // ⚠️ IMPORTANT: Replace with your own URL and Anon Key
     url: 'https://nouradawysupabase.duckdns.org',
@@ -35,15 +39,7 @@ void main() async{
   supabase = Supabase.instance.client;
   await CacheHelper.init();
 
-  String?Compounds = await CacheHelper.getData(key: "MyCompounds", type: "String");
-  if (Compounds != null) {
-    MyCompounds = json.decode(Compounds);
-  }
-  int? CompoundIndex = await CacheHelper.getData(key: "compoundCurrentIndex", type: "int");
-  if(CompoundIndex != null){
-    selectedCompoundId = CompoundIndex;
-    debugPrint(selectedCompoundId.toString());
-  }
+  await loadCachedData();
 
   runApp(const MyApp());
 }
@@ -60,6 +56,7 @@ class MyApp extends StatelessWidget {
       providers: [
         BlocProvider(create:(context) => AppCubit()..loadCompounds(),),
         BlocProvider(create: (context)=> ReportCubit()),
+        BlocProvider(create: (context)=> AdminCubit()),
       ],
       child: MaterialApp(
         title: 'Flutter Demo',
@@ -67,7 +64,7 @@ class MyApp extends StatelessWidget {
         debugShowMaterialGrid: false,
         theme: myLightTheme(),
         supportedLocales: L10n.all,
-        locale:const Locale('ar'),
+        locale:const Locale('en'),
         localizationsDelegates:const[
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -92,15 +89,19 @@ class MyApp extends StatelessWidget {
             }
 
             // 2. Once data is received, check if there is a session
-            if (snapshot.hasData && snapshot.data!.session != null) {
+            if (snapshot.hasData && snapshot.data!.session != null && AppCubit.get(context).signupGoogleEmail == null) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 // safe to call cubit and other side-effects now
+
                 context.read<AppCubit>().getPostsData(selectedCompoundId);
                 context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
                 UserData = snapshot.data!.session!.user;
+                debugPrint("I came here while signing in with google Account ");
+                userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+                debugPrint("Current user role :${userRole?.name}");
                 requestPermission();
               });
-              return  MainScreen();
+              return PresenceManager(child: MainScreen());
             } else {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 requestPermission();

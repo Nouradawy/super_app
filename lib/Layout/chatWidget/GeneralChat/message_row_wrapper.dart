@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:super_app/Confg/supabase.dart';
-import 'package:super_app/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Confg/supabase.dart';
+import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
+import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../MessageWidget.dart';
@@ -25,6 +26,8 @@ class MessageRowWrapper extends StatelessWidget {
   final Map<String, types.User> userCache;
   final Future<void> Function(String) resolveUser; // Function to fetch user
   final List<types.Message> localMessages;
+  final bool showDateHeaders;
+  final String currentUserId;
 
   // NEW: notify parent about visibility for sticky header computation
   final void Function(String messageId, int index, double visibleFraction, DateTime? createdAt) onVisibilityForHeader;
@@ -45,6 +48,8 @@ class MessageRowWrapper extends StatelessWidget {
     required this.resolveUser,
     required this.onVisibilityForHeader,
     required this.localMessages,
+    required this.showDateHeaders,
+    required this.currentUserId,
   });
 
   @override
@@ -64,8 +69,226 @@ class MessageRowWrapper extends StatelessWidget {
     bool _isSameDay(DateTime a, DateTime b) =>
         a.year == b.year && a.month == b.month && a.day == b.day;
 
-    final bool showHeader = createdAt != null &&
-        (controllerIndex <= 0 || prevCreatedAt == null || !_isSameDay(prevCreatedAt, createdAt));
+
+    final bool baseHeaderCond = createdAt != null &&
+        (controllerIndex <= 0 ||
+            prevCreatedAt == null ||
+            !_isSameDay(prevCreatedAt, createdAt));
+
+    final bool showHeader = showDateHeaders && baseHeaderCond;
+
+    Future<void> _showUserPopup(BuildContext context, String userId) async {
+      final member = ChatMembers.firstWhere((member)=>member.id.trim() == userId);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black26,
+        builder: (ctx) {
+          return SafeArea(
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 12,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: member.avatarUrl != null
+                          ? NetworkImage(member.avatarUrl!)
+                          : null,
+                      child: member.avatarUrl == null ? Text(member.displayName[0]) : null,
+                    ),
+                    title: Text(member.displayName,
+                        style: Theme.of(ctx).textTheme.titleMedium),
+                    subtitle: Text(
+                      'Building ${member.building ?? '-'} · Apt ${member.apartment ?? '-'}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                  ),
+                  const Divider(height: 0),
+                  ListTile(
+                    leading: const Icon(Icons.chat_outlined),
+                    title: const Text('Message'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      // TODO: Navigate to DM or start thread
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('View profile'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      // TODO: Navigate to profile
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    Future<void> _updateMessageReactions({
+      required String emoji,
+      required bool isAdding,
+      required String currentUserId,
+    }) async {
+      // 1. Get existing message from controller (or fallback)
+      final existing = chatController.messages.firstWhere(
+            (m) => m.id == message.id,
+        orElse: () => message,
+      );
+
+      // 2. Clone and normalize metadata
+      final meta =
+      Map<String, dynamic>.from(existing.metadata ?? <String, dynamic>{});
+      final reactionsRaw = meta['reactions'];
+
+      // Normalize to Map<String, Map<String,bool>>
+      final Map<String, Map<String, bool>> reactions = {};
+      if (reactionsRaw is Map) {
+        reactionsRaw.forEach((k, v) {
+          final key = k.toString();
+          final Map<String, bool> inner = {};
+          if (v is Map) {
+            v.forEach((uid, val) {
+              if (uid == null) return;
+              inner[uid.toString()] =
+                  val == true || val == 1 || val == 'true';
+            });
+          }
+          reactions[key] = inner;
+        });
+      }
+
+      reactions.putIfAbsent(emoji, () => <String, bool>{});
+      final usersForEmoji = reactions[emoji]!;
+
+      if (isAdding) {
+        usersForEmoji[currentUserId] = true;
+      } else {
+        usersForEmoji.remove(currentUserId);
+        if (usersForEmoji.isEmpty) {
+          reactions.remove(emoji);
+        }
+      }
+
+      // 3. Write back to metadata
+      meta['reactions'] = reactions.map(
+            (k, v) => MapEntry(k, v.map((uid, val) => MapEntry(uid, val))),
+      );
+
+      // 4. Build a new message instance with updated metadata
+      types.Message updated;
+      if (existing is types.TextMessage) {
+        updated = types.TextMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          text: existing.text,
+          createdAt: existing.createdAt,
+          metadata: meta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+          sentAt: existing.sentAt,
+          seenAt: existing.seenAt,
+        );
+      } else if (existing is types.ImageMessage) {
+        updated = types.ImageMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          height: existing.height,
+          width: existing.width,
+          size: existing.size,
+          source: existing.source,
+          metadata: meta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+          sentAt: existing.sentAt,
+          seenAt: existing.seenAt,
+        );
+      } else if (existing is types.AudioMessage) {
+        updated = types.AudioMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          size: existing.size,
+          source: existing.source,
+          duration: existing.duration,
+          metadata: meta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+          sentAt: existing.sentAt,
+          seenAt: existing.seenAt,
+        );
+      } else if (existing is types.FileMessage) {
+        updated = types.FileMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          name: existing.name,
+          size: existing.size,
+          mimeType: existing.mimeType,
+          source: existing.source,
+          metadata: meta,
+          replyToMessageId: existing.replyToMessageId,
+          deliveredAt: existing.deliveredAt,
+          sentAt: existing.sentAt,
+          seenAt: existing.seenAt,
+        );
+      } else {
+        updated = types.CustomMessage(
+          id: existing.id,
+          authorId: existing.authorId,
+          createdAt: existing.createdAt,
+          metadata: meta,
+        );
+      }
+
+      // 5. Update in\-memory controller
+      try {
+        chatController.updateMessage(existing, updated);
+      } catch (_) {}
+
+      // 6. Update local messages list used for cache
+      final idx = localMessages.indexWhere((m) => m.id == message.id);
+      if (idx != -1) {
+        localMessages[idx] = updated;
+      }
+
+      // 7. Persist to Supabase
+      try {
+        await supabase
+            .from('messages')
+            .update({'metadata': meta}).eq('id', message.id);
+      } catch (_) {
+        // Optionally rollback if needed
+      }
+    }
 
      final messageContent = ChatMessageWrapper(
       messageId: message.id,
@@ -76,6 +299,7 @@ class MessageRowWrapper extends StatelessWidget {
           MenuItem(label: 'Reply', icon: Icons.reply),
           MenuItem(label: 'Copy', icon: Icons.copy),
           isSentByMe?MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true):MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
+
 
 
         ]
@@ -97,6 +321,22 @@ class MessageRowWrapper extends StatelessWidget {
 
         }
       },
+       onReactionAdded: (String emoji) async{
+         reactionsController.addReaction(message.id, emoji);
+         await _updateMessageReactions(
+         emoji: emoji,
+         isAdding: true,
+         currentUserId: currentUserId,
+         );
+       },
+       onReactionRemoved: (String emoji) async{
+         reactionsController.removeReaction(message.id, emoji);
+         await _updateMessageReactions(
+           emoji: emoji,
+           isAdding: false,
+           currentUserId: currentUserId,
+         );
+       },
       child: MessageWidget(
         message: message,
         controller: reactionsController,
@@ -113,7 +353,13 @@ class MessageRowWrapper extends StatelessWidget {
 
     final List<Widget> messageBody = [
       messageContent,
-      Avatar(userId: message.authorId)
+      InkResponse(
+          onTapDown: (details) {
+            debugPrint(UserData?.userMetadata?["role_id"].toString());
+            _showUserPopup(context,message.authorId);
+          },
+          child: Avatar(userId: message.authorId)),
+
     ];
 
     return VisibilityDetector(
@@ -128,14 +374,19 @@ class MessageRowWrapper extends StatelessWidget {
         }
       },
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (showHeader && createdAt != null) ...[
             DateHeader(date: createdAt),
             const SizedBox(height: 8),
           ],
+
           Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment:
+            isSentByMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            spacing: 8,
             children: isSentByMe ? messageBody : messageBody.reversed.toList(),
           ),
         ],
@@ -168,7 +419,7 @@ class DateHeader extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withAlpha(800),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(

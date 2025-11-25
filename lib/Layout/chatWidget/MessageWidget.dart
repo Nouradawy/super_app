@@ -1,24 +1,18 @@
-import 'dart:async';
+
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_bubble/chat_bubble.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_polls/flutter_polls.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-
-
 import '../../Components/Constants.dart';
 import '../../Confg/supabase.dart';
-
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:audioplayers/audioplayers.dart';
-
-import '../../Services/GoogleDriveService.dart';
 import 'AudioWaveformPainter.dart';
-import 'GeneralChat/GeneralChat.dart';
+
 
 class MessageWidget extends StatelessWidget {
   const MessageWidget({
@@ -65,7 +59,6 @@ class MessageWidget extends StatelessWidget {
     final msgTextColor =  isSentByMe
         ? Theme.of(context).colorScheme.onPrimary
         : Theme.of(context).colorScheme.onSecondary;
-    final createdAt = getReliableCreatedAt(message);
 
     final seenAt = message.seenAt;
 
@@ -77,7 +70,6 @@ class MessageWidget extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.9,
-          minWidth: MediaQuery.of(context).size.width * 0.0,
         ),
         child: Stack(
           children: [
@@ -94,7 +86,6 @@ class MessageWidget extends StatelessWidget {
                   msgPadding,
                   msgTextColor,
                   msgBackgroundColor,
-                  createdAt,
                   seenAt,
                   message,
                   repliedMessage,
@@ -132,8 +123,10 @@ class MessageWidget extends StatelessWidget {
     )
         : Positioned(
       bottom: 0,
-      left: 8,
+      left: 15,
       child: StackedReactions(
+        reactionBackgroundColor: Colors.black87,
+        size: 20,
         messageId: message!.id,
         controller: controller,
         maxReactionsToShow: 3,
@@ -141,53 +134,13 @@ class MessageWidget extends StatelessWidget {
     );
   }
 
-  DateTime? getReliableCreatedAt(types.Message message) {
-    // 1) Prefer explicit DateTime on the message (convert to local)
-    final msgCreated = message.createdAt;
-    if (msgCreated != null) {
-      return msgCreated.toLocal();
-    }
 
-    // 2) Prefer epoch ms stored in metadata (unambiguous UTC)
-    final createdAtMsRaw = message.metadata?['createdAtMs'] ??
-        message.metadata?['created_at_ms'] ??
-        message.metadata?['createdAtMillis']; // check legacy keys
-    int? ms;
-    if (createdAtMsRaw is String) {
-      ms = int.tryParse(createdAtMsRaw);
-    } else if (createdAtMsRaw is num) {
-      ms = createdAtMsRaw.toInt();
-    }
-    if (ms != null) {
-      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-    }
-
-    // 3) Fallback: try ISO string in metadata (ensure we treat naive strings as UTC)
-    final isoRaw = message.metadata?['created_at'] ?? message.metadata?['createdAt'];
-    if (isoRaw is String && isoRaw.isNotEmpty) {
-      try {
-        final tzRegex = RegExp(r'(Z|[+\-]\d{2}:\d{2})$');
-        DateTime parsed;
-        if (tzRegex.hasMatch(isoRaw)) {
-          parsed = DateTime.parse(isoRaw);
-        } else {
-          parsed = DateTime.parse('${isoRaw}Z'); // treat naive as UTC
-        }
-        return parsed.toLocal();
-      } catch (e) {
-        debugPrint('created_at ISO parse failed: $e ($isoRaw)');
-      }
-    }
-
-    // 4) Nothing found
-    return null;
-  }
 
 
 
 
   Widget messageBuilder(
-      context ,bool isSentByMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor  , DateTime? createdAt ,  DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
+      context ,bool isSentByMe ,bool hasReactions ,EdgeInsetsGeometry msgPadding ,Color msgTextColor ,Color msgBackgroundColor  ,  DateTime? seenAt , types.Message message , types.Message? repliedMessage, types.User repliedUser
       ){
 
     final List<Widget> UserInformation =[
@@ -204,7 +157,13 @@ class MessageWidget extends StatelessWidget {
             color: Colors.black.withAlpha(120),
             borderRadius: BorderRadius.circular(5),
           ),
-          child: Text("Building:34 , Appartment:20 ",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),)),
+          child: Row(
+            spacing: 5,
+            children: [
+              Icon(Icons.check_circle , color: Colors.greenAccent,size: 10,),
+              Text("Verified owner",style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600 ,fontSize: 9 ,color: Colors.white),),
+            ],
+          )),
     ];
 
 
@@ -219,15 +178,15 @@ class MessageWidget extends StatelessWidget {
             maxWidth: MediaQuery.of(context).size.width * 0.75,
           ),
           child: ChatBubble(
-            padding: EdgeInsets.symmetric(horizontal: 15,vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 15,vertical: 4),
             clipper: isSentByMe
-                ? isPreviousMessageFromSameUser? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
+                ? (isPreviousMessageFromSameUser? ChatBubbleClipper5(type:BubbleType.sendBubble,radius: 10):ChatBubbleClipper1(
                 type:BubbleType.sendBubble,
                 radius: 10,
                 nipRadius: 0,
                 nipHeight: 14,
                 nipWidth: 5
-            )
+            ))
                 :ChatBubbleClipper1(
                 type:BubbleType.receiverBubble,
                 radius: 10,
@@ -235,9 +194,7 @@ class MessageWidget extends StatelessWidget {
                 nipHeight: 14,
                 nipWidth: 5
             ),
-            alignment: isSentByMe
-                ?Alignment.topRight
-                :Alignment.topLeft,
+            alignment: isSentByMe ? Alignment.topRight :Alignment.topLeft,
             backGroundColor: msgBackgroundColor,
             child:Column(
               crossAxisAlignment: isSentByMe?CrossAxisAlignment.end:CrossAxisAlignment.start,
@@ -250,7 +207,7 @@ class MessageWidget extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: isSentByMe?UserInformation.reversed.toList():UserInformation,
                 ),
-                SizedBox(height: 4,),
+                const SizedBox(height: 4,),
                 if(repliedMessage !=null)
                 Container(
                 margin: EdgeInsets.only(bottom: 4),
@@ -272,15 +229,12 @@ class MessageWidget extends StatelessWidget {
                 ),
                                 ),
                 widgetByType(msgTextColor, message ,fileId),
-          
                 const SizedBox(height: 3),
                 Row(
-                  mainAxisAlignment: isSentByMe?MainAxisAlignment.end:MainAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      //TODO:: Change Time sent logic for Messages Widget
-                      createdAt !=null ?formatTimestampToAmPm(createdAt):"null",
+                      formatTimestampToAmPm(message.createdAt!),
                       style: TextStyle(
                         fontSize: 10,
                         color: msgTextColor,
@@ -290,6 +244,7 @@ class MessageWidget extends StatelessWidget {
                     MessageStatusIcon(message: message),
                   ],
                 ),
+
               ],
             ),
           ),
@@ -301,7 +256,13 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
     {bool isReply = false}){
   final meta = message.metadata ?? {};
   if (message.metadata?['type'] == 'poll') {
-    return _pollMessageWidget(message, meta);
+    return Container(
+      padding: EdgeInsetsDirectional.symmetric(horizontal: 6 , vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: _pollMessageWidget(message, meta));
   }
   msgTextColor = isReply ? Colors.black : msgTextColor;
 
@@ -314,9 +275,15 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
         );
       }
       else if(message is types.ImageMessage){
-        return DriveImageMessage(
-          fileId: fileId!,
-          driveService: driveService, // Pass your drive service instance
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight:250 , maxWidth: 250),
+          child: DriveImageMessage(
+            key: ValueKey('msg_${message.id}_$fileId'),
+            fileId: fileId!,
+            driveService: driveService, // Pass your drive service instance
+            message : message,
+            userName : userName,
+          ),
         );
       } else if(message is types.AudioMessage) {
         // 1. Safely get the raw list from metadata. If it's null, use an empty list.
@@ -524,7 +491,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
         if (id != null && url != null && url.isNotEmpty) {
           map[id] = url;
         }else if(id !=null && url ==null){
-          map[id] = "https://thumbs.dreamstime.com/b/default-profile-picture-avatar-photo-placeholder-vector-illustration-default-profile-picture-avatar-photo-placeholder-vector-189495158.jpg";
+          map[id] = "null";
         }
       }
       return map;
@@ -534,14 +501,15 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
   }
 
   Widget _pollMessageWidget(types.Message message, Map<String, dynamic> meta) {
+    final effectiveMeta = Map<String, dynamic>.from(message.metadata ?? const {});
     final currentUserId = supabase.auth.currentUser?.id;
-    final question = meta['question']?.toString() ?? '';
-    final expiresAt = meta['expiresAt'] != null
-        ? DateTime.tryParse(meta['expiresAt']?.toString() ?? '')
+    final question = effectiveMeta['question']?.toString() ?? '';
+    final expiresAt = effectiveMeta['expiresAt'] != null
+        ? DateTime.tryParse(effectiveMeta['expiresAt']?.toString() ?? '')
         : null;
 
     // Normalize options to List<Map<String, dynamic>>
-    final rawOptionsAny = meta['options'];
+    final rawOptionsAny = effectiveMeta['options'];
     final List<Map<String, dynamic>> rawOptions = [];
     if (rawOptionsAny is List) {
       for (final item in rawOptionsAny) {
@@ -562,7 +530,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
     }
 
     // Normalize votes: accept Map<dynamic,dynamic> or other shapes and convert keys to String
-    final votesAny = meta['votes'];
+    final votesAny = effectiveMeta['votes'];
     final Map<String, dynamic> votesRaw = {};
     if (votesAny is Map) {
       votesAny.forEach((k, v) => votesRaw[k.toString()] = v);
@@ -650,7 +618,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
           pollOptions: pollOptions,
           onVoted: (PollOption option, int totalVotes) async {
             try {
-              await _handlePollVote(message, meta, option.id!);
+              await _handlePollVote(message, effectiveMeta, option.id!);
               return true;
             } catch (_) {
               return false;
@@ -662,62 +630,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
   }
 
 }
-class DriveImageMessage extends StatefulWidget {
-  final String fileId;
-  final GoogleDriveService driveService;
 
-  const DriveImageMessage({
-    super.key,
-    required this.fileId,
-    required this.driveService,
-  });
-
-  @override
-  State<DriveImageMessage> createState() => _DriveImageMessageState();
-}
-
-class _DriveImageMessageState extends State<DriveImageMessage> {
-  // This Future will be created only once.
-  late final Future<Uint8List?> _downloadFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    // Call the download method here in initState, so it only runs once.
-    _downloadFuture = widget.driveService.downloadFile(widget.fileId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 250, maxHeight: 250),
-      // Use the Future that was created in initState.
-      child: FutureBuilder<Uint8List?>(
-        future: _downloadFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(child: Icon(Icons.error, color: Colors.red));
-          }
-          return GestureDetector(
-            onTap:(){
-              fullScreenImageViewer( snapshot.data! , context);
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.memory(
-                snapshot.data ?? Uint8List(0),
-                fit: BoxFit.cover,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 class AudioMessageBuilder extends StatefulWidget {
   final String audioUrl;
@@ -877,18 +790,7 @@ class MessageStatusIcon extends StatelessWidget {
   }
 }
 
-Future fullScreenImageViewer (imageData , context) {
-  return showDialog(
-    builder: (BuildContext context)=> Center(
-      child: InteractiveViewer(
-        panEnabled: true,
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Image.memory(imageData),
-      ),
-    ), context: context,
-  );
-}
+
 
 String? extractDriveFileId(String url) {
   try {
@@ -902,3 +804,4 @@ String? extractDriveFileId(String url) {
   }
   return null;
 }
+

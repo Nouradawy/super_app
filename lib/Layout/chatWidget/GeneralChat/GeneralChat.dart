@@ -9,15 +9,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
-import 'package:flutter_polls/flutter_polls.dart';
 import 'package:flyer_chat_system_message/flyer_chat_system_message.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
+
 import 'package:supabase/supabase.dart';
 
-import 'package:super_app/Layout/Cubit/cubit.dart';
-import 'package:super_app/Layout/Cubit/states.dart';
+import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
+import 'package:WhatsUnity/Layout/Cubit/states.dart';
+
 import 'package:uuid/uuid.dart';
 import 'package:ntp/ntp.dart';
 
@@ -60,6 +61,11 @@ class _GeneralChatState extends State<GeneralChat> {
 
   // State
   bool _isInitializing = true;
+  bool _isUserScrolling = false;
+  Timer? _scrollIdleTimer;
+  bool _didInitialAutoScroll = false;
+
+  double _stickyOpacity = 0.0;
 
   int? _channelId;
   late final String _userId;
@@ -119,6 +125,7 @@ class _GeneralChatState extends State<GeneralChat> {
     _appCubit?.detachChatController();
     _chatTextController.removeListener(_handleTypingStatus);
     _chatTextController.dispose();
+    _scrollIdleTimer?.cancel();
     super.dispose();
   }
 
@@ -131,7 +138,28 @@ class _GeneralChatState extends State<GeneralChat> {
 
   }
 
-  void _addOrUpdateMessages(List<types.Message> newOrUpdatedMessages) {
+  bool _onScrollNotification(ScrollNotification n) {
+    if (n is ScrollUpdateNotification || n is UserScrollNotification) {
+      if (!_isUserScrolling) {
+        setState(() => _isUserScrolling = true);
+      }
+      if (_stickyOpacity != 1.0) {
+        setState(() => _stickyOpacity = 1.0);
+      }
+      _scrollIdleTimer?.cancel();
+      _scrollIdleTimer = Timer(const Duration(seconds: 1), () {
+        if (mounted) {
+          setState(() {
+            _isUserScrolling = false;
+            _stickyOpacity = 0.0; // triggers fade out
+          });
+        }
+      });
+    }
+    return false; // allow other listeners
+  }
+
+  void _addOrUpdateMessages(List<types.Message> newOrUpdatedMessages ) {
     if (newOrUpdatedMessages.isEmpty) return;
 
     final messageMap = {for (var msg in _messages) msg.id: msg};
@@ -205,6 +233,20 @@ class _GeneralChatState extends State<GeneralChat> {
     }
   }
 
+  Future<void> _waitForCurrentUserMember(String userId,
+      {Duration timeout = const Duration(seconds: 5)}) async {
+    final start = DateTime.now();
+    while (mounted) {
+      final hasMember = ChatMembers.any((m) => m.id.trim() == userId);
+      if (hasMember) return;
+      if (DateTime.now().difference(start) > timeout) {
+        debugPrint('Timeout waiting for ChatMembers; proceeding without building filter.');
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 60));
+    }
+  }
+
   Future<void> _initializeChat() async {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -216,36 +258,52 @@ class _GeneralChatState extends State<GeneralChat> {
       _reactionsController = ReactionsController(currentUserId: _userId);
     });
     try {
-      final buildingNo = ChatMembers.firstWhere((member)=>member.id.trim() ==userId).building;
-      final response =  widget.channelName == 'COMPOUND_GENERAL'?
-        await supabase
-            .from('channels')
-            .select('id')
-            .eq('compound_id', widget.compoundId)
-            .eq('type', widget.channelName)
-            .single()
-       :
-        await supabase
-            .from('channels')
-            .select('id')
-            .eq('compound_id', widget.compoundId)
-            .eq('type', widget.channelName)
-            .eq('building_id' ,buildingNo)
-            .single();
+      if (widget.channelName != 'COMPOUND_GENERAL') {
+        await _waitForCurrentUserMember(userId);
+      }
+      final hasMember = ChatMembers.any((member) => member.id.trim() == userId);
+      final ChatMember? member =
+      hasMember ? ChatMembers.firstWhere((member) => member.id.trim() == userId) : null;
+      final buildingNo = member?.building;
 
-      _channelId = response['id'];
-      await _loadMessagesFromCacheAndFetchLatest();
-      _subscribeToRealtime();
+      var query = supabase
+            .from('channels')
+            .select('id')
+            .eq('compound_id', widget.compoundId)
+            .eq('type', widget.channelName);
+
+      if (widget.channelName != 'COMPOUND_GENERAL' && buildingNo != null) {
+        final buildingId = await supabase.from("buildings").select("id").eq("building_name", buildingNo).eq("compound_id",widget.compoundId).single();
+        debugPrint("buildingId"+buildingId['id'].toString());
+        query = query.eq('building_id', buildingId['id']);
+      }
+
+      final response = await query.single();
+
+
+      _channelId = response['id'] as int?;
+
+      if (_channelId != null) {
+        await _loadMessagesFromCacheAndFetchLatest();
+        _subscribeToRealtime();
+      } else {
+        debugPrint('Channel ID not found.');
+      }
     } catch (error) {
       debugPrint('Error fetching channel ID: $error');
+    } finally {
+      if (mounted) setState(() => _isInitializing = false);
     }
-    if (mounted) setState(() => _isInitializing = false);
   }
 
   Future<void> _loadMessagesFromCacheAndFetchLatest() async {
     final cachedMessages = await _cacheService.loadMessages(_channelId!);
     _addOrUpdateMessages(cachedMessages);
     await _loadMessages();
+    //rebuild ReactionsController state from metadata
+    _cacheService.hydrateReactionsFromMessages(_chatController, _reactionsController);
+    await _scrollToInitialSeen();
+
   }
 
   Future<void> _loadMessages() async {
@@ -288,6 +346,9 @@ class _GeneralChatState extends State<GeneralChat> {
       },
       onUpdate: (payload) {
         _addOrUpdateMessages([mapToMessage(payload)]);
+        //rebuild ReactionsController state from metadata
+        _cacheService.hydrateReactionsFromMessages(_chatController, _reactionsController);
+
       },
     );
   }
@@ -349,6 +410,7 @@ class _GeneralChatState extends State<GeneralChat> {
   void _handleAttachmentPressed() {
     if (googleUser == null) {
       // Prompt user to sign in if they haven't already
+      AppCubit.get(context).googleSignin();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please link your Google Drive account first.')),
       );
@@ -568,7 +630,7 @@ class _GeneralChatState extends State<GeneralChat> {
 
       // Persist to Supabase
       await supabase.from('messages').insert({
-        'id': const Uuid().v4(),
+        'id': localId,
         'author_id': _userId,
         'created_at': nowUtc.toIso8601String(),
         'channel_id': _channelId,
@@ -747,6 +809,63 @@ class _GeneralChatState extends State<GeneralChat> {
     }
   }
 
+  Future<void> _scrollToInitialSeen() async {
+    if (_didInitialAutoScroll) return;
+    _didInitialAutoScroll = true;
+    final msgs = _chatController.messages;
+    if (msgs.isEmpty) return;
+
+    // Fetch last seen receipt for this user in this channel
+    List<dynamic> rows;
+    try {
+      rows = await supabase
+          .from('message_receipts') // if your table name is 'message_recipts' change here
+          .select('message_id, seen_at')
+          .eq('user_id', _userId)
+          .order('seen_at', ascending: false)
+          .limit(1);
+    } catch (e) {
+      // Try fallback table name if typo in schema
+        rows = const [];
+        debugPrint('Receipt fetch failed: $e');
+
+    }
+
+    String? targetId;
+    final candidateId = rows.isNotEmpty ? rows.first['message_id'] as String? : null;
+
+    if (candidateId != null && msgs.any((m) => m.id == candidateId)) {
+      targetId = candidateId;
+    } else {
+      targetId = msgs.last.id; // fallback to newest
+    }
+    _didInitialAutoScroll = true;
+    _attemptScrollToMessage(msgs.last.authorId == Userid?msgs.last.id:targetId);
+
+  }
+
+  void _attemptScrollToMessage(String id, {int attempt = 0}) {
+    if (!mounted || attempt > 3) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _chatController.scrollToMessage(id, alignment: 0.2);
+      } catch (_) {
+        // Fallbacks
+        final idx = _chatController.messages.indexWhere((m) => m.id == id);
+        if (idx >= 0) {
+          _chatController.scrollToIndex(idx);
+        } else if (_chatController.messages.isNotEmpty) {
+          _chatController.scrollToIndex(_chatController.messages.length - 1);
+        }
+      }
+      // If not near target yet, retry (simple heuristic)
+      if (attempt < 3) {
+        Future.delayed(const Duration(milliseconds: 40),
+                () => _attemptScrollToMessage(id, attempt: attempt + 1));
+      }
+    });
+  }
+
   String _formatDayLabel(DateTime d) {
     final today = DateTime.now();
     final a = DateTime(today.year, today.month, today.day);
@@ -760,7 +879,7 @@ class _GeneralChatState extends State<GeneralChat> {
   }
 
   Widget _buildStickyDateHeader() {
-    if (_stickyDate == null) return const SizedBox.shrink();
+    if (!_isUserScrolling ||_stickyDate == null) return const SizedBox.shrink();
     final label = _formatDayLabel(_stickyDate!.toLocal());
     return IgnorePointer(
       ignoring: true, // let touches through to the list
@@ -768,18 +887,23 @@ class _GeneralChatState extends State<GeneralChat> {
         bottom: false,
         child: Align(
           alignment: Alignment.topCenter,
-          child: Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+          child: AnimatedOpacity(
+            opacity: _stickyOpacity,
+            duration: const Duration(seconds: 1),
+            curve: Curves.easeOut,
+            child: Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
               ),
             ),
           ),
@@ -818,6 +942,8 @@ class _GeneralChatState extends State<GeneralChat> {
         _onVisibilityForHeader(messageId, itemIndex, fraction, createdAt);
       },
       localMessages: _messages,
+      showDateHeaders: _isUserScrolling,
+      currentUserId: _userId,
     );
   }
 
@@ -857,51 +983,54 @@ class _GeneralChatState extends State<GeneralChat> {
 
        body: Stack(
          children: [
-           Chat(
-             chatController: _chatController,
-             currentUserId: _userId,
-             onMessageSend: (text) => _handleSendPressed(text),
-             onAttachmentTap: _handleAttachmentPressed,
-             resolveUser: (id) async {
-               await _resolveUser(id);
-               return _userCache[id];
-             },
-             builders: types.Builders(
-               textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-               imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-               audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-               customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
-                   _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-               systemMessageBuilder: (context, message, index, {
-                 required bool isSentByMe,
-                 types.MessageGroupStatus? groupStatus,
-               }) => FlyerChatSystemMessage(message: message, index: index),
-
-               chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
-                 itemBuilder: itemBuilder,
-                 initialScrollToEndMode: InitialScrollToEndMode.none,
-               ),
-               composerBuilder: (context) {
-                 return BlocBuilder<AppCubit, AppCubitStates>(
-                     buildWhen: (previous, current) => current is ShowHideMicStates,
-                     builder: (context, state) {
-                       return Visibility(
-                         visible: !AppCubit.get(context).isRecording,
-                         child: Composer(
-                           gap: 0,
-                           sendIcon: Icon(Icons.send),
-                           textEditingController: _chatTextController,
-                           handleSafeArea: true,
-                           sigmaX: 3,
-                           sigmaY: 3,
-                           sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
-                         ),
-                       );
-                     });
+           NotificationListener<ScrollNotification>(
+             onNotification: _onScrollNotification,
+             child: Chat(
+               chatController: _chatController,
+               currentUserId: _userId,
+               onMessageSend: (text) => _handleSendPressed(text),
+               onAttachmentTap: _handleAttachmentPressed,
+               resolveUser: (id) async {
+                 await _resolveUser(id);
+                 return _userCache[id];
                },
+               builders: types.Builders(
+                 textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                 imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                 audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                 customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
+                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                 systemMessageBuilder: (context, message, index, {
+                   required bool isSentByMe,
+                   types.MessageGroupStatus? groupStatus,
+                 }) => FlyerChatSystemMessage(message: message, index: index),
+
+                 chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
+                   itemBuilder: itemBuilder,
+                   initialScrollToEndMode: InitialScrollToEndMode.none,
+                 ),
+                 composerBuilder: (context) {
+                   return BlocBuilder<AppCubit, AppCubitStates>(
+                       buildWhen: (previous, current) => current is ShowHideMicStates,
+                       builder: (context, state) {
+                         return Visibility(
+                           visible: !AppCubit.get(context).isRecording,
+                           child: Composer(
+                             gap: 0,
+                             sendIcon: Icon(Icons.send),
+                             textEditingController: _chatTextController,
+                             handleSafeArea: true,
+                             sigmaX: 3,
+                             sigmaY: 3,
+                             sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
+                           ),
+                         );
+                       });
+                 },
+               ),
              ),
            ),
            // sticky date header overlay

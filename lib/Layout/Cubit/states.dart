@@ -2,6 +2,7 @@ abstract class AppCubitStates{}
 
 class AppInitialState extends AppCubitStates{}
 class InputIsPasswordState extends AppCubitStates{}
+class SignInState extends AppCubitStates{}
 class SignupRoleChangeState extends AppCubitStates{}
 class MessageSentState extends AppCubitStates{}
 class GoogleSigninStates extends AppCubitStates{}
@@ -16,10 +17,22 @@ class CompoundIdChanged extends AppCubitStates{}
 class CompoundIdChange extends AppCubitStates{}
 class NewPostState extends AppCubitStates{}
 class NewReportSubmitState extends AppCubitStates{}
+class ExpandReportState extends AppCubitStates{}
+class GetMaintenanceReportsState extends AppCubitStates{}
 class PresenceUpdated extends AppCubitStates{}
 class BottomNavIndexChangeStates extends AppCubitStates{}
 class CompoundSuggestionsUpdated extends AppCubitStates{}
+class CompoundMembersUpdated extends AppCubitStates{}
 class CategoriesLoadedSuccess extends AppCubitStates{}
 class AppSignOutSuccessState extends AppCubitStates{}
 class CreateNewBrainStormState extends AppCubitStates{}
 class HandelNewBrainStormState extends AppCubitStates{}
+class ImportNewVerFileState extends AppCubitStates{}
+class OwnerNewSelectionState extends AppCubitStates{}
+class UploadVerFileState extends AppCubitStates{}
+class postsOnChangedCarsoleState extends AppCubitStates{}
+class ChangeCarsolePageState extends AppCubitStates{}
+class ChangeCarsoleIndexState extends AppCubitStates{}
+class addIndexState extends AppCubitStates{}
+class BrainStormVoteUpdated extends AppCubitStates{}
+class GoogleSignupState extends AppCubitStates{}

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:super_app/Layout/chatWidget/Details/ChatMember.dart';
+import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../Confg/supabase.dart';
 
@@ -13,7 +13,7 @@ class UserDetails extends StatelessWidget {
           (m) => m.id == userID,
       orElse: () => ChatMember(
         id: userID,
-        name: 'Unknown',
+        displayName: 'Unknown',
         avatarUrl: null,
         building: '',
         apartment: '',
@@ -27,7 +27,7 @@ class UserDetails extends StatelessWidget {
           radius: 40,
           child: member.avatarUrl == null ? Icon(Icons.person , size: 60,) : null,
         ),
-        Text(member.name),
+        Text(member.displayName),
         Text("+20108200849"),
         Row(
           mainAxisSize: MainAxisSize.min,
