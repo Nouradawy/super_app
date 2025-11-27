@@ -6,7 +6,7 @@ import 'package:flutter_chat_reactions/src/models/menu_item.dart';
 import 'package:flutter_chat_reactions/src/widgets/message_bubble.dart';
 import 'package:flutter_chat_reactions/src/widgets/rections_row.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
-import 'package:WhatsUnity/Model/ReportAUser.dart';
+import 'package:WhatsUnity/Confg/Enums.dart';
 
 import 'package:WhatsUnity/Layout/Cubit/MessageReceiptsCubit/cubit.dart';
 import 'package:WhatsUnity/Layout/Cubit/MessageReceiptsCubit/states.dart';
