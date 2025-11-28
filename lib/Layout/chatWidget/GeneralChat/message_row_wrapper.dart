@@ -155,6 +155,7 @@ class MessageRowWrapper extends StatelessWidget {
     Future<void> _updateMessageReactions({
       required String emoji,
       required bool isAdding,
+      String? replaceEmoji ,
       required String currentUserId,
     }) async {
       // 1. Get existing message from controller (or fallback)
@@ -190,6 +191,13 @@ class MessageRowWrapper extends StatelessWidget {
 
       if (isAdding) {
         usersForEmoji[currentUserId] = true;
+        if(replaceEmoji !=null)
+          {
+            reactions[replaceEmoji]?.remove(currentUserId);
+            if(reactions[replaceEmoji]!.isEmpty){
+              reactions.remove(replaceEmoji);
+            }
+          }
       } else {
         usersForEmoji.remove(currentUserId);
         if (usersForEmoji.isEmpty) {
@@ -322,15 +330,28 @@ class MessageRowWrapper extends StatelessWidget {
         }
       },
        onReactionAdded: (String emoji) async{
-         reactionsController.addReaction(message.id, emoji);
-         await _updateMessageReactions(
-         emoji: emoji,
-         isAdding: true,
-         currentUserId: currentUserId,
-         );
+         message.metadata!["reactions"].forEach((localEmoji,usersRaw){
+           if (localEmoji == null || usersRaw is! Map) return;
+           usersRaw.forEach((uid,val) async {
+             final isTrue = val == true || val ==1 || val == 'true';
+             if(!isTrue){
+               await _updateMessageReactions(
+               emoji: emoji,
+               isAdding: false,
+               currentUserId: currentUserId,
+               );
+             } else {
+               await _updateMessageReactions(
+               emoji: emoji,
+               replaceEmoji: localEmoji,
+               isAdding: true,
+               currentUserId: currentUserId,
+               );
+             }
+           });
+         });
        },
        onReactionRemoved: (String emoji) async{
-         reactionsController.removeReaction(message.id, emoji);
          await _updateMessageReactions(
            emoji: emoji,
            isAdding: false,

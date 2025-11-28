@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:WhatsUnity/Layout/Cubit/MessageReceiptsCubit/states.dart';
 
+import '../../../Confg/Enums.dart';
 import '../../../Confg/supabase.dart';
 import '../../chatWidget/Details/ChatMember.dart';
 
@@ -31,7 +32,7 @@ class MessageReceiptsCubit extends Cubit<MessageReceiptsState> {
         if (uid == null) continue;
         final cm = ChatMembers.firstWhere(
               (m) => m.id.trim() == uid,
-          orElse: () => ChatMember(id: uid, displayName: 'Unknown', building: '', apartment: ''),
+          orElse: () => ChatMember(id: uid, displayName: 'Unknown', building: '', apartment: '', userState: UserState.banned, phoneNumber: '', ownerType: null),
         );
         final rawSeen = r['seen_at'];
         DateTime? seenAt;

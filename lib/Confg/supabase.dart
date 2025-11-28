@@ -9,9 +9,11 @@ import '../Layout/chatWidget/Details/ChatMember.dart';
 import '../Model/CompoundsList.dart';
 import '../Model/MaintenanceReport.dart';
 import '../Network/CacheHelper.dart';
+import 'Enums.dart';
 // ignore: non_constant_identifier_names
 User? UserData;
 ChatMember? currentUser;
+int? channelId;
 // ignore: non_constant_identifier_names
 String get Userid {
   final user = UserData ?? Supabase.instance.client.auth.currentUser;
@@ -24,6 +26,7 @@ String get Userid {
 Roles? userRole;
 late final SupabaseClient supabase;
 List<Category> categories=[];
+List<String> compoundsLogos =[];
 // ignore: non_constant_identifier_names
 List<ChatMember> ChatMembers = [];
 // ignore: non_constant_identifier_names
@@ -44,11 +47,8 @@ class CompoundMembersResult {
 
 
 
-enum Roles {user,manager,admin ,developer}
-enum OwnerTypes {owner,rental}
-enum Storage {googleDrive,superbaseStorage,both}
 Storage storageType = Storage.superbaseStorage;
-enum MaintenanceCategory {plumbing,electricity,plastering,gardening}
+
 
 class SupabaseArgs {
   final String url;
@@ -113,7 +113,7 @@ Future<CompoundMembersResult> fetchCompoundMembers(Map<String,dynamic> args ) as
 
    ? await supabase.from('profiles').select('id, display_name, full_name , avatar_url , phone_number , updated_at , owner_type , userState , actionTakenBy , verFiles ').inFilter('id', userIds)
 
-   : await supabase.from('profiles').select('id, display_name, full_name , avatar_url ').inFilter('id', userIds);
+   : await supabase.from('profiles').select('id, display_name, full_name , avatar_url , userState , phone_number , owner_type').inFilter('id', userIds);
 
 
   final profilesList = (profilesResponse as List)
@@ -130,6 +130,9 @@ Future<CompoundMembersResult> fetchCompoundMembers(Map<String,dynamic> args ) as
       avatarUrl: data['avatar_url'],
       building: apt?['building_num'],
       apartment: apt?['apartment_num'],
+      phoneNumber: data['phone_number'],
+      ownerType: OwnerTypes.values.firstWhere((type)=>type.name ==  data['owner_type']),
+      userState: UserState.values.firstWhere((state)=>state.name == data['userState']),
     );
   }).toList();
 

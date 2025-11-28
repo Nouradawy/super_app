@@ -15,6 +15,7 @@ import 'Layout/Cubit/cubit.dart';
 import 'Layout/MainScreen.dart';
 import 'Layout/SignUp.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'Model/AuthReadyGate.dart';
 import 'Network/CacheHelper.dart';
 import 'Services/PresenceManager.dart';
 import 'Themes/lightTheme.dart';
@@ -81,31 +82,13 @@ class MyApp extends StatelessWidget {
          StreamBuilder<AuthState>(
           stream: Supabase.instance.client.auth.onAuthStateChange,
           builder: (context, snapshot) {
-            // 1. While waiting for the first auth event, you can show a loading screen
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-
             // 2. Once data is received, check if there is a session
-            if (snapshot.hasData && snapshot.data!.session != null && AppCubit.get(context).signupGoogleEmail == null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                // safe to call cubit and other side-effects now
-
-                context.read<AppCubit>().getPostsData(selectedCompoundId);
-                context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
-                UserData = snapshot.data!.session!.user;
-                debugPrint("I came here while signing in with google Account ");
-                userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
-                debugPrint("Current user role :${userRole?.name}");
-                requestPermission();
-              });
-              return PresenceManager(child: MainScreen());
+            if (snapshot.hasData && snapshot.data!.session != null && AppCubit.get(context).signupGoogleEmail == null && AppCubit.get(context).signInGoogle ==false ) {
+              UserData = snapshot.data!.session!.user;
+              return AuthReadyGate();
             } else {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                requestPermission();
-              });
+
+              requestPermission();
               // User is not logged in, show the SignUp page
               return  SignUp();
             }

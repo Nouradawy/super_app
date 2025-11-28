@@ -22,11 +22,16 @@ import '../../Confg/supabase.dart';
 import '../Cubit/cubit.dart';
 
 class BrainStorming extends StatefulWidget {
-  BrainStorming({super.key, required this.onClose});
+  const BrainStorming({super.key, required this.onClose , required this.channelId});
   final VoidCallback onClose;
+  final int channelId;
 
   @override
   State<BrainStorming> createState() => _BrainStormingState();
+
+
+
+
 }
 
 class _BrainStormingState extends State<BrainStorming> {
@@ -68,174 +73,185 @@ class _BrainStormingState extends State<BrainStorming> {
     return null;
   }
 
+
+
   // Fetch avatars once for all unique voter ids in this poll
   @override
   Widget build(BuildContext context) {
     final cubit = AppCubit.get(context);
-    return Scaffold(
-      appBar: AppBar(
-        title:Text("Brain Storming"),
-        actions:[IconButton(onPressed:widget.onClose, icon: Icon(Icons.analytics_outlined),)],
+    return BlocListener<AppCubit,AppCubitStates>(
+      listenWhen: (prev,current){
+        return (current is TabBarIndexStates || current is BottomNavIndexChangeStates);
+      },
+      listener: (context,state){
+        if(state is TabBarIndexStates  || state is BottomNavIndexChangeStates){
+          widget.onClose();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title:Text("Brain Storming"),
+          actions:[IconButton(onPressed:widget.onClose, icon: Icon(Icons.analytics_outlined),)],
 
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-          onPressed: (){
-            newReport(context,optionControllers , title , file );
-          },
-          label: Text("Create New ",style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
-        icon: Icon(Icons.add, color: HexColor("#121416")),
-        backgroundColor: HexColor("#dce8f3"),
-      ),
-      body:SingleChildScrollView(
-        physics:NeverScrollableScrollPhysics(),
-        child: BlocBuilder<AppCubit,AppCubitStates>(
-          builder: (context,states) {
-            return Column(
-              children: [
-                TextButton(onPressed: ()=>cubit.getBrainStormData(),child: Text("get BrainStorm Data"),),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+            onPressed: (){
+              newReport(context,optionControllers , title , file ,widget.channelId);
+            },
+            label: Text("Create New ",style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
+          icon: Icon(Icons.add, color: HexColor("#121416")),
+          backgroundColor: HexColor("#dce8f3"),
+        ),
+        body:SingleChildScrollView(
+          physics:NeverScrollableScrollPhysics(),
+          child: BlocBuilder<AppCubit,AppCubitStates>(
+            builder: (context,states) {
+              return Column(
+                children: [
 
-                FutureBuilder<Map<String,dynamic>>(
-                    future:fetchAvatarsForUserIds(context),
-                    builder: (context,snapshot) {
-                      final idToAvatar = snapshot.data ?? const  <String  , dynamic>{};
+                  FutureBuilder<Map<String,dynamic>>(
+                      future:fetchAvatarsForUserIds(context),
+                      builder: (context,snapshot) {
+                        final idToAvatar = snapshot.data ?? const  <String  , dynamic>{};
 
-                    return Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CarouselSlider(
-                          items: cubit.brainStormData.map<Widget>((item){
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CarouselSlider(
+                            items: cubit.brainStormData.map<Widget>((item){
 
-                            return KeyedSubtree(
-                              key:ValueKey('poll-slide-${item['id']}'),
-                              child: Column(
-                                children: [
-                                  if(item['Image'].length != 0)
-                                    item['Image'].map((image)=>
-                                        SizedBox(
-                                            width: MediaQuery.sizeOf(context).width,
-                                            height: 250,
-                                            child: DriveImageMessage(
-                                              key: ValueKey('poll-image-${item['id']}-${image['uri']}'),
-                                              fileId: extractDriveFileId(image['uri'])!, driveService: driveService ,isRounded: false,)))
-                                        .toList().first,
+                              return KeyedSubtree(
+                                key:ValueKey('poll-slide-${item['id']}'),
+                                child: Column(
+                                  children: [
+                                    if(item['Image'].length != 0)
+                                      item['Image'].map((image)=>
+                                          SizedBox(
+                                              width: MediaQuery.sizeOf(context).width,
+                                              height: 250,
+                                              child: DriveImageMessage(
+                                                key: ValueKey('poll-image-${item['id']}-${image['uri']}'),
+                                                fileId: extractDriveFileId(image['uri'])!, driveService: driveService ,isRounded: false,)))
+                                          .toList().first,
 
 
-                                  SizedBox(
-                                    width:MediaQuery.sizeOf(context).width*0.80,
-                                    child: FlutterPolls(
-                                      key: ValueKey('poll-widget-${item['id']}'),
-                                      pollId: item['id'],
-                                      createdBy: item['author_id'],
-                                      allowToggleVote: true,
-                                      pollProgressbarHeight: 5,
-                                      hasVoted: _hasUserVoted(item['Votes'], Userid),
-                                      userVotedOptionId:_userVotedOptionId(item['Votes'], Userid),
-                                      userToVote: Userid,
-                                      onVoted: (PollOption pollOption, int newTotalVotes) async{
-                                        try{
-                                          await cubit.handleBrainStormVote(pollOption , pollId: item['id']);
-                                          return true;
-                                        } catch(error){
-                                          return false;
-                                        }
+                                    SizedBox(
+                                      width:MediaQuery.sizeOf(context).width*0.80,
+                                      child: FlutterPolls(
+                                        key: ValueKey('poll-widget-${item['id']}'),
+                                        pollId: item['id'],
+                                        createdBy: item['author_id'],
+                                        allowToggleVote: true,
+                                        pollProgressbarHeight: 5,
+                                        hasVoted: _hasUserVoted(item['Votes'], Userid),
+                                        userVotedOptionId:_userVotedOptionId(item['Votes'], Userid),
+                                        userToVote: Userid,
+                                        onVoted: (PollOption pollOption, int newTotalVotes) async{
+                                          try{
+                                            await cubit.handleBrainStormVote(pollOption , pollId: item['id']);
+                                            return true;
+                                          } catch(error){
+                                            return false;
+                                          }
 
-                                      },
-                                      pollTitle: Text(item['Title'].toString()),
-                                      pollOptions: (item['Options'] as List).map<PollOption>((o) {
-                                        final m = Map<String, dynamic>.from(o as Map);
-                                        final votesRaw = m['votes'];
-                                        final votes = votesRaw is String
-                                            ? int.tryParse(votesRaw) ?? 0
-                                            : (votesRaw as num?)?.toInt() ?? 0;
-                                        final votesByOption = _normalizeVotes(item['Votes']);
-                                        final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
-                                        final voterUrls = voterIds
-                                            .map((uid) => idToAvatar[uid])
-                                            .whereType<String>()
-                                            .toList();
-                                        return PollOption(
-                                          id: m['id'].toString(),
-                                          title: Text(m['title'].toString()),
-                                          votes: votes,
-                                          voterAvatars: voterUrls,
-                                        );
-                                      }).toList(),
+                                        },
+                                        pollTitle: Text(item['Title'].toString()),
+                                        pollOptions: (item['Options'] as List).map<PollOption>((o) {
+                                          final m = Map<String, dynamic>.from(o as Map);
+                                          final votesRaw = m['votes'];
+                                          final votes = votesRaw is String
+                                              ? int.tryParse(votesRaw) ?? 0
+                                              : (votesRaw as num?)?.toInt() ?? 0;
+                                          final votesByOption = _normalizeVotes(item['Votes']);
+                                          final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
+                                          final voterUrls = voterIds
+                                              .map((uid) => idToAvatar[uid])
+                                              .whereType<String>()
+                                              .toList();
+                                          return PollOption(
+                                            id: m['id'].toString(),
+                                            title: Text(m['title'].toString()),
+                                            votes: votes,
+                                            voterAvatars: voterUrls,
+                                          );
+                                        }).toList(),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          carouselController: controller,
-                          options: CarouselOptions(
-                            viewportFraction: 1.0,
-                            enableInfiniteScroll: false,
-                            height: MediaQuery.sizeOf(context).height*0.5,
-                            onPageChanged: (index, reason) {
-                              cubit.changeCarouselIndex(index);
-                            },
-                            enlargeCenterPage: false,
-                          ),
-
-
-                        ),
-                        if(context.read<AppCubit>().brainStormData.length >1) ...[
-                          // left arrow
-                          Positioned(
-                            left: 8,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black38,
-                              child: IconButton(
-                                icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
-                                onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isPrev: true , controller: controller),
-                                padding: EdgeInsets.zero,
-                                splashRadius: 18,
-                              ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            carouselController: controller,
+                            options: CarouselOptions(
+                              viewportFraction: 1.0,
+                              enableInfiniteScroll: false,
+                              height: MediaQuery.sizeOf(context).height*0.5,
+                              onPageChanged: (index, reason) {
+                                cubit.changeCarouselIndex(index);
+                              },
+                              enlargeCenterPage: false,
                             ),
-                          ),
 
-                          // right arrow
-                          Positioned(
-                            right: 8,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black38,
-                              child: IconButton(
-                                icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-                                onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isNext: true , controller: controller),
-                                padding: EdgeInsets.zero,
-                                splashRadius: 18,
+
+                          ),
+                          if(context.read<AppCubit>().brainStormData.length >1) ...[
+                            // left arrow
+                            Positioned(
+                              left: 8,
+                              child: CircleAvatar(
+                                backgroundColor: Colors.black38,
+                                child: IconButton(
+                                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
+                                  onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isPrev: true , controller: controller),
+                                  padding: EdgeInsets.zero,
+                                  splashRadius: 18,
+                                ),
                               ),
                             ),
-                          ),
 
-                          // dots
-                          Positioned(
-                            bottom: 8,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: List.generate(context.read<AppCubit>().brainStormData.length, (i) {
-                                final active = i == context.read<AppCubit>().currentCarouselIndex;
-                                return AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                                  width: active ? 10 : 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: active ? Colors.indigo : Colors.indigoAccent,
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                );
-                              }),
+                            // right arrow
+                            Positioned(
+                              right: 8,
+                              child: CircleAvatar(
+                                backgroundColor: Colors.black38,
+                                child: IconButton(
+                                  icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                                  onPressed: ()=>context.read<AppCubit>().changeCarouselPage(isNext: true , controller: controller),
+                                  padding: EdgeInsets.zero,
+                                  splashRadius: 18,
+                                ),
+                              ),
                             ),
-                          ),
+
+                            // dots
+                            Positioned(
+                              bottom: 8,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: List.generate(context.read<AppCubit>().brainStormData.length, (i) {
+                                  final active = i == context.read<AppCubit>().currentCarouselIndex;
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                                    width: active ? 10 : 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: active ? Colors.indigo : Colors.indigoAccent,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    );
-                  }
-                ),
-              ],
-            );
-          }
+                      );
+                    }
+                  ),
+                ],
+              );
+            }
+          ),
         ),
       ),
     );
@@ -292,8 +308,10 @@ Future<void> newReport(
     List<TextEditingController> optionControllers,
     TextEditingController title,
     List<XFile>? file,
+    int channelId
 
     ) async {
+  final _formKey = GlobalKey<FormState>();
   return showDialog(
     context: context,
     builder: (BuildContext context) {
@@ -305,215 +323,234 @@ Future<void> newReport(
               height: MediaQuery.sizeOf(context).height * 0.7,
               width: MediaQuery.sizeOf(context).width * 0.8,
               child: SingleChildScrollView(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    Row(
-                      mainAxisAlignment:MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        IconButton(
-                          onPressed:(){},
-                          icon: Icon(Icons.arrow_back),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        Text(context.loc.newBrainStorm),
-
-
-                      ],),
-                    SizedBox(height: 20,),
-                    Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
-                    const SizedBox(height:15,),
-
-                    Stack(
-                      alignment: AlignmentDirectional.topEnd,
-                      children: [
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount:
-                            2, // Number of columns in the grid
-                            crossAxisSpacing:
-                            8.0, // Spacing between columns
-                            mainAxisSpacing: 8.0, // Spacing between rows
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      Row(
+                        mainAxisAlignment:MainAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          IconButton(
+                            onPressed:(){},
+                            icon: Icon(Icons.arrow_back),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                           ),
-                          itemCount: file?.length ?? 0,
-                          itemBuilder: (context, index) {
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(file![index].path),
-                                fit: BoxFit.cover,
-                              ),
-                            );
-                          },
-                        ),
-                        file != null
-                            ? IconButton(
-                          onPressed: () {},
-                          icon: Icon(Icons.close),
-                        )
-                            : DottedBorder(
-                          options: RoundedRectDottedBorderOptions(
-                            radius: Radius.circular(8),
-                            strokeWidth: 2,
-                            color: Colors.grey.shade400,
-                            dashPattern: [5],
-                          ),
-                          child: Container(
-                            alignment: AlignmentDirectional.center,
-                            height: MediaQuery.sizeOf(context).height*0.2,
-                            width: MediaQuery.sizeOf(context).width*0.8,
-                            decoration: BoxDecoration(
+                          Text(context.loc.newBrainStorm),
 
-                              borderRadius: BorderRadius.circular(8),
+
+                        ],),
+                      SizedBox(height: 20,),
+                      Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
+                      const SizedBox(height:15,),
+
+                      Stack(
+                        alignment: AlignmentDirectional.topEnd,
+                        children: [
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                              2, // Number of columns in the grid
+                              crossAxisSpacing:
+                              8.0, // Spacing between columns
+                              mainAxisSpacing: 8.0, // Spacing between rows
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
-                                Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
-                                MaterialButton(
-                                  onPressed: () async{
-                                    List<XFile>? result = await ImagePicker()
-                                        .pickMultiImage(
-                                      imageQuality: 70,
-                                      maxWidth: 1440,
-                                    );
-
-                                    if (result.isEmpty) return;
-
-                                    file = result;
-                                    setStateOfDialog(() {});
-                                  },
-                                  color:HexColor("f0f2f5"),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18.0),
-                                  ),
-                                  child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
-
+                            itemCount: file?.length ?? 0,
+                            itemBuilder: (context, index) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(file![index].path),
+                                  fit: BoxFit.cover,
                                 ),
+                              );
+                            },
+                          ),
+                          file != null
+                              ? IconButton(
+                            onPressed: () {},
+                            icon: Icon(Icons.close),
+                          )
+                              : DottedBorder(
+                            options: RoundedRectDottedBorderOptions(
+                              radius: Radius.circular(8),
+                              strokeWidth: 2,
+                              color: Colors.grey.shade400,
+                              dashPattern: [5],
+                            ),
+                            child: Container(
+                              alignment: AlignmentDirectional.center,
+                              height: MediaQuery.sizeOf(context).height*0.2,
+                              width: MediaQuery.sizeOf(context).width*0.8,
+                              decoration: BoxDecoration(
+
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                                  Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+                                  MaterialButton(
+                                    onPressed: () async{
+                                      List<XFile>? result = await ImagePicker()
+                                          .pickMultiImage(
+                                        imageQuality: 70,
+                                        maxWidth: 1440,
+                                      );
+
+                                      if (result.isEmpty) return;
+
+                                      file = result;
+                                      setStateOfDialog(() {});
+                                    },
+                                    color:HexColor("f0f2f5"),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18.0),
+                                    ),
+                                    child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
+
+                                  ),
 
 
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      height: MediaQuery.sizeOf(context).height * 0.15,
-                      width: MediaQuery.sizeOf(context).width * 0.8,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: HexColor("#f0f2f5"),
-                        borderRadius: BorderRadius.circular(8),
+                        ],
                       ),
-                      child: TextFormField(
-                        keyboardType: TextInputType.multiline,
-                        controller: title,
-                        minLines: 5,
-                        maxLines: 10,
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          labelText: context.loc.issueDescription,
-                          labelStyle: GoogleFonts.plusJakartaSans(
-                            color: HexColor("#60768a"),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.2,
-                          ),
-                          alignLabelWithHint: true,
+                      const SizedBox(height: 15),
+                      Container(
+                        height: MediaQuery.sizeOf(context).height * 0.15,
+                        width: MediaQuery.sizeOf(context).width * 0.8,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: HexColor("#f0f2f5"),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-
-                    ...List.generate(optionControllers.length, (i){
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 15.0),
-                      child: TextFormField(
-                        keyboardType: TextInputType.text,
-                        controller: optionControllers[i],
-
-                        onChanged: (v){
-                          if(optionControllers.last.text.isNotEmpty && optionControllers.length >=2)
-                            {
-                              setStateOfDialog(() {
-                                optionControllers.add(TextEditingController());
-                              });
+                        child: TextFormField(
+                          keyboardType: TextInputType.multiline,
+                          controller: title,
+                          validator: (value){
+                            if (value == null || value.trim().isEmpty) {
+                              return "vote body can't be empty";
                             }
-                          else if(optionControllers.length>2)
-                          {
-                            for(int i = optionControllers.length - 1; i >= 0; i--) {
-                              if(optionControllers[i].text.isEmpty && optionControllers.length>2 && i != optionControllers.length-1) {
-                                setStateOfDialog((){
-                                  optionControllers.removeAt(i).dispose();
+                            return null;
+                          },
+                          minLines: 5,
+                          maxLines: 10,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            labelText: "vote body",
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              color: HexColor("#60768a"),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.2,
+                            ),
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+
+                      ...List.generate(optionControllers.length, (i){
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 15.0),
+                        child: TextFormField(
+                          keyboardType: TextInputType.text,
+                          controller: optionControllers[i],
+                          validator: (value){
+                            if(optionControllers.length ==2){
+                              return "votes options can't be less than 2";
+                            }
+                            else if ((value == null || value.trim().isEmpty) && i != optionControllers.length-1) {
+                              return "option can't be empty";
+                            }
+
+                            return null;
+                          },
+                          onChanged: (v){
+                            if(optionControllers.last.text.isNotEmpty && optionControllers.length >=2)
+                              {
+                                setStateOfDialog(() {
+                                  optionControllers.add(TextEditingController());
                                 });
                               }
+                            else if(optionControllers.length>2)
+                            {
+                              for(int i = optionControllers.length - 1; i >= 0; i--) {
+                                if(optionControllers[i].text.isEmpty && optionControllers.length>2 && i != optionControllers.length-1) {
+                                  setStateOfDialog((){
+                                    optionControllers.removeAt(i).dispose();
+                                  });
+                                }
+                              }
                             }
+
+                          },
+                          decoration: InputDecoration(
+                            filled:true,
+                            fillColor: HexColor("#f0f2f5"),
+                            isDense: false,
+                            border: OutlineInputBorder(),
+                            enabledBorder: OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                                borderRadius: BorderRadius.circular(7)// default border color
+                            ),
+                            labelText: context.loc.issueTitle,
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              color: HexColor("#60768a"),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.2,
+                            ),
+                            // alignLabelWithHint: true,
+                          ),
+                        ),
+                      );
+                      }),
+                      const SizedBox(height:15,),
+
+                      MaterialButton(
+                        onPressed: () async {
+                          if (!(_formKey.currentState?.validate() ?? false)) return;
+                          final voteTitle = title.text.trim();
+                          final optionsList = <Map<String, dynamic>>[];
+                          for (final controller in optionControllers) {
+                            final title = controller.text.trim();
+                            if (title.isEmpty) continue;
+                            optionsList.add({
+                              'id': optionsList.length, // contiguous index among non-empty options
+                              'title': title,
+                              'votes': 0,
+                            });
+                          }
+                          await context.read<AppCubit>().createNewBrainStorm(voteTitle, file, optionsList , channelId);
+                          if(context.mounted){
+                            Navigator.pop(context);
                           }
 
                         },
-                        decoration: InputDecoration(
-                          filled:true,
-                          fillColor: HexColor("#f0f2f5"),
-                          isDense: false,
-                          border: OutlineInputBorder(),
-                          enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide.none,
-                              borderRadius: BorderRadius.circular(7)// default border color
-                          ),
-                          labelText: context.loc.issueTitle,
-                          labelStyle: GoogleFonts.plusJakartaSans(
-                            color: HexColor("#60768a"),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            letterSpacing: 0.2,
-                          ),
-                          // alignLabelWithHint: true,
+                        color:Colors.blue,
+                        elevation: 0,
+                        minWidth: double.infinity,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18.0),
                         ),
+                        child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
                       ),
-                    );
-                    }),
-                    const SizedBox(height:15,),
-
-                    MaterialButton(
-                      onPressed: () async {
-                        final voteTitle = title.text.trim();
-                        final optionsList = <Map<String, dynamic>>[];
-                        for (final controller in optionControllers) {
-                          final title = controller.text.trim();
-                          if (title.isEmpty) continue;
-                          optionsList.add({
-                            'id': optionsList.length, // contiguous index among non-empty options
-                            'title': title,
-                            'votes': 0,
-                          });
-                        }
-                        await context.read<AppCubit>().createNewBrainStorm(voteTitle, file, optionsList);
-                        if(context.mounted){
-                          Navigator.pop(context);
-                        }
-
-                      },
-                      color:Colors.blue,
-                      elevation: 0,
-                      minWidth: double.infinity,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
-                      ),
-                      child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -38,8 +38,8 @@ class MaintenanceReports{
 
 class MaintenanceReportsAttachments{
   final int? id;
-  final int reportId;
-  final List sourceUrl;
+  final int? reportId;
+  final List? sourceUrl;
   final DateTime? createdAt;
 
   MaintenanceReportsAttachments({
@@ -59,8 +59,3 @@ class MaintenanceReportsAttachments{
   }
 }
 
-enum MaintenanceReportType{
-  maintenance,
-  security,
-  careService,
-}

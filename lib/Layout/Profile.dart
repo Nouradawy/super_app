@@ -122,13 +122,8 @@ class Profile extends StatelessWidget {
                                       padding: EdgeInsets.zero,
                                       onPressed: () async {
 
-                                        if(index == account.length-1)
-                                          {
-                                            context.read<AppCubit>().signOut();
+                                          // cubit.AccountSettingsDropdown(index);
 
-                                          } else {
-                                          cubit.AccountSettingsDropdown(index);
-                                        }
 
                                       },
                                       child: Column(
@@ -190,13 +185,7 @@ class Profile extends StatelessWidget {
                                       padding: EdgeInsets.zero,
                                       onPressed: () async {
 
-                                        if(index == account.length-1)
-                                        {
-                                          context.read<AppCubit>().signOut();
-
-                                        } else {
-                                          cubit.AccountSettingsDropdown(index);
-                                        }
+                                          // cubit.AccountSettingsDropdown(index);
 
                                       },
                                       child: Column(
@@ -395,7 +384,9 @@ class Profile extends StatelessWidget {
                           height: 42,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                           elevation: 0,
-                          onPressed: (){},
+                          onPressed: (){
+                            context.read<AppCubit>().signOut();
+                          },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             spacing: 10,

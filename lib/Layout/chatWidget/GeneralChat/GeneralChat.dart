@@ -65,9 +65,10 @@ class _GeneralChatState extends State<GeneralChat> {
   Timer? _scrollIdleTimer;
   bool _didInitialAutoScroll = false;
 
+
   double _stickyOpacity = 0.0;
 
-  int? _channelId;
+
   late final String _userId;
   List<types.Message> _messages = [];
   final Map<String, types.User> _userCache = {};
@@ -119,8 +120,8 @@ class _GeneralChatState extends State<GeneralChat> {
     _realtimeChannel?.unsubscribe();
     _pollingTimers.values.forEach((timer) => timer.cancel()); // Cancel all timers
     _chatController.dispose();
-    if (_channelId != null) {
-      _cacheService.saveMessages(_channelId!, _messages);
+    if (channelId != null) {
+      _cacheService.saveMessages(channelId!, _messages);
     }
     _appCubit?.detachChatController();
     _chatTextController.removeListener(_handleTypingStatus);
@@ -129,12 +130,11 @@ class _GeneralChatState extends State<GeneralChat> {
     super.dispose();
   }
 
-  void BrainStormingSwitch(){
+  void brainStormingSwitch(){
     setState(() {
       isBrainStorming = !isBrainStorming;
     });
     AppCubit.get(context).showHideMicBrain();
-
 
   }
 
@@ -281,9 +281,9 @@ class _GeneralChatState extends State<GeneralChat> {
       final response = await query.single();
 
 
-      _channelId = response['id'] as int?;
+      channelId = response['id'] as int?;
 
-      if (_channelId != null) {
+      if (channelId != null) {
         await _loadMessagesFromCacheAndFetchLatest();
         _subscribeToRealtime();
       } else {
@@ -297,11 +297,12 @@ class _GeneralChatState extends State<GeneralChat> {
   }
 
   Future<void> _loadMessagesFromCacheAndFetchLatest() async {
-    final cachedMessages = await _cacheService.loadMessages(_channelId!);
+    final cachedMessages = await _cacheService.loadMessages(channelId!);
     _addOrUpdateMessages(cachedMessages);
     await _loadMessages();
     //rebuild ReactionsController state from metadata
     _cacheService.hydrateReactionsFromMessages(_chatController, _reactionsController);
+    ///TODO: fix bloc-observer corresponding index cannot be found
     await _scrollToInitialSeen();
 
   }
@@ -310,7 +311,7 @@ class _GeneralChatState extends State<GeneralChat> {
     if (_isLoading || !_hasMore) return;
     setState(() => _isLoading = true);
     final freshMessages = await _chatService.fetchMessages(
-      channelId: _channelId!,
+      channelId: channelId!,
       currentUserId: _userId,
       pageSize: _pageSize,
       pageNum: _currentPage,
@@ -326,7 +327,7 @@ class _GeneralChatState extends State<GeneralChat> {
 
   void _subscribeToRealtime() {
     _realtimeChannel = _chatService.subscribeToChannel(
-      channelId: _channelId!,
+      channelId: channelId!,
       onInsert: (payload) {
         final newMessage = mapToMessage(payload);
         final localId = newMessage.metadata?['localId'];
@@ -396,7 +397,7 @@ class _GeneralChatState extends State<GeneralChat> {
   void _handleSendPressed(String text) {
     _chatService.sendTextMessage(
       text: text,
-      channelId: _channelId!,
+      channelId: channelId!,
       userId: _userId,
       repliedMessage: _repliedMessage,
     );
@@ -633,7 +634,7 @@ class _GeneralChatState extends State<GeneralChat> {
         'id': localId,
         'author_id': _userId,
         'created_at': nowUtc.toIso8601String(),
-        'channel_id': _channelId,
+        'channel_id': channelId,
         'metadata': pollMeta,
       });
       // Realtime subscription will deliver the canonical message and you may remove/replace placeholder there
@@ -678,7 +679,7 @@ class _GeneralChatState extends State<GeneralChat> {
       'uri': fileUrl,
       'type': 'file',
       'created_at': now.toIso8601String(),
-      'channel_id': _channelId,
+      'channel_id': channelId,
       'metadata': {
         'name': file.name,
         'size': file.size,
@@ -742,7 +743,7 @@ class _GeneralChatState extends State<GeneralChat> {
         'author_id': _userId,
         'uri': driveLink, // The link from Google Drive
         'created_at': now.toIso8601String(), // Use NTP UTC time
-        'channel_id': _channelId,
+        'channel_id': channelId,
         'metadata': {
           'type': 'image',
           'localId': localId, // **IMPORTANT** link to the placeholder
@@ -951,7 +952,31 @@ class _GeneralChatState extends State<GeneralChat> {
   Widget build(BuildContext context) {
     if (_isInitializing) {
       return Scaffold(
-        appBar: AppBar(title: const Text("General Chat")),
+        appBar: AppBar(
+          title: MaterialButton(
+              onPressed: (){},
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 10,
+                children: [
+                  Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                          color: Colors.white70,
+                          shape: BoxShape.circle
+                      ),
+                      child:ClipOval(child: getCompoundPicture(widget.compoundId,38))
+                  ),
+                  Text("General Chat"),
+                ],
+              )),
+          actions:[IconButton(onPressed: () {
+            AppCubit.get(context).getBrainStormData(channelId!);
+            brainStormingSwitch();
+          }, icon: Icon(Icons.analytics_outlined),)],
+
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -974,9 +999,25 @@ class _GeneralChatState extends State<GeneralChat> {
                );
              },
 
-             child: const Text("General Chat")),
+             child: Row(
+               mainAxisSize: MainAxisSize.min,
+               spacing: 10,
+               children: [
+                 Container(
+                     width: 40,
+                     height: 40,
+                     decoration: BoxDecoration(
+                         color: Colors.white70,
+                         shape: BoxShape.circle
+                     ),
+                     child:ClipOval(child: getCompoundPicture(widget.compoundId,38))
+                 ),
+                 Text("General Chat"),
+               ],
+             )),
          actions:[IconButton(onPressed: () {
-           BrainStormingSwitch();
+           AppCubit.get(context).getBrainStormData(channelId!);
+           brainStormingSwitch();
          }, icon: Icon(Icons.analytics_outlined),)],
 
        ),
@@ -1055,8 +1096,9 @@ class _GeneralChatState extends State<GeneralChat> {
      );
    } else {
      return BrainStorming(
+       channelId: channelId!,
        onClose: (){
-         BrainStormingSwitch();
+         brainStormingSwitch();
        },
      );
    }

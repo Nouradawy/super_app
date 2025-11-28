@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/states.dart';
 
+import '../../../Confg/Enums.dart';
 import '../../../Model/ReportAUser.dart';
 
 class Reports extends StatelessWidget {
@@ -26,7 +27,12 @@ class Reports extends StatelessWidget {
                       label: Text(i==2?'In Review':ReportAUserFilter.values[i].name),
                       selected: cubit.index == i,
                       onSelected: (selected) {
+                        cubit.index = i;
+                        cubit.filterReportList(ReportAUserFilter.values[i]);
+                        cubit.getReportList();
 
+
+                        debugPrint(i.toString());
                       });
                 }),
               ),

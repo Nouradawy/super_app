@@ -1,3 +1,4 @@
+import 'package:WhatsUnity/Confg/Enums.dart';
 import 'package:WhatsUnity/Themes/lightTheme.dart';
 import 'package:bloc/bloc.dart';
 
@@ -6,18 +7,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:WhatsUnity/Layout/Cubit/AdminDashboard/states.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../Components/Constants.dart';
 import '../../../Confg/supabase.dart';
 import '../../AdminDashboard/MembersManagement.dart';
+import '../cubit.dart';
 
 class AdminCubit extends Cubit<AdminCubitStates>{
   AdminCubit():super(AdminInitialState());
   static  AdminCubit get(context) => BlocProvider.of(context);
 
   int index = 0;
+  int filterIndex = 0;
   bool showVerFiles = true;
-
+  List<Users> membersDataFiltered = [];
+  UserState filter = UserState.New;
 
   void indexChange(int currentIndex){
     index = currentIndex;
@@ -29,14 +34,12 @@ class AdminCubit extends Cubit<AdminCubitStates>{
     emit(VerFilesDropState());
   }
 
-  ListView usersList(){
-
+  ListView usersList() {
     return ListView.builder(
       shrinkWrap: true,
-      itemCount: MembersData.length,
+      itemCount: membersDataFiltered.length,
       itemBuilder: (context,index){
-        final member = ChatMembers.firstWhere((m)=>m.id.trim() == MembersData[index].authorId);
-
+        final member = ChatMembers.firstWhere((m)=>m.id.trim() == membersDataFiltered[index].authorId);
         return Card(
           elevation: 0.5,
           margin: EdgeInsets.symmetric(horizontal: 30 , vertical: 7),
@@ -68,7 +71,7 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                                   children: [
                                     Text(member.displayName,style:context.txt.userNameCard),
                                     Text('•'),
-                                    Text(MembersData[index].ownerShipType)
+                                    Text(membersDataFiltered[index].ownerShipType)
                                   ],
                                 ),
                                 Text('Building ${member.building} • Apartment ${member.apartment}' ,style: context.txt.userNameCard.copyWith(fontWeight: FontWeight.w300 , fontSize: 11),)
@@ -78,7 +81,7 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                         visualDensity: VisualDensity(vertical: -4),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         padding: EdgeInsets.symmetric(horizontal: 0.0,vertical: 0),
-                        label: Text(MembersData[index].userState),
+                        label: Text(membersDataFiltered[index].userState),
                         labelStyle:TextStyle(color: Colors.redAccent , fontWeight: FontWeight.w900 , ),
                         backgroundColor: Colors.red.shade100,
                         shape: RoundedRectangleBorder(
@@ -94,13 +97,14 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                   mainAxisSize: MainAxisSize.min,
                   spacing: 8,
                   children: [
-                    Text(MembersData[index].phoneNumber.toString() ,style: context.txt.cardBody),
+                    Text(membersDataFiltered[index].phoneNumber.toString() ,style: context.txt.cardBody),
                     SizedBox(
                       width: 60,
                       height: 20,
-                      child: MaterialButton(onPressed: (){},
+                      child: MaterialButton(onPressed: (){
+                        launchUrl(Uri.parse("tel:<${membersDataFiltered[index].phoneNumber.toString()}>"));
+                      },
                         padding: EdgeInsets.only(right: 5),
-
                         elevation: 0,
                         color: Colors.white70,
                         shape: RoundedRectangleBorder(
@@ -119,7 +123,9 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                     SizedBox(
                       width: 100,
                       height: 20,
-                      child: MaterialButton(onPressed: (){},
+                      child: MaterialButton(onPressed: (){
+                        openWhatsApp(membersDataFiltered[index].phoneNumber.toString() , "Hello" ,defaultCountryCode: "20");
+                      },
                         padding: EdgeInsets.only(right: 5),
 
                         elevation: 0,
@@ -216,9 +222,35 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                     SizedBox(
                       width: 110,
                       height: 25,
-                      child: MaterialButton(onPressed: (){},
-                        padding: EdgeInsets.only(right: 5),
+                      child: MaterialButton(
+                        onPressed: () async {
+                          try{
+                            await supabase.from('profiles').update({"userState":UserState.approved.name}).eq('id',MembersData[index].authorId);
+                          } catch (e){
+                            ScaffoldMessenger.of(context)
+                              ..hideCurrentSnackBar()
+                              ..showSnackBar(
+                                SnackBar(
+                                  behavior: SnackBarBehavior.floating,
+                                  content: Text('failed to Approve : ${e}'),
+                                ),
+                              );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                content: Text('Approved'),
+                              ),
+                            );
+                          await context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
+                          emit(ChangUserState());
 
+
+                        },
+                        padding: EdgeInsets.only(right: 5),
                         elevation: 0,
                         color: Colors.green,
                         shape: RoundedRectangleBorder(
@@ -237,7 +269,32 @@ class AdminCubit extends Cubit<AdminCubitStates>{
                     SizedBox(
                       width: 110,
                       height: 25,
-                      child: MaterialButton(onPressed: (){},
+                      child: MaterialButton(onPressed: () async {
+                        try{
+                           await supabase.from('profiles').update({"userState":UserState.unApproved.name}).eq('id',MembersData[index].authorId);
+                        } catch (e){
+                          ScaffoldMessenger.of(context)
+                            ..hideCurrentSnackBar()
+                            ..showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                content: Text('failed to Decline : ${e}'),
+                              ),
+                            );
+                          return;
+                        }
+                        ScaffoldMessenger.of(context)
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(
+                            SnackBar(
+                              behavior: SnackBarBehavior.floating,
+                              content: Text('Declined'),
+                            ),
+                          );
+                        await context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
+                        emit(ChangUserState());
+
+                      },
                         padding: EdgeInsets.only(right: 5),
 
                         elevation: 0,
@@ -264,33 +321,61 @@ class AdminCubit extends Cubit<AdminCubitStates>{
       },
     );
   }
-}
-Future<String?> _freshSignedUrl(Map<String, dynamic> file) async {
-  try {
-    final raw = (file['bucket'] ?? '').toString();
-    // If DB stores full signed URL in 'bucket', parse and re-sign
-    if (raw.startsWith('http')) {
-      final uri = Uri.parse(raw);
-      final idx = uri.pathSegments.indexOf('sign');
-      if (idx == -1 || idx + 2 >= uri.pathSegments.length) return null;
-      final bucket = uri.pathSegments[idx + 1];
-      final path = uri.pathSegments.sublist(idx + 2).join('/');
-      final signed = await Supabase.instance.client.storage
-          .from(bucket)
-          .createSignedUrl(path, 60 * 60); // 1h
-      return signed;
-    }
 
-    // If DB stores { bucket: 'my_bucket', path: 'users/.../file.jpg' }
-    final bucket = raw;
-    final path = (file['path'] ?? '').toString();
-    if (bucket.isEmpty || path.isEmpty) return null;
-    final signed = await Supabase.instance.client.storage
-        .from(bucket)
-        .createSignedUrl(path, 60 * 60);
-    return signed;
+  void filterRequests (UserState currentFilter) {
+
+    membersDataFiltered =  MembersData.where((member)=>member.userState.toLowerCase() == currentFilter.name.toLowerCase()).toList();
+    emit(FilterDataState());
+  }
+}
+
+
+
+
+
+
+Future<void> openWhatsApp(
+    String phoneNumber,
+    String message, {
+      String defaultCountryCode = '20', // Default to Egypt
+    }) async {
+
+  // 1. Clean: Remove all non-digit characters (+, -, spaces)
+  String cleanNumber = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
+
+  // 2. Handle Local Numbers: Remove leading '0' if present
+  // Example: "0101234..." becomes "101234..."
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = cleanNumber.substring(1);
+  }
+
+  // 3. Add Country Code: Prepend if it's not already there
+  // Example: "101234..." becomes "20101234..."
+  if (!cleanNumber.startsWith(defaultCountryCode)) {
+    cleanNumber = "$defaultCountryCode$cleanNumber";
+  }
+
+  // 4. Create the URL
+  final Uri whatsappUri = Uri.parse(
+    "whatsapp://send?phone=$cleanNumber&text=${Uri.encodeComponent(message)}",
+  );
+
+  // 5. Launch
+  try {
+    if (await canLaunchUrl(whatsappUri)) {
+      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+    } else {
+      // Fallback to web if app is not installed
+      final Uri webUri = Uri.parse(
+        "https://wa.me/$cleanNumber?text=${Uri.encodeComponent(message)}",
+      );
+      if (await canLaunchUrl(webUri)) {
+        await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch WhatsApp';
+      }
+    }
   } catch (e) {
-    debugPrint('sign error: $e');
-    return null;
+    print("Error launching WhatsApp: $e");
   }
 }

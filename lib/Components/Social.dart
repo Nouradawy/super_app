@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:WhatsUnity/Layout/Cubit/states.dart';
 import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:condition_builder/condition_builder.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -14,6 +15,7 @@ import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
 import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:WhatsUnity/Themes/lightTheme.dart';
 import 'package:WhatsUnity/Services/GoogleDriveService.dart';
+import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
 import '../Layout/chatWidget/MessageWidget.dart';
 import '../Services/DriveImageWidget.dart';
@@ -42,7 +44,7 @@ class Social extends StatelessWidget {
           child: TabBarView(
             physics:LessSensitivePageScrollPhysics() ,
             children: [
-              RefreshIndicator(
+              ConditionBuilder<dynamic>.on(()=> currentUser?.userState == UserState.approved , ()=>RefreshIndicator(
                 onRefresh: () => AppCubit.get(context).getPostsData(selectedCompoundId!),
                 child: Column(
                   children: [
@@ -82,7 +84,19 @@ class Social extends StatelessWidget {
                         shrinkWrap: false,
                         itemCount: cubit.Posts.length,
                         itemBuilder: (context, index) {
-                          final postUser = ChatMembers.firstWhere((member)=>member.id == cubit.Posts[index]["author_id"]);
+                          final authorId = cubit.Posts[index]["author_id"]?.toString();
+                          final postUser = ChatMembers.firstWhere(
+                                (member)=>member.id.trim() == authorId,
+                            orElse: () => ChatMember(
+                              id: authorId ?? 'unknown',
+                              displayName: 'Unknown',
+                              building: 'null',
+                              apartment: 'null',
+                              userState: UserState.banned,
+                              phoneNumber: '',
+                              ownerType: null,
+                            ),
+                          );
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -107,18 +121,10 @@ class Social extends StatelessWidget {
                                       ///TODO:Fetch data from sublease
                                       Row(
                                         children: [
-                                          Container(
-                                            height: 35,
-                                            width: 35,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: CircleAvatar(
-                                              radius: 16,
-                                              backgroundColor: Colors.grey.shade200,
-                                              backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                                            ),
+                                          CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: Colors.grey.shade200,
+                                            backgroundImage: postUser.avatarUrl != null ? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                                           ),
 
                                           SizedBox(width: 10),
@@ -127,12 +133,12 @@ class Social extends StatelessWidget {
                                             CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                postUser.displayName,
-                                                style:context.txt.socialUserName
+                                                  postUser.displayName,
+                                                  style:context.txt.socialUserName
                                               ),
                                               Text(
                                                   formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
-                                                style:context.txt.socialPostSince
+                                                  style:context.txt.socialPostSince
                                               ),
                                             ],
                                           ),
@@ -146,8 +152,8 @@ class Social extends StatelessWidget {
                                             horizontal: 10,
                                           ),
                                           child: Text(
-                                            cubit.Posts[index]["post_head"],
-                                            style: context.txt.socialPostHead
+                                              cubit.Posts[index]["post_head"],
+                                              style: context.txt.socialPostHead
                                           ),
                                         ),
                                       ),
@@ -199,8 +205,8 @@ class Social extends StatelessWidget {
                                         MainAxisAlignment.end,
                                         children: [
                                           Text(
-                                            "${(cubit.Posts[index]['Comments']  as List?  ?? [] ).length} ${context.loc.comment}",
-                                            style: context.txt.commentsCount
+                                              "${(cubit.Posts[index]['Comments']  as List?  ?? [] ).length} ${context.loc.comment}",
+                                              style: context.txt.commentsCount
                                           ),
                                         ],
                                       ),
@@ -278,7 +284,9 @@ class Social extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
+              )).
+                  on(()=>currentUser?.userState == UserState.New , ()=>Container(child: Text("your account state is ${UserState.New.name}"),)).
+              build(orElse:()=>Text("your account isn't active yet")),
               GeneralChat(compoundId: selectedCompoundId!, channelName: 'COMPOUND_GENERAL'),
             ],
           ),
@@ -299,9 +307,10 @@ class Social extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setStateOfDialog) {
             return AlertDialog(
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               backgroundColor: Colors.white,
               content: SizedBox(
-                width: MediaQuery.sizeOf(context).width * 0.8,
+                width: MediaQuery.sizeOf(context).width*0.98,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,12 +505,12 @@ class Social extends StatelessWidget {
         bool isSending = false;
         return StatefulBuilder(
           builder: (context, setStateOfDialog) {
-            List newComments= [];
+
             TextEditingController newComment = TextEditingController();
             return AlertDialog(
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              contentPadding: EdgeInsets.only( bottom: 15),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16), // Set your desired radius
+                borderRadius: BorderRadius.circular(9), // Set your desired radius
               ),
               backgroundColor: Colors.white,
               content: SingleChildScrollView(
@@ -695,7 +704,7 @@ class Social extends StatelessWidget {
                           CircleAvatar(
                             radius: 16,
                             backgroundColor: Colors.grey.shade200,
-                            backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
+                            backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                           ),
                           SizedBox(width: 8),
                           Container(
@@ -729,16 +738,8 @@ class Social extends StatelessWidget {
                                         setStateOfDialog((){
 
                                         });
-                                        newComments = cubit.Posts[index]['Comments']?? [];
-                                        newComments.add({
-                                          'author_id':Userid,
-                                          'comment':newComment.text,});
-                                        debugPrint(newComments.toString());
-                                        await supabase.from('Posts').update({
-                                          'Comments':newComments
-                                        }).eq('id',cubit.Posts[index]['id']).select();
-                                        newComments.clear();
-                                        await cubit.getPostsData(selectedCompoundId);
+
+                                        await cubit.postNewComment (selectedCompoundId! , cubit.Posts[index]['id'] , index , newComment);
                                         isSending = false;
                                         setStateOfDialog((){
                                           
@@ -773,7 +774,9 @@ class Social extends StatelessWidget {
                                 displayName: 'Unknown',
                                 building: 'null',
                                 apartment: 'null',
-                                avatarUrl: '',
+                                userState: UserState.banned,
+                                phoneNumber: '',
+                                ownerType: null,
                               ),
                             );
                           return Padding(
@@ -784,7 +787,7 @@ class Social extends StatelessWidget {
                                   CircleAvatar(
                                     radius: 13,
                                     backgroundColor: Colors.grey.shade200,
-                                    backgroundImage: (commentUser.avatarUrl != null ||commentUser.avatarUrl != '') ? NetworkImage(commentUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
+                                    backgroundImage: commentUser.avatarUrl != null  ? NetworkImage(commentUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                                   ),
                                   SizedBox(width: 9,),
                                   Container(

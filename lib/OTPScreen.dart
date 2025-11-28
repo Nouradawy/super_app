@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'Components/Constants.dart';
+import 'Confg/Enums.dart';
 import 'Confg/supabase.dart';
 
 import 'Layout/Cubit/cubit.dart';

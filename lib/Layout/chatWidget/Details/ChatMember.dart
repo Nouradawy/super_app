@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/cubit.dart';
 
 
+import '../../../Confg/Enums.dart';
 import '../../../Confg/supabase.dart';
 import '../../Cubit/cubit.dart';
 import 'User_details.dart';
@@ -17,8 +18,23 @@ class ChatMember {
   final String? avatarUrl;
   final String building;
   final String apartment;
+  final UserState? userState;
+  final String phoneNumber;
+  final OwnerTypes? ownerType;
 
-  ChatMember({required this.id, required this.displayName, this.fullName, this.avatarUrl , required this.building , required this.apartment});
+
+
+  ChatMember({
+    required this.id,
+    required this.displayName,
+    this.fullName,
+    this.avatarUrl,
+    required this.building,
+    required this.apartment,
+    required this.userState,
+    required this.phoneNumber,
+    required this.ownerType,
+  });
   @override
   String toString() {
     return 'ChatMember(id: $id, name: $displayName, building: $building, apartment: $apartment)';

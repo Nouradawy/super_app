@@ -17,6 +17,7 @@ import 'package:WhatsUnity/services/PresenceManager.dart';
 import '../Components/Constants.dart';
 
 
+import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
 import '../OTPScreen.dart';
 import 'MainScreen.dart';
@@ -89,7 +90,7 @@ class SignUp extends StatelessWidget {
                           const SizedBox(height: 20),
                           if(AppCubit.get(context).signupGoogleEmail == null)
                           submitButton(context,context ,  email ,  fullName , displayName, password ,  buildingNum , apartmentNum ,phoneNumber ),
-                          signInProviders(context,fullName ,buildingNum , apartmentNum ,phoneNumber ),
+                          signInProviders(context,fullName ,buildingNum , apartmentNum ,phoneNumber ,displayName),
                           SizedBox(height: 70,),
                         ],
                       ),
@@ -549,6 +550,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
         AppCubit.get(context).signInSwitcher();
         ///Sign up case......
         if (_signInToggler == false) {
+
           try {
             if (selectedCompoundId == null) {
               AppCubit.get(context).signInSwitcher();
@@ -686,7 +688,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
         }
         ///Sign in case......
         else {
-
+          AppCubit.get(context).resetUserData();
           try{
             await supabase.auth.signInWithPassword(
               email: email.text,
@@ -716,7 +718,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
         userRole = Roles.values[UserData?.userMetadata?["role_id"]];
 
         if (UserData != null) {
-          // presetBeforeSignin(context);
+          presetBeforeSignin(context);
           AppCubit.get(context).getPostsData(selectedCompoundId);
           AppCubit.get(context).signInSwitcher();
           Navigator.pushReplacement(
@@ -756,7 +758,7 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
   );
 }
 
-Column signInProviders (BuildContext context , TextEditingController fullName ,TextEditingController buildingNum , TextEditingController apartmentNum , TextEditingController phoneNumber ){
+Column signInProviders (BuildContext context , TextEditingController fullName ,TextEditingController buildingNum , TextEditingController apartmentNum , TextEditingController phoneNumber , TextEditingController userName ){
   return Column(
     children: [
       if(AppCubit.get(context).signupGoogleEmail == null)
@@ -774,12 +776,12 @@ Column signInProviders (BuildContext context , TextEditingController fullName ,T
           onPressed: (){
             if(_signInToggler)
               {
-                AppCubit.get(context).supabaseSignInWithGoogle(isSignin: true);
+                AppCubit.get(context).supabaseSignInWithGoogle(context:context,isSignin: true);
               }
             else if(AppCubit.get(context).signupGoogleEmail == null) {
-              AppCubit.get(context).supabaseSignInWithGoogle();
+              AppCubit.get(context).supabaseSignInWithGoogle(context:context);
             } else {
-              AppCubit.get(context).continueGoogleRegistration(context ,fullName.text , AppCubit.get(context).roleName!.index+1 ,buildingNum.text , apartmentNum.text ,AppCubit.get(context).ownerType , phoneNumber.text);
+              AppCubit.get(context).continueGoogleRegistration(context ,fullName.text , AppCubit.get(context).roleName!.index+1 ,buildingNum.text , apartmentNum.text ,AppCubit.get(context).ownerType , phoneNumber.text ,userName.text );
             }
 
           },

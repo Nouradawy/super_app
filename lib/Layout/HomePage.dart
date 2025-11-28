@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
@@ -19,6 +20,8 @@ import 'package:WhatsUnity/Themes/lightTheme.dart';
 
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
+import '../Confg/Enums.dart';
+import '../Model/MaintenanceReport.dart';
 import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
@@ -181,13 +184,12 @@ class HomePage extends StatelessWidget {
                                           borderRadius: BorderRadius.circular(12), // <-- Rounded corners
                                         ),
                                         onPressed: (){
-                                          if(index == 0)
-                                          {
+                                            context.read<AppCubit>().getMaintenanceReports(MaintenanceReportType.values[index]);
                                             Navigator.push(
                                               context,
-                                              MaterialPageRoute(builder: (context) => Maintenance()),
+                                              MaterialPageRoute(builder: (context) => Maintenance(maintenanceType: MaintenanceReportType.values[index],)),
                                             );
-                                          }
+
                                         },
                                         child: Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
@@ -240,10 +242,11 @@ class HomePage extends StatelessWidget {
                             context.read<AppCubit>().getPostsData(selectedCompoundId!);
                           }
 
+
                       },
                       buildWhen: (previousState, currentState) {
                         // Only rebuild if the state is AppInitialState and the compound ID has changed.
-                        if ((previousState is AppInitialState && currentState is GetPostsDataStates) || currentState is CompoundIdChanged || currentState is GetPostsDataStates || currentState is NewPostState) {
+                        if ((previousState is AppInitialState && currentState is GetPostsDataStates) || currentState is CompoundIdChanged || currentState is GetPostsDataStates || currentState is NewPostState || currentState is CompoundMembersUpdated) {
                           return true;
                         }
                         // For any other state changes, don't rebuild this part of the tree.
@@ -264,7 +267,7 @@ class HomePage extends StatelessWidget {
 
                 ),
                 BlocBuilder<AppCubit,AppCubitStates>(
-                  buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates  || current is BottomNavIndexChangeStates,
+                  buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates  || current is BottomNavIndexChangeStates || current is CompoundMembersUpdated || current is UpdatePostCommentsState,
                     builder: (context,state){
                       if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
                         return Positioned(

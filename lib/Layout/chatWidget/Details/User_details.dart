@@ -1,3 +1,4 @@
+import 'package:WhatsUnity/Confg/Enums.dart';
 import 'package:flutter/material.dart';
 import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -16,7 +17,7 @@ class UserDetails extends StatelessWidget {
         displayName: 'Unknown',
         avatarUrl: null,
         building: '',
-        apartment: '',
+        apartment: '', userState: UserState.banned , phoneNumber: '', ownerType: null,
       ),
     );
     return Column(

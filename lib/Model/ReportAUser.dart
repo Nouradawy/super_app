@@ -48,16 +48,3 @@ class ReportAUsers{
 
 }
 
-enum ReportAUserFilter{
-  All,
-  New,
-  inReview,
-  Resolved
-}
-
-enum ReportAUserType{
-  spam,
-  harassment,
-  selling,
-  inappropriateContent
-}

@@ -34,7 +34,7 @@ Built with Flutter and powered by a self-hosted Supabase backend, this applicati
 * selecting one of the services
 * - **Maintenance report** : users can report there issues (Plumbing - elevator - ex..)
 * - **Security** 
-*  - -  File report (something happen ) 
+*  - -  File report (Incident Reporting) 
 *  - -  Lost and found section : report something lost - check lost and found posts made by security 
 * - **Care service**
 * - - Request a service (cleaning your apartment)
@@ -51,9 +51,14 @@ Built with Flutter and powered by a self-hosted Supabase backend, this applicati
 *  BrainStorming :dedicated section for polls separated from chat ,  where members can disuse important Topics which can help with decision-making.
 * every member is labeled with there building number and there apartment which helps for making you feel more connected and recognizable 
 * electronic signature collection [future plans]
-* members can report unappropriated or against community roles message so Admins can view this reports to take the appropriate action
+* members can report inappropriate or against community roles message so Admins can view this reports to take the appropriate action
 * Admins can close chat temp.
 * Admins can use add keywords to filter chat - activating isolate messages for review [future plans]
+
+**BuildingChat**
+* every member is labeled with their apartment number so everyone know there neighbors
+* in chat details full list of Neighbors organised ascending order with phone numbers
+* List for upscaling or Improving features parts to purchase with their prices and payment method gathering electronic signature for payments collections this can be onetime fee or a subscription [future plans]
 
 **Social**
 * creating posts facebook like 
@@ -89,3 +94,10 @@ SideNav
 
 
 
+Digital Gate Pass (QR Code): Allow residents to generate a QR code for guests/deliveries so security can scan them in without calling the resident.
+
+Facility Booking: A calendar system to book shared amenities (Tennis Court, BBQ Area, Clubhouse).
+
+Emergency SOS: A floating red button on the home screen that immediately alerts security with the user's unit number.
+
+Document Repository: A read-only section where Admins upload Community Bylaws, Meeting Minutes, and Financial Reports.

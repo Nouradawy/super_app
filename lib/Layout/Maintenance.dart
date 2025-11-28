@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:image_picker/image_picker.dart';
+import '../Confg/Enums.dart';
 import '../Model/MaintenanceReport.dart';
 import '/Components/Constants.dart';
 import '/Layout/Cubit/cubit.dart';
@@ -14,16 +15,16 @@ import '/Themes/lightTheme.dart';
 import '../Confg/supabase.dart';
 import 'chatWidget/MessageWidget.dart';
 
-
-
 class Maintenance extends StatelessWidget {
-  Maintenance({super.key});
+
 
   final TextEditingController issueDescription = TextEditingController();
   final TextEditingController issueTitle = TextEditingController();
   final TextEditingController issueCategory = TextEditingController();
-  List<XFile>? file;
-  final List<String> maintenanceIconBackground = ["Plumbing","Electricity","Plastering","Gardening"];
+  final MaintenanceReportType maintenanceType;
+  Maintenance({super.key,
+    required this.maintenanceType ,
+});
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +34,12 @@ class Maintenance extends StatelessWidget {
             appBar: AppBar(
               title:Text(context.loc.maintenance),
               actions: [
-                IconButton(onPressed: ()=>context.read<AppCubit>().getMaintenanceReports(MaintenanceReportType.maintenance), icon: Icon(Icons.sync))
+                IconButton(onPressed: ()=>context.read<AppCubit>().getMaintenanceReports(maintenanceType), icon: Icon(Icons.sync))
               ],
             ),
             floatingActionButton: FloatingActionButton.extended(
                 onPressed: (){
-                  newReport(context,issueDescription , issueTitle , issueCategory , file );
+                  newReport(context.loc.maintenanceReport,context,issueDescription , issueTitle , issueCategory ,maintenanceType );
                 },
               label: Text(context.loc.reportProblem,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w600 , color: HexColor("#121416")),),
               icon: Icon(Icons.add, color: HexColor("#121416")),
@@ -46,103 +47,140 @@ class Maintenance extends StatelessWidget {
 
 
             ),
-            body: Column(
-              children: [
-                Text(context.loc.reportHistory),
-                ListView.builder(
-
-                  shrinkWrap: true,
-                  itemCount: maintenanceReportsData.length,
-                    itemBuilder: (context,index) {
-                    final attachmentUrl = maintenanceReportsAttachmentsData.firstWhere((attach)=>attach.reportId ==maintenanceReportsData[index].id );
-
-                      return ListTile(
-                      onTap: () {
-
-                        context.read<AppCubit>().expandReport(index);
-                      },
-                      title:Row(
-
-                        spacing: 10,
-                        children: [
-                          Text(maintenanceReportsData[index].title,style: GoogleFonts.plusJakartaSans(fontSize: 14,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
-                          Chip(
-                            label:Text(maintenanceReportsData[index].states ,style: GoogleFonts.plusJakartaSans(fontSize: 11,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.white)),
-                            backgroundColor: HexColor("#76b7f5"),
-                            visualDensity: VisualDensity(vertical: -4),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.symmetric(horizontal: 0.0,vertical: 0),
-                          )
-                        ],
-                      ),
-                      subtitle:AnimatedCrossFade(
-                        firstChild:Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
-                        crossFadeState: (context.watch<AppCubit>().isExpanded && context.watch<AppCubit>().reportIndex == index) ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 500),
-                        firstCurve: Curves.easeInOut,
-                        secondCurve: Curves.easeInOut,
-                        sizeCurve: Curves.easeInOut,
-                        secondChild: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
-
-                              const SizedBox(height: 8),
-                              Text("Lorem ipsum dolor sit amet,"
-                                  " consectetur adipiscing elit. Nunc iaculis suscipit massa, sed laoreet mi gravida in."
-                                  " Donec est neque, hendrerit at vehicula quis, sagittis laoreet lorem. Maecenas mi libero, "
-                                  "posuere sit amet elit sit amet, tempus sagittis ligula. Duis enim ligula, condimentum eget mauris et, "
-                                  "bibendum commodo massa. Aenean velit augue, tempor quis sapien vitae, accumsan faucibus urna. Aliquam quis nisi orci"
-                                  ". Aenean volutpat, erat vel bibendum tincidunt, est risus sodales orci, eu venenatis felis turpis in arcu.",
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: attachmentUrl.sourceUrl.map((item) => SizedBox(
-                                    width:80,
-                                    height:80,
-                                    child: DriveImageMessage(fileId: extractDriveFileId(item["uri"])!, driveService: driveService)),).toList(),
+            body: SingleChildScrollView(
+              physics: NeverScrollableScrollPhysics(),
+              child: Column(
+                children: [
+                  Text(context.loc.reportHistory),
+                  ListView.builder(
+                  
+                    shrinkWrap: true,
+                    itemCount: maintenanceReportsData.length,
+                      itemBuilder: (context,index) {
+                      final attachmentUrl = maintenanceReportsAttachmentsData.firstWhere((attach)=>attach.reportId ==maintenanceReportsData[index].id  ,
+                          orElse:() =>
+                              MaintenanceReportsAttachments
+                                (reportId: maintenanceReportsData[index].id,
+                                  sourceUrl: null,
+                                  createdAt: null
                               )
-
-
-
+                      );
+                  
+                        return ListTile(
+                        onTap: () {
+                  
+                          context.read<AppCubit>().expandReport(index);
+                        },
+                        title:Row(
+                  
+                          spacing: 10,
+                          children: [
+                            Text(maintenanceReportsData[index].title,style: GoogleFonts.plusJakartaSans(fontSize: 14,fontWeight:FontWeight.w700,letterSpacing: 0.2 , color: HexColor("#121416")),),
+                            Chip(
+                              label:Text(maintenanceReportsData[index].states ,style: GoogleFonts.plusJakartaSans(fontSize: 11,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.white)),
+                              backgroundColor: HexColor("#76b7f5"),
+                              visualDensity: VisualDensity(vertical: -4),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: EdgeInsets.symmetric(horizontal: 0.0,vertical: 0),
+                            )
                           ],
                         ),
-                      ),
-                      leading:CircleAvatar(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        child: Icon(Icons.hourglass_top), // Icon for 'In Progress'
-                      ),
-                      trailing: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 500),
-                        transitionBuilder: (child, animation) => RotationTransition(turns: animation, child: child),
-                        child: Icon(
-                          context.watch<AppCubit>().isExpanded ? Icons.keyboard_arrow_down_outlined : Icons.arrow_forward_ios_rounded,
-                          key: ValueKey<bool>(context.watch<AppCubit>().isExpanded),
-                          color: Colors.grey,
-                          size: 13,
+                        subtitle:AnimatedCrossFade(
+                          firstChild:Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                          crossFadeState: (context.watch<AppCubit>().isExpanded && context.watch<AppCubit>().reportIndex == index) ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                          duration: const Duration(milliseconds: 500),
+                          firstCurve: Curves.easeInOut,
+                          secondCurve: Curves.easeInOut,
+                          sizeCurve: Curves.easeInOut,
+                          secondChild: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                  
+                                const SizedBox(height: 8),
+                                Text("Lorem ipsum dolor sit amet,"
+                                    " consectetur adipiscing elit. Nunc iaculis suscipit massa, sed laoreet mi gravida in."
+                                    " Donec est neque, hendrerit at vehicula quis, sagittis laoreet lorem. Maecenas mi libero, "
+                                    "posuere sit amet elit sit amet, tempus sagittis ligula. Duis enim ligula, condimentum eget mauris et, "
+                                    "bibendum commodo massa. Aenean velit augue, tempor quis sapien vitae, accumsan faucibus urna. Aliquam quis nisi orci"
+                                    ". Aenean volutpat, erat vel bibendum tincidunt, est risus sodales orci, eu venenatis felis turpis in arcu.",
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
+                                const SizedBox(height: 8),
+                                if(attachmentUrl.sourceUrl != null)
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: attachmentUrl.sourceUrl!.map((item) => SizedBox(
+                                      width:80,
+                                      height:80,
+                                      child: DriveImageMessage(fileId: extractDriveFileId(item["uri"])!, driveService: driveService)),).toList(),
+                                )
+                  
+                  
+                  
+                            ],
+                          ),
                         ),
-                      ),
-
-
-                    );
-                    })
-              ],
-
+                        leading:CircleAvatar(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          child: Icon(Icons.hourglass_top), // Icon for 'In Progress'
+                        ),
+                        trailing: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          transitionBuilder: (child, animation) => RotationTransition(turns: animation, child: child),
+                          child: Icon(
+                            context.watch<AppCubit>().isExpanded ? Icons.keyboard_arrow_down_outlined : Icons.arrow_forward_ios_rounded,
+                            key: ValueKey<bool>(context.watch<AppCubit>().isExpanded),
+                            color: Colors.grey,
+                            size: 13,
+                          ),
+                        ),
+                  
+                  
+                      );
+                      })
+                ],
+              
+              ),
             ));
     });
   }
 }
 
 Future<void> newReport(
+    String dialogTitle,
     BuildContext context,
     TextEditingController issue,
     TextEditingController issueTitle,
     TextEditingController issueCategory,
-    List<XFile>? file,
+    MaintenanceReportType maintenanceType,
 ) async {
+  final _formKey = GlobalKey<FormState>();
+  bool isSending = false;
+  List<XFile>? file;
+  final List<DropdownMenuEntry<String>> categoryEntries;
+  switch (maintenanceType) {
+    case MaintenanceReportType.maintenance:
+      categoryEntries = MaintenanceCategory.values
+          .map((c) => DropdownMenuEntry<String>(value: c.name, label: c.name.toUpperCase()))
+          .toList();
+      break;
+    case MaintenanceReportType.security:
+      categoryEntries = SecurityCategory.values
+          .map((c) => DropdownMenuEntry<String>(value: c.name, label: c.name.toUpperCase()))
+          .toList();
+      break;
+    case MaintenanceReportType.careService:
+      categoryEntries = CareServiceCategory.values
+          .map((c) => DropdownMenuEntry<String>(value: c.name, label: c.name.toUpperCase()))
+          .toList();
+      break;
+    default:
+      categoryEntries = [
+        DropdownMenuEntry<String>(value: 'other', label: 'OTHER'),
+      ];
+  }
   return showDialog(
     context: context,
     builder: (BuildContext context) {
@@ -155,218 +193,250 @@ Future<void> newReport(
               child: SizedBox(
                 height: MediaQuery.sizeOf(context).height * 0.7,
                 width: MediaQuery.sizeOf(context).width * 0.8,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    Row(
-                      mainAxisAlignment:MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.max,
-                      children: [
-                        IconButton(
-                          onPressed:(){},
-                          icon: Icon(Icons.arrow_back),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                        Text(context.loc.maintenanceReport),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      Row(
+                        mainAxisAlignment:MainAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          IconButton(
+                            onPressed:(){
+                              Navigator.pop(context);
+                            },
+                            icon: Icon(Icons.arrow_back),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          Text(dialogTitle),
 
 
-                      ],),
-                    SizedBox(height: 20,),
-                    DropdownMenu<MaintenanceCategory>(
-                      width: MediaQuery.sizeOf(context).width * 0.7,
-                      inputDecorationTheme: InputDecorationTheme(
-                        fillColor: HexColor("#f0f2f5"),
-                        filled: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
-                        ),
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          color: HexColor("#111518"),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        constraints: const BoxConstraints(maxHeight: 50),
-                      ),
-                      menuStyle:  MenuStyle(
-                          backgroundColor:WidgetStateProperty.all(Colors.white),
-                        fixedSize: WidgetStateProperty.all<Size>(
-                          Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
-                        ),
-                      ),
-                      onSelected: (value){
-                        setStateOfDialog(() {
-                          issueCategory.text = value?.name ?? 'other';
-                        });
-                        debugPrint(issueCategory.text);
-                      },
-                      label: Text(context.loc.maintenanceIssueSelect),
-                      dropdownMenuEntries:
-                          MaintenanceCategory.values.map<DropdownMenuEntry<MaintenanceCategory>>(
-                        (MaintenanceCategory category) {
-                          return DropdownMenuEntry<MaintenanceCategory>(
-                            value: category,
-                            label: category.name.toUpperCase(),
-                          );
-                        },
-                      ).toList(),
-                    ),
-                    const SizedBox(height: 15),
-                    TextFormField(
-                      keyboardType: TextInputType.text,
-                      controller: issueTitle,
-                      decoration: InputDecoration(
-                        filled:true,
-                        fillColor: HexColor("#f0f2f5"),
-                        isDense: false,
-                        border: OutlineInputBorder(),
-                        enabledBorder: OutlineInputBorder(
+                        ],),
+                      SizedBox(height: 20,),
+                      DropdownMenu<String>(
+                        width: MediaQuery.sizeOf(context).width * 0.7,
+                        inputDecorationTheme: InputDecorationTheme(
+                          fillColor: HexColor("#f0f2f5"),
+                          filled: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
-                            borderRadius: BorderRadius.circular(7)// default border color
+                          ),
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            color: HexColor("#111518"),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          constraints: const BoxConstraints(maxHeight: 50),
                         ),
-                        labelText: context.loc.issueTitle,
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          color: HexColor("#60768a"),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.2,
+                        menuStyle:  MenuStyle(
+                            backgroundColor:WidgetStateProperty.all(Colors.white),
+                          fixedSize: WidgetStateProperty.all<Size>(
+                            Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
+                          ),
                         ),
-                        // alignLabelWithHint: true,
+                        onSelected: (value){
+                          setStateOfDialog(() {
+                            issueCategory.text = value ?? 'other';
+                          });
+                          debugPrint(issueCategory.text);
+                        },
+                        label: Text(context.loc.maintenanceIssueSelect),
+                        dropdownMenuEntries: categoryEntries,
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                    Container(
-                      height: MediaQuery.sizeOf(context).height * 0.15,
-                      width: MediaQuery.sizeOf(context).width * 0.8,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: HexColor("#f0f2f5"),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: TextFormField(
-                        keyboardType: TextInputType.multiline,
-                        controller: issue,
-                        minLines: 5,
-                        maxLines: 10,
+                      const SizedBox(height: 15),
+                      TextFormField(
+                        keyboardType: TextInputType.text,
+                        controller: issueTitle,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a title';
+                          }
+                          return null;
+                        },
                         decoration: InputDecoration(
-                          border: InputBorder.none,
-                          labelText: context.loc.issueDescription,
+                          filled:true,
+                          fillColor: HexColor("#f0f2f5"),
+                          isDense: false,
+                          border: OutlineInputBorder(),
+                          enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide.none,
+                              borderRadius: BorderRadius.circular(7)// default border color
+                          ),
+                          labelText: context.loc.issueTitle,
                           labelStyle: GoogleFonts.plusJakartaSans(
                             color: HexColor("#60768a"),
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 0.2,
                           ),
-                          alignLabelWithHint: true,
+                          // alignLabelWithHint: true,
                         ),
                       ),
-                    ),
-                    const SizedBox(height:15,),
-                    Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
-                    const SizedBox(height:15,),
-
-                    Stack(
-                      alignment: AlignmentDirectional.topEnd,
-                      children: [
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount:
-                            2, // Number of columns in the grid
-                            crossAxisSpacing:
-                            8.0, // Spacing between columns
-                            mainAxisSpacing: 8.0, // Spacing between rows
-                          ),
-                          itemCount: file?.length ?? 0,
-                          itemBuilder: (context, index) {
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(file![index].path),
-                                fit: BoxFit.cover,
-                              ),
-                            );
-                          },
+                      const SizedBox(height: 15),
+                      Container(
+                        height: MediaQuery.sizeOf(context).height * 0.15,
+                        width: MediaQuery.sizeOf(context).width * 0.8,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: HexColor("#f0f2f5"),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        file != null
-                            ? IconButton(
-                          onPressed: () {
-                            file = null;
-                            setStateOfDialog(() {});
+                        child: TextFormField(
+                          keyboardType: TextInputType.multiline,
+                          controller: issue,
+                          validator: (value){
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a description';
+                            }
+                            return null;
                           },
-                          icon: Icon(Icons.close),
-                        )
-                            : DottedBorder(
-                          options: RoundedRectDottedBorderOptions(
-                            radius: Radius.circular(8),
-                            strokeWidth: 2,
-                            color: Colors.grey.shade400,
-                            dashPattern: [5],
-                          ),
-                          child: Container(
-                            alignment: AlignmentDirectional.center,
-                            height: MediaQuery.sizeOf(context).height*0.2,
-                            width: MediaQuery.sizeOf(context).width*0.8,
-                            decoration: BoxDecoration(
-
-                              borderRadius: BorderRadius.circular(8),
+                          minLines: 5,
+                          maxLines: 10,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            labelText: context.loc.issueDescription,
+                            labelStyle: GoogleFonts.plusJakartaSans(
+                              color: HexColor("#60768a"),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.2,
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
-                                Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
-                                MaterialButton(
-                                  onPressed: () async{
-                                    List<XFile>? result = await ImagePicker()
-                                        .pickMultiImage(
-                                      imageQuality: 70,
-                                      maxWidth: 1440,
-                                    );
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height:15,),
+                      Text(context.loc.uploadPhotos,style:GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),textAlign:TextAlign.start,),
+                      const SizedBox(height:15,),
 
-                                    if (result.isEmpty) return;
-
-                                    file = result;
-                                    setStateOfDialog(() {});
-                                  },
-                                  color:HexColor("f0f2f5"),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18.0),
-                                  ),
-                                  child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
-
+                      Stack(
+                        alignment: AlignmentDirectional.topEnd,
+                        children: [
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                              2, // Number of columns in the grid
+                              crossAxisSpacing:
+                              8.0, // Spacing between columns
+                              mainAxisSpacing: 8.0, // Spacing between rows
+                            ),
+                            itemCount: file?.length ?? 0,
+                            itemBuilder: (context, index) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(file![index].path),
+                                  fit: BoxFit.cover,
                                 ),
+                              );
+                            },
+                          ),
+                          file != null
+                              ? IconButton(
+                            onPressed: () {
+                              file = null;
+                              setStateOfDialog(() {});
+                            },
+                            icon: Icon(Icons.close),
+                          )
+                              : DottedBorder(
+                            options: RoundedRectDottedBorderOptions(
+                              radius: Radius.circular(8),
+                              strokeWidth: 2,
+                              color: Colors.grey.shade400,
+                              dashPattern: [5],
+                            ),
+                            child: Container(
+                              alignment: AlignmentDirectional.center,
+                              height: MediaQuery.sizeOf(context).height*0.2,
+                              width: MediaQuery.sizeOf(context).width*0.8,
+                              decoration: BoxDecoration(
+
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                                  Text(context.loc.uploadPhotosLabel,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+                                  MaterialButton(
+                                    onPressed: () async{
+                                      List<XFile>? result = await ImagePicker()
+                                          .pickMultiImage(
+                                        imageQuality: 70,
+                                        maxWidth: 1440,
+                                      );
+
+                                      if (result.isEmpty) return;
+
+                                      file = result;
+                                      setStateOfDialog(() {});
+                                    },
+                                    color:HexColor("f0f2f5"),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18.0),
+                                    ),
+                                    child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
+
+                                  ),
 
 
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const Spacer(),
-                    MaterialButton(
-                      onPressed: () async {
-                       await AppCubit.get(context).reportSubmit(issueTitle.text, issue.text, issueCategory.text, file , MaintenanceReportType.maintenance);
-                       Navigator.pop(context);
-                      },
-                      color:Colors.blue,
-                      elevation: 0,
-                      minWidth: double.infinity,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
+                        ],
                       ),
-                      child: Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
-                    ),
-                  ],
+
+                      const Spacer(),
+                      MaterialButton(
+                        onPressed: isSending
+                            ? null
+                            :() async {
+                          if (!(_formKey.currentState?.validate() ?? false)) return;
+                          if (issueCategory.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please select a category')),
+                            );
+                            return;
+                          }
+
+                          isSending = true;
+                          setStateOfDialog(() {});
+                         await AppCubit.get(context).reportSubmit(issueTitle.text, issue.text, issueCategory.text, file , maintenanceType);
+                          isSending = false;
+                          setStateOfDialog(() {});
+                          context.read<AppCubit>().getMaintenanceReports(maintenanceType);
+                          Navigator.pop(context);
+                        },
+                        color:Colors.blue,
+                        disabledColor: Colors.blue.withAlpha(500),
+                        elevation: 0,
+                        minWidth: double.infinity,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18.0),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: [
+                            Text(context.loc.reportSubmission  ,style:context.txt.reportSubmissionButton),
+                            if(isSending) SizedBox( height: 30 , width: 30,child: CircularProgressIndicator()),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

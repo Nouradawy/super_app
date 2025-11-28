@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
@@ -23,9 +24,10 @@ Map<String,dynamic> MyCompounds = {'0': "Add New Community"};
 List<Map<String,dynamic>> prevSignIn = [];
 int? selectedCompoundId;
 
+bool _isRequestingPermissions = false;
 
 Future<void> loadCachedData () async{
-
+  compoundsLogos = await AssetHelper.loadCompoundLogos();
   String? compounds = await CacheHelper.getData(key: "MyCompounds", type: "String");
   if (compounds != null) {
     MyCompounds = json.decode(compounds);
@@ -33,43 +35,87 @@ Future<void> loadCachedData () async{
   int? compoundIndex = await CacheHelper.getData(key: "compoundCurrentIndex", type: "int");
   if(compoundIndex != null){
     selectedCompoundId = compoundIndex;
-    debugPrint(selectedCompoundId.toString());
   }
-  // if(prevSignIn.isEmpty){
-  //   String? prevSign = await CacheHelper.getData(key:"prevSignIn", type: "String");
-  //   if(prevSign !=null) {
-  //     final decoded = json.decode(prevSign) as List<dynamic>;
-  //     prevSignIn = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-  //   }
-  //   debugPrint(prevSignIn.toString());
-  //
-  // }
 }
 
-void presetBeforeSignin (context){
+Future<void> presetBeforeSignin(context) async {
   if(prevSignIn.isNotEmpty)
     {
       final int existingIndex = prevSignIn.indexWhere(
               (m) => m.containsKey(Userid));
       if(existingIndex != -1) {
-        prevSignIn[existingIndex][Userid].map((current) {
-          googleUser = current["googleUser"];
-         selectedCompoundId = current["compoundIndex"] as int?;
-      });
+        final userData = prevSignIn[existingIndex][Userid];
+        if (userData["googleUser"]!= null) {
+          if (googleUser == null) {
+            final user = await driveService.signIn();
+            if (user != null) {
+              googleUser = user;
+            }
+          } else {
+            await driveService.signOut();
+            googleUser = null;
+          }
+        }
+        selectedCompoundId = userData["compoundIndex"] as int?;
+        MyCompounds =(userData['MyCompounds'] as Map?)!.cast<String, dynamic>();
+
       }
     }
 }
+
 Future<void> requestPermission() async {
-  if(await Permission.microphone.status.isDenied || await Permission.storage.status.isDenied)
-  {
-    await [
-      Permission.microphone,
-      Permission.storage
-    ].request();
+  if (_isRequestingPermissions) {
+    debugPrint('Permission request already in progress, skipping.');
+    return;
+  }
+
+  _isRequestingPermissions = false;
+
+  final statuses = await [
+    Permission.camera,
+    Permission.photos,      // iOS
+    Permission.storage,     // Android legacy
+    Permission.microphone,
+    Permission.notification,
+  ].request();
+
+  // Handle denied/permanently denied if needed
+  for (final entry in statuses.entries) {
+    if (entry.value.isPermanentlyDenied) {
+      await openAppSettings();
+    }
   }
 }
 
 
+Widget getCompoundPicture(int compoundId , double size){
+
+  final compound = categories.expand((cat) => cat.compounds).firstWhere((comp)=>comp.id ==compoundId);
+
+  final assetPath = compoundsLogos.firstWhere((file) {
+    final fileName = file.split('/').last;          // "23.png"
+    final nameWithoutExt = fileName.split('.').first; // "23"
+    return nameWithoutExt == compound.id.toString();
+  },orElse: () =>'null');
+
+
+  if(compound.pictureUrl != null) {
+    return Image.network(
+      compound.pictureUrl.toString(),
+      width: size,
+      fit: BoxFit.cover,
+      errorBuilder: (context, exception, stackTrace) {
+        return SizedBox.shrink();
+      },
+    );
+  }
+  else if(assetPath != 'null') {
+     return Image.asset(assetPath, width: size,
+      fit: BoxFit.cover,);
+  } else {
+    return SizedBox.shrink();
+  }
+}
 
 class DriveImageMessage extends StatefulWidget {
   final String fileId;
@@ -140,6 +186,7 @@ class _DriveImageMessageState extends State<DriveImageMessage> {
     );
   }
 }
+
 Future fullScreenImageViewer ({required dynamic imageData, required BuildContext context , bool isVerf = false , bool isPost = false ,types.Message? message , String? userName}) {
   bool showDetails = true;
   return showDialog(
@@ -538,4 +585,23 @@ String formatPostTime(DateTime createdAt) {
 
   // after a week (or you can change to after 30 days) render a normal date
   return formatMessageDate(createdAt); // or your own date formatter
+}
+
+class AssetHelper {
+  static Future<List<String>> loadCompoundLogos() async {
+    // Load the asset manifest
+    final manifestContent =
+    await rootBundle.loadString('AssetManifest.json');
+
+    // Decode JSON
+    final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+
+    // Filter keys that start with your folder path
+    const folder = 'assets/compoundsLogo/';
+    final logos = manifestMap.keys
+        .where((String key) => key.startsWith(folder))
+        .toList();
+
+    return logos; // List\<String\> of full asset paths
+  }
 }

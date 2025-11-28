@@ -5,6 +5,7 @@ import 'package:ntp/ntp.dart';
 import 'package:WhatsUnity/Confg/supabase.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/states.dart';
 
+import '../../../Confg/Enums.dart';
 import '../../../Model/ReportAUser.dart';
 
 
@@ -20,7 +21,7 @@ class ReportCubit extends Cubit<ReportCubitState> {
 
   int index = 0;
   ReportAUsers? reportUser;
-
+  ReportAUserFilter filter = ReportAUserFilter.All;
   List<ReportAUsers> reportListData = [];
 
 
@@ -109,8 +110,17 @@ Future<void> fileReportToUser()async {
 }
 
 Future<void> getReportList() async{
-  final result = await supabase.from('Report_user').select('*');
+  final result = filter == ReportAUserFilter.All
+      ? await supabase.from('Report_user').select('*')
+      : await supabase.from('Report_user').select('*').eq('state',filter.name);
+
   reportListData = result.map((element)=>ReportAUsers.fromJson(element)).toList();
+  emit(ReportGetReportsState());
+}
+
+void filterReportList(ReportAUserFilter newFilter){
+  filter = newFilter;
+  emit(ReportFilterState());
 }
 
 }

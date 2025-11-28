@@ -113,10 +113,12 @@ class MessageWidget extends StatelessWidget {
       bottom: 0,
       right: 20,
       child: StackedReactions(
+        reactionBackgroundColor: Colors.black87,
+        onTap: ()=>debugPrint("reaction taped"),
         messageId: message!.id,
         controller: controller,
         maxReactionsToShow: 3,
-        size: 18,
+        size: 20,
 
 
       ),
@@ -126,6 +128,7 @@ class MessageWidget extends StatelessWidget {
       left: 15,
       child: StackedReactions(
         reactionBackgroundColor: Colors.black87,
+        onTap: ()=>debugPrint("reaction taped"),
         size: 20,
         messageId: message!.id,
         controller: controller,

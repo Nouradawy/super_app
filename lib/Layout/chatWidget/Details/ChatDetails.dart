@@ -1,3 +1,4 @@
+import 'package:WhatsUnity/Components/Constants.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,10 +7,10 @@ import 'package:WhatsUnity/Layout/Cubit/ChatDetailsCubit/states.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:WhatsUnity/Themes/lightTheme.dart';
 
+import '../../../Components/Constants.dart';
 import '../../../Confg/supabase.dart';
 import 'ChatMember.dart';
 import 'Reports.dart';
-import 'User_details.dart';
 
 class ChatDetails extends StatelessWidget {
   final int compoundId;
@@ -18,8 +19,6 @@ class ChatDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compound = categories.first.compounds.firstWhere((comp) => comp.id == compoundId);
-
     return BlocBuilder<ChatDetailsCubit,ChatDetailsStates>(
       builder: (context,states) {
         return Scaffold(
@@ -27,7 +26,16 @@ class ChatDetails extends StatelessWidget {
           body:Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Center(child: Image.network(width: 250,compound.pictureUrl.toString())),
+              Center(child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  color: Colors.white70,
+                  shape: BoxShape.circle
+                ),
+                  child:ClipOval(child: getCompoundPicture(compoundId,160))
+              )
+              ) ,
               SizedBox(height: 10),
               Text("GENERAL CHAT"),
               SizedBox(height: 5),
@@ -89,7 +97,7 @@ class ChatDetails extends StatelessWidget {
                   side: BorderSide(color: Colors.grey.shade300),
                 ),
                 onPressed: (){
-
+                  ReportCubit.get(context).getReportList();
                   Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -99,26 +107,6 @@ class ChatDetails extends StatelessWidget {
                 child: Text("Reports"),
               ),
 
-              MaterialButton(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6.0),
-                  side: BorderSide(color: Colors.grey.shade300),
-                ),
-                onPressed: (){
-                } ,
-                child: Text("ReportUser"),
-              ),
-
-              MaterialButton(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6.0),
-                  side: BorderSide(color: Colors.grey.shade300),
-                ),
-                onPressed: (){
-                  ReportCubit.get(context).getReportList();
-                } ,
-                child: Text("getReportUser"),
-              ),
             ],
           ),
         );

@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:WhatsUnity/Layout/Cubit/states.dart';
 import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:uuid/uuid.dart';
+import '../../Confg/Enums.dart';
 import '../../Model/CompoundsList.dart';
 import '../../Model/CompoundsList.dart' as type;
 import '../../Components/Constants.dart';
@@ -153,7 +154,6 @@ class AppCubit extends Cubit<AppCubitStates> {
   void bottomNavIndexChange(index){
     bottomNavIndex = index;
     if(bottomNavIndex!=0) tabBarIndex=0;
-    print(bottomNavIndex);
     emit(BottomNavIndexChangeStates());
   }
 
@@ -166,20 +166,22 @@ class AppCubit extends Cubit<AppCubitStates> {
         'CompoundIndex' : compound!.id,
         'role': userRole?.name,
       };
-      MyCompounds.addAll({
-        compound.id.toString(): compound.name
-            .toString()
-      });
+      MyCompounds = {
+        '0': "Add New Community",
+        compound.id.toString(): compound.name.toString()
+      };
 
-      await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
+
       selectedCompoundId = compound.id;
-      // await CacheHelper.saveData(key: "compoundCurrentIndex", value: json.encode(selectedCompoundId));
+      await CacheHelper.saveData(key: "compoundCurrentIndex", value: compound.id);
+
       emit(CompoundIdChange());
       //TODO: Fixing on signup fetching compound posts here
       final result =await compute(fetchCompoundMembers,args);
       ChatMembers = result.members;
       if(userRole == Roles.admin) MembersData = result.membersData;
     }
+    await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
     emit(CompoundIdChange());
 
   }
@@ -233,48 +235,14 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(AccountSettingsExpandStates());
   }
 
-  Future<void> signOut() async {
-    final int existingIndex = prevSignIn.indexWhere(
-        (m) => m.containsKey(Userid));
-    final newValue = {
-      "googleUser": googleUser?.email,
-      "compoundIndex": selectedCompoundId,
-    };
-
-    if (existingIndex != -1){
-      prevSignIn[existingIndex][Userid] = newValue;
-    } else {
-      prevSignIn.add({
-        Userid: newValue,
-      });
-    }
-
-    await CacheHelper.saveData(key: "prevSignIn", value: json.encode(prevSignIn));
-    try {
-      // 1. Perform the asynchronous sign-out from Supabase.
-      await supabase.auth.signOut();
-
-      // 2. Clear any local user data.
-      UserData = null;
-      selectedCompoundId = null;
-      await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
-      googleUser = null; // Also clear the googleUser if you have one
-      MyCompounds = {'0': "Add New Community"};
-      await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
-
-      // 3. Emit a new state to notify the UI that sign-out is complete.
-      emit(AppSignOutSuccessState()); // You'll need to create this state
-    } catch (error) {
-      // Handle potential errors during sign-out
-      debugPrint('Error signing out: $error');
-    }
-  }
 
 
   String? signupGoogleEmail;
   String? signupGoogleUserName;
+  bool signInGoogle = false;
 
-  Future<void> supabaseSignInWithGoogle({bool isSignin = false}) async {
+  Future<void> supabaseSignInWithGoogle({required BuildContext context , bool isSignin = false}) async {
+
     try {
       // 1) Ensure Google account
         final currentGoogle = await driveService.signIn();
@@ -300,40 +268,60 @@ class AppCubit extends Cubit<AppCubitStates> {
       final user = res.user;
       debugPrint('Supabase Google auth success, user: ${user?.id}');
 
+      /// Signup and continue Regsitration
       if(user != null && isSignin == false)
         {
+          resetUserData();
           signupGoogleEmail = user.email;
           signupGoogleUserName = googleUser?.displayName;
-
           emit(GoogleSignupState());
+        }
+      ///Signing in
+      if(user != null && isSignin)
+        {
+          signInGoogle = true;
 
+          UserData = Supabase.instance.client.auth.currentSession?.user;
+          userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+
+          if(UserData != null) {
+            presetBeforeSignin(context);
+            if (categories.isEmpty) {
+              await loadCompounds();
+            }
+            final compoundId = await supabase.from('user_apartments').select('compound_id').eq('user_id', Userid).single();
+            selectedCompoundId ??= compoundId['compound_id'];
+            debugPrint('Compoundid returned : $selectedCompoundId');
+            if(MyCompounds.length ==1){
+              final compound = categories.expand((cat) => cat.compounds).firstWhere((compound)=>compound.id == selectedCompoundId);
+              debugPrint('Compoundid returned : ${compound.name}');
+              MyCompounds = {
+                '0': "Add New Community",
+                selectedCompoundId.toString(): compound.name.toString()
+              };
+            }
+            await loadCompoundMembers(selectedCompoundId!);
+            await getPostsData(selectedCompoundId);
+            signupGoogleEmail = null;
+            signupGoogleUserName = null;
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PresenceManager(child: MainScreen()),
+              ),
+            );
+          }
         }
 
-
-      // optional: set any local state (Userid, UserData, etc.)
-      // Userid = user?.id ?? Userid;
-
-      emit(GoogleSignupState());
     } catch (e, st) {
       debugPrint('Supabase Google auth error: $e\n$st');
     }
   }
-  void googleSignin()async{
-    if (googleUser == null) {
-      final user = await driveService.signIn();
-      if (user != null) {
-        googleUser = user;
-      }
-    } else {
-      await driveService.signOut();
-      googleUser = null;
-    }
-    emit(GoogleSigninStates());
-  }
-
-  void continueGoogleRegistration( context , String fullName , int roleId , String buildingName , String apartmentNum ,OwnerTypes ownerType , String phoneNumber) async {
+  void continueGoogleRegistration( context , String fullName , int roleId , String buildingName , String apartmentNum ,OwnerTypes ownerType , String phoneNumber , String userName) async {
     await supabase.from('profiles').update({
       'full_name':fullName,
+      'display_name': userName,
       'owner_type': ownerType.name,
       'phone_number' : phoneNumber
     }
@@ -365,13 +353,13 @@ class AppCubit extends Cubit<AppCubitStates> {
         debugPrint(
           buildingId.toString());
 
-        final pictureUrl = await supabase.from('compounds').select('picture_url').eq('id', selectedCompoundId!).single();
+
         await supabase.from('channels').upsert({
           'name':'Building $buildingName Chat',
           'type': 'BUILDING_CHAT',
           'compound_id': selectedCompoundId,
           'building_id' : buildingId,
-          'picture_url' : pictureUrl
+
         },
             onConflict: 'compound_id , building_id , type'
         );
@@ -384,20 +372,84 @@ class AppCubit extends Cubit<AppCubitStates> {
 
 
     }
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) {
-        getPostsData(selectedCompoundId);
-        loadCompoundMembers(selectedCompoundId!);
-        UserData = Supabase.instance.client.auth.currentSession?.user;
-        userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
-        // verificationFilesUpload();
-        signupGoogleEmail = null;
-        return PresenceManager(child: MainScreen());
-      }),
-          (route) => false,
-    );
+
+
+    UserData = Supabase.instance.client.auth.currentSession?.user;
+    userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+    signupGoogleEmail = null;
+    signupGoogleUserName = null;
+    if(UserData != null) {
+
+      await loadCompoundMembers(selectedCompoundId!);
+      await getPostsData(selectedCompoundId);
+      await verificationFilesUpload();
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PresenceManager(child: MainScreen()),
+        ),
+      );
+    }
 
   }
+
+  void googleSignin()async{
+    if (googleUser == null) {
+      final user = await driveService.signIn();
+      if (user != null) {
+        googleUser = user;
+      }
+    } else {
+      await driveService.signOut();
+      googleUser = null;
+    }
+    emit(GoogleSigninStates());
+  }
+
+  Future<void> signOut() async {
+    signInGoogle = false;
+    final int existingIndex = prevSignIn.indexWhere(
+            (m) => m.containsKey(Userid));
+    final newValue = {
+      "googleUser": googleUser?.email,
+      "compoundIndex": selectedCompoundId,
+      "MyCompounds" : MyCompounds,
+    };
+
+    if (existingIndex != -1){
+      prevSignIn[existingIndex][Userid] = newValue;
+    } else {
+      prevSignIn.add({
+        Userid: newValue,
+      });
+    }
+
+    await CacheHelper.saveData(key: "prevSignIn", value: json.encode(prevSignIn));
+    try {
+      // 1. Perform the asynchronous sign-out from Supabase.
+      await supabase.auth.signOut();
+
+      // 2. Clear any local user data.
+      UserData = null;
+
+
+      // 3. Emit a new state to notify the UI that sign-out is complete.
+      emit(AppSignOutSuccessState()); // You'll need to create this state
+    } catch (error) {
+      // Handle potential errors during sign-out
+      debugPrint('Error signing out: $error');
+    }
+  }
+
+  Future<void> resetUserData() async {
+    selectedCompoundId = null;
+    await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
+    googleUser = null; // Also clear the googleUser if you have one
+    MyCompounds = {'0': "Add New Community"};
+    await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
+  }
+
 
 
   Future<void> loadCompounds () async {
@@ -444,7 +496,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   Future<void> uploadVoiceNote(File soundFile, Duration duration , List<double> amplitudes , int compoundId) async {
     // 1. Instantiate your Google Drive service
     final googleDriveService = GoogleDriveService();
-    int? _channelId;
+
     final localId = const Uuid().v4(); // Unique ID for our placeholder
     // TODO: Consider showing a loading indicator to the user here
 
@@ -464,14 +516,14 @@ class AppCubit extends Cubit<AppCubitStates> {
     );
 
     chatController?.insertMessage(placeholderMessage);
-    final response = await supabase
-        .from('channels')
-        .select('id')
-        .eq('compound_id',compoundId) // Use the passed-in compoundId
-        .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
-        .single(); // Assuming one general channel per compound
-
-      _channelId = response['id'];
+    // final response = await supabase
+    //     .from('channels')
+    //     .select('id')
+    //     .eq('compound_id',compoundId) // Use the passed-in compoundId
+    //     .eq('type', 'COMPOUND_GENERAL') // As defined in the schema
+    //     .single(); // Assuming one general channel per compound
+    //
+    //   _channelId = response['id'];
       emit(GetPostsDataStates());
     // Ensure the user is signed in to Google Drive
     if (googleDriveService.currentUser == null) {
@@ -510,7 +562,7 @@ class AppCubit extends Cubit<AppCubitStates> {
         'author_id': Userid, // Assuming Userid is accessible here
         'uri': gumleturl, // The public link from Google Drive
         'created_at': (await NTP.now()).toUtc().toIso8601String(),
-        'channel_id': _channelId,
+        'channel_id': channelId,
         'metadata': {
           'type': 'audio',
           'name': fileName,
@@ -564,8 +616,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
     final reportId = newReport['id'];
 
-    if(files != null || files!.isNotEmpty){
-
+    if(files != null ){
       for (final xfile in files) {
         final bytes = await xfile.readAsBytes();
         final image = await decodeImageFromList(bytes);
@@ -754,6 +805,19 @@ class AppCubit extends Cubit<AppCubitStates> {
     }
     emit(GetPostsDataStates());
   }
+  Future<void> postNewComment (int compoundId , String postId , int postIndex , TextEditingController newComment) async {
+    // await supabase.from('Posts').select('Comments').eq('compound_id', compoundId).eq('id',postId).single();
+    List newComments= [];
+    newComments=Posts[postIndex]['Comments']?? [];
+    newComments.add({
+      'author_id':Userid,
+      'comment':newComment.text,});
+    debugPrint(newComments.toString());
+    await supabase.from('Posts').update({
+      'Comments':newComments
+    }).eq('id',postId);
+    emit(UpdatePostCommentsState());
+  }
 
 
   ///BrainStorming
@@ -782,7 +846,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     if (isNext) controller.nextPage();
     emit(ChangeCarsolePageState());
   }
-  Future<void> createNewBrainStorm (String title , List<XFile>? image , options )async {
+  Future<void> createNewBrainStorm (String title , List<XFile>? image , options , int channelId )async {
     final now = await NTP.now();
     final nowUtc = now.toUtc();
 
@@ -822,6 +886,7 @@ class AppCubit extends Cubit<AppCubitStates> {
         'author_id' : Userid,
         'created_at' : nowUtc.toIso8601String(),
         'compound_id' : selectedCompoundId,
+        'channel_id' : channelId,
         'Title' : title,
         'Image' : imageSources,
         'Options' : options,
@@ -844,9 +909,9 @@ class AppCubit extends Cubit<AppCubitStates> {
     }
   }
 
-  Future<void> getBrainStormData() async{
+  Future<void> getBrainStormData(int channelId) async{
     try{
-      brainStormData = await supabase.from("BrainStorming").select('*').eq('compound_id',selectedCompoundId!);
+      brainStormData = await supabase.from("BrainStorming").select('*').eq('compound_id',selectedCompoundId!).eq('channel_id',channelId);
       previousOptionId =
       List<String?>.filled(brainStormData.length, null, growable: true);
       optionVoterIds = List<Map<String, List<String>>>.generate(
