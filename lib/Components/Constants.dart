@@ -11,6 +11,7 @@ import 'package:hexcolor/hexcolor.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
 import '../Layout/chatWidget/MessageWidget.dart';
 import '../Network/CacheHelper.dart';
@@ -39,6 +40,10 @@ Future<void> loadCachedData () async{
 }
 
 Future<void> presetBeforeSignin(context) async {
+  final cubit = AppCubit.get(context);
+  if (categories.isEmpty) {
+    await cubit.loadCompounds();
+  }
   if(prevSignIn.isNotEmpty)
     {
       final int existingIndex = prevSignIn.indexWhere(
@@ -60,7 +65,31 @@ Future<void> presetBeforeSignin(context) async {
         MyCompounds =(userData['MyCompounds'] as Map?)!.cast<String, dynamic>();
 
       }
+    } else {
+
+    if(selectedCompoundId ==null ){
+
+      final compoundId =await supabase.from('user_apartments').select('compound_id').eq('user_id', Userid).single();
+      selectedCompoundId =compoundId['compound_id'];
     }
+
+    debugPrint('Compoundid returned : $selectedCompoundId');
+    debugPrint('MyCompounds : ${MyCompounds.length}');
+    if(MyCompounds.length ==1){
+      final compound = categories.expand((cat) => cat.compounds).firstWhere((compound)=>compound.id == selectedCompoundId);
+      debugPrint('Compoundid returned : ${compound.name}');
+      MyCompounds = {
+        '0': "Add New Community",
+        selectedCompoundId.toString(): compound.name.toString()
+      };
+    }
+
+  }
+  // 3\) Load members, posts, etc.
+  await cubit.loadCompoundMembers(selectedCompoundId!);
+  await cubit.getPostsData(selectedCompoundId);
+
+  userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
 }
 
 Future<void> requestPermission() async {

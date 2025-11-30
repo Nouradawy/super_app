@@ -54,6 +54,7 @@
   "uploadPhotos" : "Upload Photos",
   "emptyPhotos" : "No photos uploaded",
   "uploadPhotosLabel" : "Tap to upload photos of the issue",
+  "uploadPhotosPosts" : "Tap to upload photos",
   "uploadPhotosVerFiles" : "Tap to upload photos for verification",
   "upload" : "Upload",
   "reportSubmission" : "Submit Report",

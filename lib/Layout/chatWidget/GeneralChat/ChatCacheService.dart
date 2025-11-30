@@ -96,6 +96,7 @@ class ChatCacheService {
       types.InMemoryChatController chatController,
       ReactionsController reactionsController,
       ) {
+
     for (final msg in chatController.messages) {
       final meta = msg.metadata;
       if (meta == null) continue;

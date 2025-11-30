@@ -31,6 +31,7 @@ class MessageRowWrapper extends StatelessWidget {
 
   // NEW: notify parent about visibility for sticky header computation
   final void Function(String messageId, int index, double visibleFraction, DateTime? createdAt) onVisibilityForHeader;
+  final bool isUserScrolling;
 
   const MessageRowWrapper({
     super.key,
@@ -50,6 +51,7 @@ class MessageRowWrapper extends StatelessWidget {
     required this.localMessages,
     required this.showDateHeaders,
     required this.currentUserId,
+    required this.isUserScrolling
   });
 
   @override
@@ -330,26 +332,35 @@ class MessageRowWrapper extends StatelessWidget {
         }
       },
        onReactionAdded: (String emoji) async{
-         message.metadata!["reactions"].forEach((localEmoji,usersRaw){
-           if (localEmoji == null || usersRaw is! Map) return;
-           usersRaw.forEach((uid,val) async {
-             final isTrue = val == true || val ==1 || val == 'true';
-             if(!isTrue){
-               await _updateMessageReactions(
-               emoji: emoji,
-               isAdding: false,
-               currentUserId: currentUserId,
-               );
-             } else {
-               await _updateMessageReactions(
-               emoji: emoji,
-               replaceEmoji: localEmoji,
-               isAdding: true,
-               currentUserId: currentUserId,
-               );
-             }
+         if (message.metadata == null || message.metadata!['reactions'] == null ||message.metadata!['reactions'].isEmpty ) {
+           await _updateMessageReactions(
+             emoji: emoji,
+             isAdding: true,
+             currentUserId: currentUserId,
+           );
+         } else {
+           message.metadata!["reactions"].forEach((localEmoji,usersRaw){
+             if (localEmoji == null || usersRaw is! Map) return;
+             usersRaw.forEach((uid,val) async {
+               final isTrue = val == true || val ==1 || val == 'true';
+               if(!isTrue){
+                 await _updateMessageReactions(
+                   emoji: emoji,
+                   isAdding: false,
+                   currentUserId: currentUserId,
+                 );
+               } else {
+                 await _updateMessageReactions(
+                   emoji: emoji,
+                   replaceEmoji: localEmoji,
+                   isAdding: true,
+                   currentUserId: currentUserId,
+                 );
+               }
+             });
            });
-         });
+         }
+
        },
        onReactionRemoved: (String emoji) async{
          await _updateMessageReactions(
@@ -369,6 +380,7 @@ class MessageRowWrapper extends StatelessWidget {
         isSentByMe: isSentByMe,
         fileId: fileId,
         localMessages: localMessages,
+        isUserScroll: isUserScrolling,
       ),
     );
 
@@ -396,10 +408,11 @@ class MessageRowWrapper extends StatelessWidget {
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (showHeader && createdAt != null) ...[
             DateHeader(date: createdAt),
-            const SizedBox(height: 8),
+            const SizedBox(height: 11),
           ],
 
           Row(
@@ -434,21 +447,18 @@ class DateHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(800),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            _label(date.toLocal()),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(800),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          _label(date.toLocal()),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
           ),
         ),
       ),

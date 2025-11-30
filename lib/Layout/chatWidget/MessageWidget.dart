@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ class MessageWidget extends StatelessWidget {
     required this.isSentByMe,
     required this.isPreviousMessageFromSameUser,
     required this.localMessages,
+    required this.isUserScroll
 
 
 
@@ -42,6 +44,7 @@ class MessageWidget extends StatelessWidget {
   final bool isSentByMe;
   final bool isPreviousMessageFromSameUser;
   final List<types.Message> localMessages;
+  final bool isUserScroll;
 
   @override
   Widget build(BuildContext context) {
@@ -227,11 +230,11 @@ class MessageWidget extends StatelessWidget {
                          Text(repliedUser.name!),
                       ],
                     ),
-                    widgetByType(msgTextColor, repliedMessage ,repliedMessage is ImageMessage?extractDriveFileId(repliedMessage.source):null , isReply: true),
+                    widgetByType(msgTextColor, repliedMessage ,repliedMessage is ImageMessage?extractDriveFileId(repliedMessage.source):null ,isUserScroll, isReply: true),
                   ],
                 ),
                                 ),
-                widgetByType(msgTextColor, message ,fileId),
+                widgetByType(msgTextColor, message ,fileId , isUserScroll),
                 const SizedBox(height: 3),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -255,7 +258,7 @@ class MessageWidget extends StatelessWidget {
       ),
     );
   }
-Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId ,
+Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId , bool isUserScroll,
     {bool isReply = false}){
   final meta = message.metadata ?? {};
   if (message.metadata?['type'] == 'poll') {
@@ -265,7 +268,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: _pollMessageWidget(message, meta));
+        child: _pollMessageWidget(message, meta , isUserScroll));
   }
   msgTextColor = isReply ? Colors.black : msgTextColor;
 
@@ -503,7 +506,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
     }
   }
 
-  Widget _pollMessageWidget(types.Message message, Map<String, dynamic> meta) {
+  Widget _pollMessageWidget(types.Message message, Map<String, dynamic> meta , bool isUserScroll) {
     final effectiveMeta = Map<String, dynamic>.from(message.metadata ?? const {});
     final currentUserId = supabase.auth.currentUser?.id;
     final question = effectiveMeta['question']?.toString() ?? '';
@@ -612,6 +615,7 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
         return FlutterPolls(
           pollId: message.id,
           createdBy: message.authorId,
+          voteAnimation: !isUserScroll,
           allowToggleVote:true,
           pollProgressbarHeight: 5,
           hasVoted: userVotedOptionId != null,

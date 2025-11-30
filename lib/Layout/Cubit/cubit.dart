@@ -286,22 +286,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
           if(UserData != null) {
             presetBeforeSignin(context);
-            if (categories.isEmpty) {
-              await loadCompounds();
-            }
-            final compoundId = await supabase.from('user_apartments').select('compound_id').eq('user_id', Userid).single();
-            selectedCompoundId ??= compoundId['compound_id'];
-            debugPrint('Compoundid returned : $selectedCompoundId');
-            if(MyCompounds.length ==1){
-              final compound = categories.expand((cat) => cat.compounds).firstWhere((compound)=>compound.id == selectedCompoundId);
-              debugPrint('Compoundid returned : ${compound.name}');
-              MyCompounds = {
-                '0': "Add New Community",
-                selectedCompoundId.toString(): compound.name.toString()
-              };
-            }
-            await loadCompoundMembers(selectedCompoundId!);
-            await getPostsData(selectedCompoundId);
+
             signupGoogleEmail = null;
             signupGoogleUserName = null;
 

@@ -168,6 +168,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get uploadPhotosLabel => 'Tap to upload photos of the issue';
 
   @override
+  String get uploadPhotosPosts => 'Tap to upload photos';
+
+  @override
   String get uploadPhotosVerFiles => 'Tap to upload photos for verification';
 
   @override

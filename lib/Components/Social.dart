@@ -4,6 +4,7 @@ import 'package:WhatsUnity/Layout/Cubit/states.dart';
 import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:condition_builder/condition_builder.dart';
+import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,8 +22,6 @@ import '../Layout/chatWidget/MessageWidget.dart';
 import '../Services/DriveImageWidget.dart';
 import 'Constants.dart';
 
-
-bool Mounted =false;
 class Social extends StatelessWidget {
 
   TextEditingController postHead = TextEditingController();
@@ -44,7 +43,7 @@ class Social extends StatelessWidget {
           child: TabBarView(
             physics:LessSensitivePageScrollPhysics() ,
             children: [
-              ConditionBuilder<dynamic>.on(()=> currentUser?.userState == UserState.approved , ()=>RefreshIndicator(
+              RefreshIndicator(
                 onRefresh: () => AppCubit.get(context).getPostsData(selectedCompoundId!),
                 child: Column(
                   children: [
@@ -100,66 +99,74 @@ class Social extends StatelessWidget {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Container(
-                                width: MediaQuery.sizeOf(context).width * 0.95,
-                                margin: EdgeInsets.only(top: 20),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(8),
-                                    topRight: Radius.circular(8),
-                                  ),
-                                  color: context.txt.socialBackgroundColor,
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsets.only(
-                                    left: 10,
-                                    top: 10,
-                                    bottom: 5,
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      ///TODO:Fetch data from sublease
-                                      Row(
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: MediaQuery.sizeOf(context).width * 0.95,
+                                    margin: EdgeInsets.only(top: 20),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(8),
+                                        topRight: Radius.circular(8),
+                                      ),
+                                      color: context.txt.socialBackgroundColor,
+                                    ),
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        left: 10,
+                                        top: 10,
+                                        bottom: 5,
+                                      ),
+                                      child: Column(
                                         children: [
-                                          CircleAvatar(
-                                            radius: 16,
-                                            backgroundColor: Colors.grey.shade200,
-                                            backgroundImage: postUser.avatarUrl != null ? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                                          ),
-
-                                          SizedBox(width: 10),
-                                          Column(
-                                            crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                          ///TODO:Fetch data from sublease
+                                          Row(
                                             children: [
-                                              Text(
-                                                  postUser.displayName,
-                                                  style:context.txt.socialUserName
+                                              CircleAvatar(
+                                                radius: 16,
+                                                backgroundColor: Colors.grey.shade200,
+                                                backgroundImage: postUser.avatarUrl != null ? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                                               ),
-                                              Text(
-                                                  formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
-                                                  style:context.txt.socialPostSince
+
+                                              SizedBox(width: 10),
+                                              Column(
+                                                crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                      postUser.displayName,
+                                                      style:context.txt.socialUserName
+                                                  ),
+                                                  Text(
+                                                      formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
+                                                      style:context.txt.socialPostSince
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
+                                          const SizedBox(height: 5),
+                                          Align(
+                                            alignment: AlignmentDirectional.topStart,
+                                            child: Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                              ),
+                                              child: Text(
+                                                  cubit.Posts[index]["post_head"],
+                                                  style: context.txt.socialPostHead
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                      const SizedBox(height: 5),
-                                      Align(
-                                        alignment: AlignmentDirectional.topStart,
-                                        child: Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                          ),
-                                          child: Text(
-                                              cubit.Posts[index]["post_head"],
-                                              style: context.txt.socialPostHead
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                  Positioned(
+                                      right:15,
+                                      top:28,
+                                      child: Icon(Icons.more_horiz)),
+                                ],
                               ),
                               SizedBox(
                                 width: MediaQuery.sizeOf(context).width*0.95,
@@ -284,9 +291,7 @@ class Social extends StatelessWidget {
                     ),
                   ],
                 ),
-              )).
-                  on(()=>currentUser?.userState == UserState.New , ()=>Container(child: Text("your account state is ${UserState.New.name}"),)).
-              build(orElse:()=>Text("your account isn't active yet")),
+              ),
               GeneralChat(compoundId: selectedCompoundId!, channelName: 'COMPOUND_GENERAL'),
             ],
           ),
@@ -299,7 +304,7 @@ class Social extends StatelessWidget {
       BuildContext context,
       TextEditingController postHead,
   ) async {
-    bool postProgressBar = false;
+    bool postingInProgress = false;
     return showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -320,19 +325,16 @@ class Social extends StatelessWidget {
                     Divider(thickness: 0.5),
                     Row(
                       children: [
-                        Container(
-                          height: 35,
-                          width: 35,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: SvgPicture.asset("assets/person.svg"),
+
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
                         ),
 
                         SizedBox(width: 10),
                         Text(
-                            UserData?.userMetadata?["display_name"] ?? "Guest",
+                            currentUser?.displayName ?? "Guest",
                             style: context.txt.socialUserName
                         ),
                       ],
@@ -345,41 +347,93 @@ class Social extends StatelessWidget {
                       hintText: context.loc.statusButton,
                     ),
 
-                    Stack(
-                      alignment: AlignmentDirectional.topEnd,
-                      children: [
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount:
-                                    2, // Number of columns in the grid
-                                crossAxisSpacing:
-                                    8.0, // Spacing between columns
-                                mainAxisSpacing: 8.0, // Spacing between rows
+                    Padding(
+                      padding: const EdgeInsets.only(top:8.0),
+                      child: Stack(
+                        alignment: AlignmentDirectional.topEnd,
+                        children: [
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                              2, // Number of columns in the grid
+                              crossAxisSpacing:
+                              8.0, // Spacing between columns
+                              mainAxisSpacing: 8.0, // Spacing between rows
+                            ),
+                            itemCount: file?.length ?? 0,
+                            itemBuilder: (context, index) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(file![index].path),
+                                  fit: BoxFit.cover,
+                                ),
+                              );
+                            },
+                          ),
+                          file != null
+                              ? IconButton(
+                            onPressed: () {
+                              file = null;
+                              setStateOfDialog(() {});
+                            },
+                            icon: Icon(Icons.close),
+                          )
+                              : DottedBorder(
+                            options: RoundedRectDottedBorderOptions(
+                              radius: Radius.circular(8),
+                              strokeWidth: 2,
+                              color: Colors.grey.shade400,
+                              dashPattern: [5],
+                            ),
+                            child: Container(
+                              alignment: AlignmentDirectional.center,
+                              height: MediaQuery.sizeOf(context).height*0.2,
+                              width: MediaQuery.sizeOf(context).width*0.8,
+                              decoration: BoxDecoration(
+
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                          itemCount: file?.length ?? 0,
-                          itemBuilder: (context, index) {
-                            return ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(file![index].path),
-                                fit: BoxFit.cover,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                                  Text(context.loc.uploadPhotosPosts,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+                                  MaterialButton(
+                                    onPressed: () async{
+                                      List<XFile>? result = await ImagePicker()
+                                          .pickMultiImage(
+                                        imageQuality: 70,
+                                        maxWidth: 1440,
+                                      );
+
+                                      if (result.isEmpty) return;
+
+                                      file = result;
+                                      setStateOfDialog(() {});
+                                    },
+                                    color:HexColor("f0f2f5"),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(18.0),
+                                    ),
+                                    child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
+
+                                  ),
+
+
+                                ],
                               ),
-                            );
-                          },
-                        ),
-                        file != null
-                            ? IconButton(
-                              onPressed: () {},
-                              icon: Icon(Icons.close),
-                            )
-                            : SizedBox.shrink(),
-                      ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    getCalls == true
-                        ? Row(
+                    if(getCalls == true)  Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Column(
@@ -409,76 +463,73 @@ class Social extends StatelessWidget {
                               ),
                             ),
                           ],
-                        )
-                        : SizedBox.shrink(),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: MediaQuery.sizeOf(context).width * 0.50,
-                          child: Text(
-                            "Add to your post",
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w400,
+                        ),
+
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 5.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: MediaQuery.sizeOf(context).width * 0.50,
+                            child: Text(
+                              "Add to your post",
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.black,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () async {
-                            List<XFile>? result = await ImagePicker()
-                                .pickMultiImage(
-                                  imageQuality: 70,
-                                  maxWidth: 1440,
-                                );
+                          IconButton(
+                            onPressed: () {
+                              getCalls = true;
+                              setStateOfDialog(() {});
+                            },
+                            icon: Icon(Icons.phone),
+                            splashRadius: 10,
+                          ),
 
-                            if (result.isEmpty) return;
-
-                            file = result;
-                            setStateOfDialog(() {});
-                          },
-                          icon: Icon(Icons.photo_album),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            getCalls = true;
-                            setStateOfDialog(() {});
-                          },
-                          icon: Icon(Icons.phone),
-                          splashRadius: 10,
-                        ),
-
-                        // Icon(Icons.pin_drop),
-                      ],
+                          // Icon(Icons.pin_drop),
+                        ],
+                      ),
                     ),
+
                     MaterialButton(
-                      onPressed: () async {
-                        postProgressBar = true;
+                      onPressed: postingInProgress
+                          ? null
+                          : () async {
+                        postingInProgress = true;
                         setStateOfDialog((){ });
 
                         await AppCubit.get(context).fetchPostsData(postHead.text, getCalls, null, file, selectedCompoundId!);
 
-                        postProgressBar = false;
+                        postingInProgress = false;
                         setStateOfDialog((){ });
                         Navigator.pop(context);
 
                       },
                       color: Colors.blue,
+                      disabledColor: Colors.blue.withAlpha(200),
                       elevation: 0,
                       minWidth: double.infinity,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18.0),
+                        borderRadius: BorderRadius.circular(15.0),
                       ),
-                      child: Text(
-                        "Post",
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 8,
+                        children: [
+                          Text(
+                            "Post",
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if(postingInProgress) SizedBox( height: 30 , width: 30,child: CircularProgressIndicator()),
+                        ],
                       ),
                     ),
-                    postProgressBar == true
-                        ? LinearProgressIndicator()
-                        : SizedBox.shrink(),
                   ],
                 ),
               ),

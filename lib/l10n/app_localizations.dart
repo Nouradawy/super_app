@@ -410,6 +410,12 @@ abstract class AppLocalizations {
   /// **'Tap to upload photos of the issue'**
   String get uploadPhotosLabel;
 
+  /// No description provided for @uploadPhotosPosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to upload photos'**
+  String get uploadPhotosPosts;
+
   /// No description provided for @uploadPhotosVerFiles.
   ///
   /// In en, this message translates to:

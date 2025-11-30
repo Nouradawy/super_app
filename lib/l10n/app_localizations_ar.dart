@@ -167,6 +167,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get uploadPhotosLabel => 'اضغط هنا عشان ترفع صور للمشكلة';
 
   @override
+  String get uploadPhotosPosts => 'اضغط هنا عشان ترفع صور';
+
+  @override
   String get uploadPhotosVerFiles => 'اضغط هنا عشان ترفع صور للتحقق';
 
   @override

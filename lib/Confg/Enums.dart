@@ -6,6 +6,7 @@ enum UserState{
   onConflict,
   banned
 }
+enum AuthStatus { unknown, authenticated, unauthenticated }
 enum Roles {user,manager,admin ,developer}
 enum OwnerTypes {owner,rental}
 enum Storage {googleDrive,superbaseStorage,both}

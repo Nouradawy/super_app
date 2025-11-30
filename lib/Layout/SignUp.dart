@@ -719,7 +719,6 @@ Container submitButton( BuildContext buildContext ,context , TextEditingControll
 
         if (UserData != null) {
           presetBeforeSignin(context);
-          AppCubit.get(context).getPostsData(selectedCompoundId);
           AppCubit.get(context).signInSwitcher();
           Navigator.pushReplacement(
             context,

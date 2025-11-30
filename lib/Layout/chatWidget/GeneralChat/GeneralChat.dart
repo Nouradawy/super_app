@@ -265,6 +265,7 @@ class _GeneralChatState extends State<GeneralChat> {
       final ChatMember? member =
       hasMember ? ChatMembers.firstWhere((member) => member.id.trim() == userId) : null;
       final buildingNo = member?.building;
+      debugPrint(buildingNo);
 
       var query = supabase
             .from('channels')
@@ -301,9 +302,10 @@ class _GeneralChatState extends State<GeneralChat> {
     _addOrUpdateMessages(cachedMessages);
     await _loadMessages();
     //rebuild ReactionsController state from metadata
+
     _cacheService.hydrateReactionsFromMessages(_chatController, _reactionsController);
     ///TODO: fix bloc-observer corresponding index cannot be found
-    await _scrollToInitialSeen();
+    // await _scrollToInitialSeen();
 
   }
 
@@ -348,6 +350,7 @@ class _GeneralChatState extends State<GeneralChat> {
       onUpdate: (payload) {
         _addOrUpdateMessages([mapToMessage(payload)]);
         //rebuild ReactionsController state from metadata
+        _reactionsController.clearReactions(mapToMessage(payload).id);
         _cacheService.hydrateReactionsFromMessages(_chatController, _reactionsController);
 
       },
@@ -395,6 +398,8 @@ class _GeneralChatState extends State<GeneralChat> {
   }
 
   void _handleSendPressed(String text) {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
     _chatService.sendTextMessage(
       text: text,
       channelId: channelId!,
@@ -945,6 +950,7 @@ class _GeneralChatState extends State<GeneralChat> {
       localMessages: _messages,
       showDateHeaders: _isUserScrolling,
       currentUserId: _userId,
+      isUserScrolling: _isUserScrolling,
     );
   }
 
@@ -1044,14 +1050,15 @@ class _GeneralChatState extends State<GeneralChat> {
                      _messageBuilder(context, message, index, isSentByMe: isSentByMe),
                  customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
                      _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                 systemMessageBuilder: (context, message, index, {
-                   required bool isSentByMe,
-                   types.MessageGroupStatus? groupStatus,
-                 }) => FlyerChatSystemMessage(message: message, index: index),
-
+                 // systemMessageBuilder: (context, message, index, {
+                 //   required bool isSentByMe,
+                 //   types.MessageGroupStatus? groupStatus,
+                 // }) => FlyerChatSystemMessage(message: message, index: index),
+             
                  chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
                    itemBuilder: itemBuilder,
                    initialScrollToEndMode: InitialScrollToEndMode.none,
+             
                  ),
                  composerBuilder: (context) {
                    return BlocBuilder<AppCubit, AppCubitStates>(

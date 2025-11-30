@@ -45,7 +45,6 @@ class Profile extends StatelessWidget {
           appBar: AppBar(
             backgroundColor: Colors.white,
             title: Text("Profile",style: GoogleFonts.plusJakartaSans(),),
-            actions:[Icon(Icons.settings)],
           ),
           body:SingleChildScrollView(
             child: Container(
