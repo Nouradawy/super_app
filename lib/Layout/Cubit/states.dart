@@ -37,3 +37,4 @@ class addIndexState extends AppCubitStates{}
 class BrainStormVoteUpdated extends AppCubitStates{}
 class GoogleSignupState extends AppCubitStates{}
 class UpdatePostCommentsState extends AppCubitStates{}
+class FormValidationState extends AppCubitStates{}

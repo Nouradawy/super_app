@@ -493,6 +493,8 @@ Widget defaultTextForm(
       String? hintText,
       String? labelText,
       bool IsPassword = false,
+      FormFieldValidator<String>?  validation,
+      AutovalidateMode? autoValidation,
       IconData? SuffixIcon,
       IconData? preIcon,
       Function(String)? onChanged,
@@ -505,6 +507,8 @@ Widget defaultTextForm(
   return TextFormField(
     onChanged: onChanged,
   controller: controller,
+  validator: validation,
+  autovalidateMode: autoValidation,
   keyboardType:keyboardType,
   obscureText:IsPassword,
   decoration:InputDecoration(

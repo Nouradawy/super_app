@@ -76,16 +76,14 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get apartmentConflict1 =>
-      'هذه الشقة تم اضافتها من قبل , لو تعتقد ان هذا خطاء';
+      'هذه الشقة تم اضافتها من قبل ,تابع لحساب شخص أخر';
 
   @override
-  String get apartmentConflict2 => ' يرجى رفع اثبات الملكية';
+  String get apartmentConflict2 => 'برجاء رفع أثبات الملكية لاتمام التحقق';
 
   @override
-  String get apartmentConflict3 => 'برجاء الضغط هنا لاستكمال عملية التسجيل';
-
-  @override
-  String get apartmentConflict4 => 'لا يمكن استكمال التسجيل';
+  String get apartmentConflict3 =>
+      'لا يمكن أستتكمال التسجيل بدون أرفاق أثبات الملكية';
 
   @override
   String get maintenance => 'صيانة';

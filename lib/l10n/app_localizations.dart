@@ -233,26 +233,20 @@ abstract class AppLocalizations {
   /// No description provided for @apartmentConflict1.
   ///
   /// In en, this message translates to:
-  /// **'This apartment is already registered , if you believe there is error.'**
+  /// **'This apartment is already registered under someone else account.'**
   String get apartmentConflict1;
 
   /// No description provided for @apartmentConflict2.
   ///
   /// In en, this message translates to:
-  /// **'make sure you attach the proof of resident'**
+  /// **'make sure you attach the proof of resident , so we can investigate this'**
   String get apartmentConflict2;
 
   /// No description provided for @apartmentConflict3.
   ///
   /// In en, this message translates to:
-  /// **'click here to continue registration'**
-  String get apartmentConflict3;
-
-  /// No description provided for @apartmentConflict4.
-  ///
-  /// In en, this message translates to:
   /// **'we can\'t continue signup without uploading proof of resident'**
-  String get apartmentConflict4;
+  String get apartmentConflict3;
 
   /// No description provided for @maintenance.
   ///

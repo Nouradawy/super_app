@@ -115,6 +115,7 @@ class Profile extends StatelessWidget {
                                 Divider(height: 1,color: Colors.grey.shade200,),
 
                                 ListView.builder(
+                                  physics: NeverScrollableScrollPhysics(),
                                   shrinkWrap: true,
                                   itemBuilder: (context,index) {
                                     return MaterialButton(
@@ -178,6 +179,7 @@ class Profile extends StatelessWidget {
 
                                 ListView.builder(
                                   shrinkWrap: true,
+                                  physics: NeverScrollableScrollPhysics(),
                                   itemCount: preferences.length,
                                   itemBuilder: (context,index) {
                                     return MaterialButton(
@@ -240,6 +242,7 @@ class Profile extends StatelessWidget {
 
                                 ListView.builder(
                                   shrinkWrap: true,
+                                  physics: NeverScrollableScrollPhysics(),
                                   itemCount: support.length,
                                   itemBuilder: (context,index) {
                                     return MaterialButton(

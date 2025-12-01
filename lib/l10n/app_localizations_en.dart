@@ -76,16 +76,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get apartmentConflict1 =>
-      'This apartment is already registered , if you believe there is error.';
+      'This apartment is already registered under someone else account.';
 
   @override
-  String get apartmentConflict2 => 'make sure you attach the proof of resident';
+  String get apartmentConflict2 =>
+      'make sure you attach the proof of resident , so we can investigate this';
 
   @override
-  String get apartmentConflict3 => 'click here to continue registration';
-
-  @override
-  String get apartmentConflict4 =>
+  String get apartmentConflict3 =>
       'we can\'t continue signup without uploading proof of resident';
 
   @override

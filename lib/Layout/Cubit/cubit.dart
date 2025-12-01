@@ -44,17 +44,40 @@ class AppCubit extends Cubit<AppCubitStates> {
   /// used to Get Current TabBar (Chat - Social) Index at HomePage
   int  tabBarIndex =  0 ;
   bool isRecording = false;
+
+  bool signInToggler = false;
+
   List<double> recordedAmplitudes = [];
   List<type.Category> compoundSuggestions = categories;
   types.InMemoryChatController? chatController ;
 
   List<XFile>? verFiles;
-  bool signingIn = true;
+  bool signingIn = false;
 
   ///Posts
 
   int postsCarouselIndex = 0;
 
+  bool apartmentAlreadyRegisterd = false;
+
+  Future<void> apartmentAlreadyTaken({
+    required String compoundId,
+    required String buildingNum,
+    required String apartmentNum,
+
+  }) async {
+    final rows = await supabase
+        .from('user_apartments')
+        .select('user_id')
+        .eq('compound_id', compoundId)
+        .eq('building_num', buildingNum)
+        .eq('apartment_num', apartmentNum)
+        .limit(1);
+
+    apartmentAlreadyRegisterd =rows.isNotEmpty? true : false;
+    emit(FormValidationState());
+
+  }
 
   Map<String, dynamic> get currentPresence {
     final state = _presenceChannel?.presenceState();
@@ -222,6 +245,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   }
 
   void SignUpSignInToggle(){
+    signInToggler = !signInToggler;
     emit(SignUpSignIn_Toggle());
   }
 
