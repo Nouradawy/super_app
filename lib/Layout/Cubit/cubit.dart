@@ -24,7 +24,8 @@ import '../../Services//GoogleDriveService.dart';
 import '../../Services/PresenceManager.dart';
 import '../../Services/gumletService.dart';
 import '../MainScreen.dart';
-import '../chatWidget/Details/ChatMember.dart';
+
+
 
 class AppCubit extends Cubit<AppCubitStates> {
   AppCubit():super(AppInitialState());
@@ -36,7 +37,6 @@ class AppCubit extends Cubit<AppCubitStates> {
   int bottomNavIndex = 0;
   bool isPassword = true;
   Roles? roleName ;
-  bool apartmentConflict =false;
 
   IconData? suffixIcon = Icons.visibility;
   bool ActivateDropdown = false;
@@ -49,16 +49,19 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   List<double> recordedAmplitudes = [];
   List<type.Category> compoundSuggestions = categories;
-  types.InMemoryChatController? chatController ;
+  types.InMemoryChatController? chatController;
 
   List<XFile>? verFiles;
   bool signingIn = false;
 
-  ///Posts
+  ///---------------Posts---------------
 
   int postsCarouselIndex = 0;
 
-  bool apartmentAlreadyRegisterd = false;
+  ///---------------SignUp--------------
+  bool apartmentConflict = false;
+  bool conflictGuard = false;
+
 
   Future<void> apartmentAlreadyTaken({
     required String compoundId,
@@ -74,7 +77,13 @@ class AppCubit extends Cubit<AppCubitStates> {
         .eq('apartment_num', apartmentNum)
         .limit(1);
 
-    apartmentAlreadyRegisterd =rows.isNotEmpty? true : false;
+    if(rows.isNotEmpty) {
+      // conflictGuard  =true;
+      apartmentConflict =true;
+    }else {
+      // conflictGuard  = false;
+      apartmentConflict =  false;
+    }
     emit(FormValidationState());
 
   }
@@ -198,7 +207,7 @@ class AppCubit extends Cubit<AppCubitStates> {
       selectedCompoundId = compound.id;
       await CacheHelper.saveData(key: "compoundCurrentIndex", value: compound.id);
 
-      emit(CompoundIdChange());
+
       //TODO: Fixing on signup fetching compound posts here
       final result =await compute(fetchCompoundMembers,args);
       ChatMembers = result.members;
@@ -266,8 +275,10 @@ class AppCubit extends Cubit<AppCubitStates> {
   bool signInGoogle = false;
 
   Future<void> supabaseSignInWithGoogle({required BuildContext context , bool isSignin = false}) async {
+    await resetUserData();
 
     try {
+      await driveService.signOut();
       // 1) Ensure Google account
         final currentGoogle = await driveService.signIn();
         if (currentGoogle == null) {
@@ -295,7 +306,7 @@ class AppCubit extends Cubit<AppCubitStates> {
       /// Signup and continue Regsitration
       if(user != null && isSignin == false)
         {
-          resetUserData();
+
           signupGoogleEmail = user.email;
           signupGoogleUserName = googleUser?.displayName;
           emit(GoogleSignupState());
@@ -332,7 +343,8 @@ class AppCubit extends Cubit<AppCubitStates> {
       'full_name':fullName,
       'display_name': userName,
       'owner_type': ownerType.name,
-      'phone_number' : phoneNumber
+      'phone_number' : phoneNumber,
+      'userState' : UserState.New.name,
     }
     ).eq('id',Userid);
 
@@ -458,8 +470,6 @@ class AppCubit extends Cubit<AppCubitStates> {
     MyCompounds = {'0': "Add New Community"};
     await CacheHelper.saveData(key: "MyCompounds", value: json.encode(MyCompounds));
   }
-
-
 
   Future<void> loadCompounds () async {
     final args = SupabaseArgs(
@@ -607,6 +617,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     }
     emit(ExpandReportState());
   }
+
   Future<void> reportSubmit (String title , String description , String category, List<XFile>? files , MaintenanceReportType type ) async {
     final formattedCategory = category.isNotEmpty
         ? '${category[0].toUpperCase()}${category.substring(1)}'
@@ -689,7 +700,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   Future<void> verificationFilesUpload () async {
 
-    if(verFiles != null || verFiles!.isNotEmpty){
+    if(verFiles != null ){
 
       try{
         for (final xfile in verFiles!) {
@@ -904,6 +915,7 @@ class AppCubit extends Cubit<AppCubitStates> {
       debugPrint("Error during inserting at BrainStorming Table : ${error.toString()}");
     }
     imageSources.clear();
+    getBrainStormData(channelId);
     emit(CreateNewBrainStormState());
   }
 

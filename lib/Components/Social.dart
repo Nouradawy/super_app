@@ -553,7 +553,7 @@ class Social extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         final cubit = AppCubit.get(context);
-        bool isSending = false;
+        final isSending = ValueNotifier<bool>(false);
         return StatefulBuilder(
           builder: (context, setStateOfDialog) {
 
@@ -747,120 +747,8 @@ class Social extends StatelessWidget {
                         ),
                       ),
                       SizedBox(height: 10),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
 
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                          ),
-                          SizedBox(width: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                                color: Colors.black12,
-                                borderRadius: BorderRadius.circular(5)
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.sizeOf(context).width*0.64
-                                  ),
-                                  child: PostTextForm(
-                                    context,
-                                    controller: newComment,
-                                    keyboardType: TextInputType.text,
-                                    hintText: '${context.loc.commentAs} ${currentUser?.displayName}',
-                                  ),),
-                                ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxHeight: 28,
-                                  ),
-                                  child: IconButton(
-                                      onPressed: isSending == true
-                                          ? null 
-                                          : () async {
-                                        isSending = true;
-                                        setStateOfDialog((){
-
-                                        });
-
-                                        await cubit.postNewComment (selectedCompoundId! , cubit.Posts[index]['id'] , index , newComment);
-                                        isSending = false;
-                                        setStateOfDialog((){
-                                          
-                                        });
-
-                                      },
-                                      icon: Icon(Icons.send_rounded),
-                                      iconSize:15,
-                                    padding: EdgeInsets.zero,
-                                    constraints: BoxConstraints(),
-                                    splashRadius: 15,
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      ListView.builder(
-                        physics: NeverScrollableScrollPhysics(),
-                          padding:EdgeInsets.only(left:5),
-                        shrinkWrap: true,
-                          itemCount: (cubit.Posts[index]['Comments'] as List?  ?? []).length,
-                          itemBuilder: (context , commentIndex){
-                            final comments = (cubit.Posts[index]['Comments'] as List);
-                            final authorId = comments[commentIndex]['author_id']?.toString();
-
-                            final commentUser = ChatMembers.firstWhere(
-                                  (member) => member.id.trim() == authorId,
-                              orElse: () => ChatMember(
-                                id: authorId ?? 'unknown',
-                                displayName: 'Unknown',
-                                building: 'null',
-                                apartment: 'null',
-                                userState: UserState.banned,
-                                phoneNumber: '',
-                                ownerType: null,
-                              ),
-                            );
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 13,
-                                    backgroundColor: Colors.grey.shade200,
-                                    backgroundImage: commentUser.avatarUrl != null  ? NetworkImage(commentUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                                  ),
-                                  SizedBox(width: 9,),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(vertical: 2,horizontal: 11),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      color: Colors.black12,
-                                    ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(commentUser.displayName),
-                                      Text((AppCubit.get(context).Posts[index]['Comments'] as List)[commentIndex]['comment'].toString()),
-                                    ],
-                                  ),
-                                ),
-                              ],),
-                          );
-
-                          }
-                      ),
+                      commentsSection (context:context , cubit:cubit , index:index , newComment:newComment ,isSending:isSending , setStateOfDialog:setStateOfDialog),
                     ],
                   ),
                 ),
@@ -872,6 +760,8 @@ class Social extends StatelessWidget {
     );
   }
 }
+
+
 /// A custom scroll physics that makes the TabBarView more sensitive to swipes.
 class LessSensitivePageScrollPhysics extends PageScrollPhysics {
   const LessSensitivePageScrollPhysics({super.parent});

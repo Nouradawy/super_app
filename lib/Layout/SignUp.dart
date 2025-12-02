@@ -94,7 +94,7 @@ class SignUp extends StatelessWidget {
                           const SizedBox(height: 20),
                           if(AppCubit.get(context).signupGoogleEmail == null)
                           submitButton(context,context ,email , fullName , displayName, password ,buildingNum , apartmentNum ,phoneNumber , _formKey1 , _formKey2),
-                          signInProviders(context ,fullName ,buildingNum , apartmentNum ,phoneNumber ,displayName),
+                          signInProviders(context ,fullName ,buildingNum , apartmentNum ,phoneNumber ,displayName , _formKey1 , _formKey2),
                           SizedBox(height: 70,),
                         ],
                       ),
@@ -124,14 +124,14 @@ Future<void> newCompound(BuildContext context) {
         content: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.7,
           width: MediaQuery.sizeOf(context).width * 0.8,
-          child: JoinCommunity(),
+          child: JoinCommunity(atWelcome: true,),
         ),
       );
     },
   );
 }
 
-Column heading (BuildContext context ){
+Column heading (BuildContext context){
   return Column(
     children: [
       Text(
@@ -377,7 +377,7 @@ Form apartmentInfo (BuildContext context ,TextEditingController buildingNum ,
                 validation: (value){
                   if (value == null || value.trim().isEmpty) {
                     return "Apartment Number can't be Empty";
-                  } else if (AppCubit.get(context).apartmentAlreadyRegisterd){
+                  } else if (AppCubit.get(context).apartmentConflict){
                     return "Apartment already taken";
                   }
                   return null;
@@ -605,11 +605,11 @@ Column submitButton( BuildContext buildContext ,context ,
   return Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if((AppCubit.get(context).apartmentAlreadyRegisterd || AppCubit.get(context).verFiles==null)&& AppCubit.get(context).signingIn )...[
-        Text(buildContext.loc.apartmentConflict1),
-        Text(buildContext.loc.apartmentConflict2),
+      if(AppCubit.get(context).apartmentConflict || (AppCubit.get(context).verFiles==null && AppCubit.get(context).signingIn ))...[
+        Text(buildContext.loc.apartmentConflict1, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
+        Text(buildContext.loc.apartmentConflict2, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
         if(AppCubit.get(context).verFiles==null)
-        Text(buildContext.loc.apartmentConflict3, style: buildContext.txt.signSubtitle,)
+        Text(buildContext.loc.apartmentConflict3, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400))
       ],
 
       Container(
@@ -633,15 +633,18 @@ Column submitButton( BuildContext buildContext ,context ,
                 buildingNum: buildingNum.text,
                 apartmentNum: apartmentNum.text,
               );
-              if(_formKey1.currentState?.validate() ?? false) return;
-              if(_formKey2.currentState?.validate() ?? false) return;
-              AppCubit.get(context).signInSwitcher();
+              // 2) Validate forms; stop if either is invalid
+              final isForm1Valid = _formKey1.currentState?.validate() ?? false;
+              final isForm2Valid = _formKey2.currentState?.validate() ?? false;
+              if (!isForm1Valid || !isForm2Valid) {
+                return; // Do not continue to signup or toggle signing state
+              }
+
 
 
               final building = buildingNum.text.trim();
               final apartment = apartmentNum.text.trim();
               if ((selectedCompoundId == null) ||  (building.isEmpty || apartment.isEmpty) ) {
-                AppCubit.get(context).signInSwitcher();
                 if (!buildContext.mounted) return;
                 ScaffoldMessenger.of(buildContext)
                   ..hideCurrentSnackBar()
@@ -653,7 +656,7 @@ Column submitButton( BuildContext buildContext ,context ,
                   );
                 return;
               }
-
+              AppCubit.get(context).signInSwitcher();
 
               try {
                 await supabase.auth.signUp(
@@ -775,7 +778,7 @@ Column submitButton( BuildContext buildContext ,context ,
 
 Column signInProviders (BuildContext context ,TextEditingController fullName ,
     TextEditingController buildingNum , TextEditingController apartmentNum , TextEditingController phoneNumber ,
-    TextEditingController userName ){
+    TextEditingController userName , GlobalKey<FormState> _formKey1 , GlobalKey<FormState> _formKey2){
   return Column(
     children: [
       if(AppCubit.get(context).signupGoogleEmail == null)
@@ -790,14 +793,29 @@ Column signInProviders (BuildContext context ,TextEditingController fullName ,
         ),
         child: MaterialButton(
           height: 40,
-          onPressed: (){
+          onPressed: () async {
             if(AppCubit.get(context).signInToggler)
               {
                 AppCubit.get(context).supabaseSignInWithGoogle(context:context,isSignin: true);
               }
-            else if(AppCubit.get(context).signupGoogleEmail == null) {
+            else if(AppCubit.get(context).signupGoogleEmail == null ) {
+
               AppCubit.get(context).supabaseSignInWithGoogle(context:context);
             } else {
+
+
+              // 2) Validate forms; stop if either is invalid
+              final isForm1Valid = _formKey1.currentState?.validate() ?? false;
+              final isForm2Valid = _formKey2.currentState?.validate() ?? false;
+              if (!isForm1Valid || !isForm2Valid) {
+                return; // Do not continue to signup or toggle signing state
+              }
+              await AppCubit.get(context).apartmentAlreadyTaken(
+                compoundId: selectedCompoundId!.toString(),
+                buildingNum: buildingNum.text,
+                apartmentNum: apartmentNum.text,
+              );
+
               AppCubit.get(context).continueGoogleRegistration(context ,fullName.text , AppCubit.get(context).roleName!.index+1 ,buildingNum.text , apartmentNum.text ,AppCubit.get(context).ownerType , phoneNumber.text ,userName.text );
             }
 

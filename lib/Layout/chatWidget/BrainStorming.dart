@@ -42,6 +42,7 @@ class _BrainStormingState extends State<BrainStorming> {
     TextEditingController(),
     TextEditingController(),
   ];
+  TextEditingController newComment = TextEditingController();
 
   List<XFile>? file;
 
@@ -106,6 +107,7 @@ class _BrainStormingState extends State<BrainStorming> {
           physics:NeverScrollableScrollPhysics(),
           child: BlocBuilder<AppCubit,AppCubitStates>(
             builder: (context,states) {
+              final isSending = ValueNotifier<bool>(false);
               return Column(
                 children: [
 
@@ -119,7 +121,6 @@ class _BrainStormingState extends State<BrainStorming> {
                         children: [
                           CarouselSlider(
                             items: cubit.brainStormData.map<Widget>((item){
-
                               return KeyedSubtree(
                                 key:ValueKey('poll-slide-${item['id']}'),
                                 child: Column(
@@ -134,49 +135,54 @@ class _BrainStormingState extends State<BrainStorming> {
                                                 fileId: extractDriveFileId(image['uri'])!, driveService: driveService ,isRounded: false,)))
                                           .toList().first,
 
+                                    Padding(
+                                      padding: const EdgeInsets.only(top:18.0),
+                                      child: SizedBox(
+                                        width:MediaQuery.sizeOf(context).width*0.80,
+                                        child: FlutterPolls(
+                                          key: ValueKey('poll-widget-${item['id']}'),
+                                          pollId: item['id'],
+                                          createdBy: item['author_id'],
+                                          allowToggleVote: true,
+                                          pollProgressbarHeight: 5,
+                                          hasVoted: _hasUserVoted(item['Votes'], Userid),
+                                          userVotedOptionId:_userVotedOptionId(item['Votes'], Userid),
+                                          userToVote: Userid,
+                                          onVoted: (PollOption pollOption, int newTotalVotes) async{
+                                            try{
+                                              await cubit.handleBrainStormVote(pollOption , pollId: item['id']);
+                                              return true;
+                                            } catch(error){
+                                              return false;
+                                            }
 
-                                    SizedBox(
-                                      width:MediaQuery.sizeOf(context).width*0.80,
-                                      child: FlutterPolls(
-                                        key: ValueKey('poll-widget-${item['id']}'),
-                                        pollId: item['id'],
-                                        createdBy: item['author_id'],
-                                        allowToggleVote: true,
-                                        pollProgressbarHeight: 5,
-                                        hasVoted: _hasUserVoted(item['Votes'], Userid),
-                                        userVotedOptionId:_userVotedOptionId(item['Votes'], Userid),
-                                        userToVote: Userid,
-                                        onVoted: (PollOption pollOption, int newTotalVotes) async{
-                                          try{
-                                            await cubit.handleBrainStormVote(pollOption , pollId: item['id']);
-                                            return true;
-                                          } catch(error){
-                                            return false;
-                                          }
-
-                                        },
-                                        pollTitle: Text(item['Title'].toString()),
-                                        pollOptions: (item['Options'] as List).map<PollOption>((o) {
-                                          final m = Map<String, dynamic>.from(o as Map);
-                                          final votesRaw = m['votes'];
-                                          final votes = votesRaw is String
-                                              ? int.tryParse(votesRaw) ?? 0
-                                              : (votesRaw as num?)?.toInt() ?? 0;
-                                          final votesByOption = _normalizeVotes(item['Votes']);
-                                          final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
-                                          final voterUrls = voterIds
-                                              .map((uid) => idToAvatar[uid])
-                                              .whereType<String>()
-                                              .toList();
-                                          return PollOption(
-                                            id: m['id'].toString(),
-                                            title: Text(m['title'].toString()),
-                                            votes: votes,
-                                            voterAvatars: voterUrls,
-                                          );
-                                        }).toList(),
+                                          },
+                                          pollTitle: Text(item['Title'].toString()),
+                                          pollOptions: (item['Options'] as List).map<PollOption>((o) {
+                                            final m = Map<String, dynamic>.from(o as Map);
+                                            final votesRaw = m['votes'];
+                                            final votes = votesRaw is String
+                                                ? int.tryParse(votesRaw) ?? 0
+                                                : (votesRaw as num?)?.toInt() ?? 0;
+                                            final votesByOption = _normalizeVotes(item['Votes']);
+                                            final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
+                                            final voterUrls = voterIds
+                                                .map((uid) => idToAvatar[uid])
+                                                .whereType<String>()
+                                                .toList();
+                                            return PollOption(
+                                              id: m['id'].toString(),
+                                              title: Text(m['title'].toString()),
+                                              votes: votes,
+                                              voterAvatars: voterUrls,
+                                            );
+                                          }).toList(),
+                                        ),
                                       ),
                                     ),
+
+
+
                                   ],
                                 ),
                               );
@@ -247,6 +253,13 @@ class _BrainStormingState extends State<BrainStorming> {
                         ],
                       );
                     }
+                  ),
+
+                  commentsSectionBrainstorm(
+                    context: context,
+                    cubit: cubit,
+                    newComment: newComment,
+                    isSending: isSending,
                   ),
                 ],
               );

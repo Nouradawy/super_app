@@ -48,12 +48,12 @@ class Maintenance extends StatelessWidget {
 
             ),
             body: SingleChildScrollView(
-              physics: NeverScrollableScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               child: Column(
                 children: [
                   Text(context.loc.reportHistory),
                   ListView.builder(
-                  
+                    physics: NeverScrollableScrollPhysics(),
                     shrinkWrap: true,
                     itemCount: maintenanceReportsData.length,
                       itemBuilder: (context,index) {
@@ -98,12 +98,7 @@ class Maintenance extends StatelessWidget {
                               Text("${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}",style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
                   
                                 const SizedBox(height: 8),
-                                Text("Lorem ipsum dolor sit amet,"
-                                    " consectetur adipiscing elit. Nunc iaculis suscipit massa, sed laoreet mi gravida in."
-                                    " Donec est neque, hendrerit at vehicula quis, sagittis laoreet lorem. Maecenas mi libero, "
-                                    "posuere sit amet elit sit amet, tempus sagittis ligula. Duis enim ligula, condimentum eget mauris et, "
-                                    "bibendum commodo massa. Aenean velit augue, tempor quis sapien vitae, accumsan faucibus urna. Aliquam quis nisi orci"
-                                    ". Aenean volutpat, erat vel bibendum tincidunt, est risus sodales orci, eu venenatis felis turpis in arcu.",
+                                Text(maintenanceReportsData[index].description,
                                     style: GoogleFonts.plusJakartaSans(fontSize: 12,fontWeight:FontWeight.w600 ,letterSpacing: 0.2,color: Colors.grey)),
                                 const SizedBox(height: 8),
                                 if(attachmentUrl.sourceUrl != null)
@@ -113,7 +108,8 @@ class Maintenance extends StatelessWidget {
                                   children: attachmentUrl.sourceUrl!.map((item) => SizedBox(
                                       width:80,
                                       height:80,
-                                      child: DriveImageMessage(fileId: extractDriveFileId(item["uri"])!, driveService: driveService)),).toList(),
+                                      child: DriveImageMessage(userName:"${context.loc.report} #${maintenanceReportsData[index].reportCode} - ${formatTimeStampToDate(maintenanceReportsData[index].createdAt!)}-${formatTimestampToAmPm(maintenanceReportsData[index].createdAt!)}" ,
+                                          isMaintenance:true,fileId: extractDriveFileId(item["uri"])!, driveService: driveService)),).toList(),
                                 )
                   
                   
@@ -139,7 +135,7 @@ class Maintenance extends StatelessWidget {
                   
                   
                       );
-                      })
+                      }),
                 ],
               
               ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:WhatsUnity/Themes/lightTheme.dart';
 import 'package:flutter/foundation.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
+import '../Layout/Cubit/states.dart';
+import '../Layout/chatWidget/Details/ChatMember.dart';
 import '../Layout/chatWidget/MessageWidget.dart';
 import '../Network/CacheHelper.dart';
 import '../Services/GoogleDriveService.dart';
@@ -153,6 +156,7 @@ class DriveImageMessage extends StatefulWidget {
   final String? userName;
   final bool isRounded;
   final bool isPost;
+  final bool isMaintenance;
 
   const DriveImageMessage({
     super.key,
@@ -162,6 +166,7 @@ class DriveImageMessage extends StatefulWidget {
     this.userName,
     this.isRounded = true ,
     this.isPost =false,
+    this.isMaintenance = false,
 
   });
 
@@ -201,7 +206,7 @@ class _DriveImageMessageState extends State<DriveImageMessage> {
         }
         return GestureDetector(
           onTap:(){
-            fullScreenImageViewer( imageData:snapshot.data! , context: context , message: widget.message , userName : widget.userName , isPost: widget.isPost);
+            fullScreenImageViewer( imageData:snapshot.data! , context: context , isMaintenance: widget.isMaintenance, message: widget.message , userName : widget.userName , isPost: widget.isPost);
           },
           child: ClipRRect(
             borderRadius: BorderRadius.circular(widget.isRounded? 12 : 0),
@@ -216,7 +221,7 @@ class _DriveImageMessageState extends State<DriveImageMessage> {
   }
 }
 
-Future fullScreenImageViewer ({required dynamic imageData, required BuildContext context , bool isVerf = false , bool isPost = false ,types.Message? message , String? userName}) {
+Future fullScreenImageViewer ({required dynamic imageData, required BuildContext context , bool isMaintenance =false,bool isVerf = false , bool isPost = false ,types.Message? message , String? userName}) {
   bool showDetails = true;
   return showDialog(
     barrierColor: HexColor("#dae7f7"),
@@ -272,7 +277,7 @@ Future fullScreenImageViewer ({required dynamic imageData, required BuildContext
                   ),
                 ),
 
-              if(message != null)
+              if(message != null || isMaintenance)
                 Center(
                   child: InteractiveViewer(
                     panEnabled: true,
@@ -565,6 +570,345 @@ Widget PostTextForm(
       ),
 
     ) ,
+  );
+}
+
+class TopLabelCenterInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final FocusNode? focusNode;
+
+  const TopLabelCenterInput({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.focusNode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final node = focusNode ?? FocusNode();
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).requestFocus(node),
+      child: Container(
+        // Make a comfortable tap area
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.64,
+          minHeight: 56, // larger touch target
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+
+          borderRadius: BorderRadius.circular(5),
+        ),
+        alignment: Alignment.center, // center typing vertically
+        child: TextFormField(
+          controller: controller,
+          focusNode: node,
+          keyboardType: TextInputType.text,
+          // Center the input text vertically via padding
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            isDense: true,
+            // Pin label to the top, always visible
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            // Provide top-hugged label
+            labelText: '',
+            // Remove default paddings and use contentPadding
+            contentPadding: EdgeInsets.symmetric(vertical: 6),
+          ).copyWith(
+            // Set label dynamically and style small, top-hugged
+            labelText: label,
+            labelStyle: Theme.of(context).textTheme.bodySmall,
+          ),
+          // Keep text in the middle visually
+          textAlignVertical: TextAlignVertical.center,
+        ),
+      ),
+    );
+  }
+}
+
+Widget commentsSection (
+    {required BuildContext context,required AppCubit cubit, int? index,
+      required TextEditingController newComment,required ValueNotifier<
+        bool> isSending, StateSetter? setStateOfDialog}){
+  return Column(
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.grey.shade200,
+            backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):const AssetImage("assets/defaultUser.webp"),
+          ),
+          SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(5)
+            ),
+            child: Stack(
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width*0.64
+                  ),
+                  child: TopLabelCenterInput(
+                    controller: newComment,
+                    label: '${context.loc.commentAs} ${currentUser?.displayName}',
+                  ),),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: SizedBox.square(
+                    dimension: 44, // bigger hit area
+                    child: IconButton(
+                      onPressed: isSending.value
+                          ? null
+                          : () async {
+                        isSending.value = true;
+                        setStateOfDialog!(() {
+
+                        });
+                        await cubit.postNewComment(
+                          selectedCompoundId!,
+                          cubit.Posts[index!]['id'],
+                          index,
+                          newComment,
+                        );
+
+                        isSending.value = false;
+                        setStateOfDialog(() {
+                        });
+                      },
+                      icon: const Icon(Icons.send_rounded),
+                      iconSize: 15, // same icon size
+                      padding: EdgeInsets.zero, // keep icon visually tight
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 44), // bigger tap
+                      splashRadius: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left:17.0),
+        child: ListView.builder(
+            physics: NeverScrollableScrollPhysics(),
+            padding:EdgeInsets.only(left:5),
+            shrinkWrap: true,
+            itemCount: (cubit.Posts[index!]['Comments'] as List?  ?? []).length,
+            itemBuilder: (context , commentIndex){
+              final comments = (cubit.Posts[index]['Comments'] as List);
+              final authorId = comments[commentIndex]['author_id']?.toString();
+
+              final commentUser = ChatMembers.firstWhere(
+                    (member) => member.id.trim() == authorId,
+                orElse: () => ChatMember(
+                  id: authorId ?? 'unknown',
+                  displayName: 'Unknown',
+                  building: 'null',
+                  apartment: 'null',
+                  userState: UserState.banned,
+                  phoneNumber: '',
+                  ownerType: null,
+                ),
+              );
+              return Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 13,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: commentUser.avatarUrl != null  ? NetworkImage(commentUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
+                    ),
+                    SizedBox(width: 9,),
+                    Container(
+                      padding: EdgeInsets.symmetric(vertical: 2,horizontal: 11),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.black12,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(commentUser.displayName),
+                          Text((AppCubit.get(context).Posts[index]['Comments'] as List)[commentIndex]['comment'].toString()),
+                        ],
+                      ),
+                    ),
+                  ],),
+              );
+
+            }
+        ),
+      ),
+    ],
+  );
+}
+
+Widget commentsSectionBrainstorm({
+  required BuildContext context,
+  required AppCubit cubit,
+  required TextEditingController newComment,
+  required ValueNotifier<bool> isSending,
+  StateSetter? setStateOfDialog,
+}) {
+  final int pollIndex = cubit.currentCarouselIndex;
+  final dynamic poll = (cubit.brainStormData.isNotEmpty && pollIndex < cubit.brainStormData.length)
+      ? cubit.brainStormData[pollIndex]
+      : null;
+
+  final List<dynamic> comments = (poll?['comments'] as List?) ?? [];
+
+  return Column(
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.grey.shade200,
+            backgroundImage: currentUser?.avatarUrl != null
+                ? NetworkImage(currentUser!.avatarUrl.toString())
+                : const AssetImage('assets/defaultUser.webp') as ImageProvider,
+          ),
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Stack(
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * 0.64,
+                  ),
+                  child: TopLabelCenterInput(
+                    controller: newComment,
+                    label: '${context.loc.commentAs} ${currentUser?.displayName}',
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: SizedBox.square(
+                    dimension: 44,
+                    child: IconButton(
+                      onPressed: isSending.value
+                          ? null
+                          : () async {
+                        isSending.value = true;
+                        setStateOfDialog?.call(() {});
+                        // Update poll comments locally first
+                        final List<dynamic> newComments = List<dynamic>.from(comments);
+                        newComments.add({
+                          'author_id': Userid,
+                          'comment': newComment.text,
+                        });
+
+                        // Persist to Supabase
+                        final String pollId = poll?['id']?.toString() ?? '';
+                        if (pollId.isNotEmpty) {
+                          await Supabase.instance.client
+                              .from('BrainStorming')
+                              .update({'comments': newComments})
+                              .eq('id', pollId);
+                          // Reflect in local state
+                          poll?['comments'] = newComments;
+                          cubit.emit(BrainStormVoteUpdated()); // reuse an existing state
+                        }
+
+                        newComment.clear();
+                        isSending.value = false;
+                        setStateOfDialog?.call(() {});
+                      },
+                      icon: const Icon(Icons.send_rounded),
+                      iconSize: 15,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                      splashRadius: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 17.0),
+        child: ListView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(left: 5),
+          shrinkWrap: true,
+          itemCount: comments.length,
+          itemBuilder: (context, commentIndex) {
+            final comment = comments[commentIndex] as Map<String, dynamic>;
+            final authorId = comment['author_id']?.toString();
+
+            final commentUser = ChatMembers.firstWhere(
+                  (member) => member.id.trim() == authorId,
+              orElse: () => ChatMember(
+                id: authorId ?? 'unknown',
+                displayName: 'Unknown',
+                building: 'null',
+                apartment: 'null',
+                userState: UserState.banned,
+                phoneNumber: '',
+                ownerType: null,
+              ),
+            );
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 13,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: commentUser.avatarUrl != null
+                        ? NetworkImage(commentUser.avatarUrl.toString())
+                        : const AssetImage('assets/defaultUser.webp') as ImageProvider,
+                  ),
+                  const SizedBox(width: 9),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 11),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.black12,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(commentUser.displayName),
+                        Text(comment['comment']?.toString() ?? ''),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
   );
 }
 

@@ -132,7 +132,7 @@ Future<CompoundMembersResult> fetchCompoundMembers(Map<String,dynamic> args ) as
       apartment: apt?['apartment_num'],
       phoneNumber: data['phone_number'],
       ownerType: OwnerTypes.values.firstWhere((type)=>type.name ==  data['owner_type']),
-      userState: UserState.values.firstWhere((state)=>state.name == data['userState']),
+      userState: UserState.values.firstWhere((state)=>state.name == data['userState'], orElse: ()=>UserState.New),
     );
   }).toList();
 

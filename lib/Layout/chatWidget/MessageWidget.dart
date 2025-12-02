@@ -612,25 +612,14 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
           );
         }).toList();
 
-        return FlutterPolls(
-          pollId: message.id,
-          createdBy: message.authorId,
-          voteAnimation: !isUserScroll,
-          allowToggleVote:true,
-          pollProgressbarHeight: 5,
-          hasVoted: userVotedOptionId != null,
-          userVotedOptionId: userVotedOptionId,
-          userToVote: currentUserId,
-          pollTitle: Text(question, overflow: TextOverflow.ellipsis),
-          pollOptions: pollOptions,
-          onVoted: (PollOption option, int totalVotes) async {
-            try {
-              await _handlePollVote(message, effectiveMeta, option.id!);
-              return true;
-            } catch (_) {
-              return false;
-            }
-          },
+        return PollWithAvatars(
+          message: message,
+          meta: meta,
+          isUserScroll: isUserScroll,
+          allUserIds: allUserIds,
+          rawOptions: rawOptions,
+          optionVoterIds: optionVoterIds,
+          onVote: _handlePollVote, // Pass the callback
         );
       },
     );
@@ -812,3 +801,143 @@ String? extractDriveFileId(String url) {
   return null;
 }
 
+class PollWithAvatars extends StatefulWidget {
+  final types.Message message;
+  final Map<String, dynamic> meta;
+  final bool isUserScroll;
+  final Set<String> allUserIds;
+  final List<Map<String, dynamic>> rawOptions;
+  final Map<String, List<String>> optionVoterIds;
+  final Function(types.Message, Map<String, dynamic>, String) onVote;
+
+  const PollWithAvatars({
+    super.key,
+    required this.message,
+    required this.meta,
+    required this.isUserScroll,
+    required this.allUserIds,
+    required this.rawOptions,
+    required this.optionVoterIds,
+    required this.onVote,
+  });
+
+  @override
+  State<PollWithAvatars> createState() => _PollWithAvatarsState();
+}
+
+
+
+class _PollWithAvatarsState extends State<PollWithAvatars> {
+  late Future<Map<String, String>> _avatarsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create the future only once when the widget is first built
+    _avatarsFuture = _fetchAvatarsForUserIds(widget.allUserIds);
+  }
+
+  // Helper moved from MessageWidget class to here (or keep it global)
+  Future<Map<String, String>> _fetchAvatarsForUserIds(Set<String> userIds) async {
+    if (userIds.isEmpty) return {};
+    try {
+      final rows = await supabase
+          .from('profiles')
+          .select('id, avatar_url')
+          .inFilter('id', userIds.toList());
+
+      final Map<String, String> map = {};
+      for (final r in (rows as List)) {
+        final id = r['id']?.toString();
+        final url = r['avatar_url']?.toString();
+        if (id != null && url != null && url.isNotEmpty) {
+          map[id] = url;
+        } else if (id != null && url == null) {
+          map[id] = "null";
+        }
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    final question = widget.meta['question']?.toString() ?? '';
+
+    // Calculate user voted option (logic moved from parent)
+    String? userVotedOptionId;
+    // ... (Your existing logic to find userVotedOptionId) ...
+    // For brevity, assuming you can copy the logic from your old _pollMessageWidget
+    // or pass userVotedOptionId in as a parameter.
+
+    // RE-IMPLEMENTING VOTED OPTION LOGIC BRIEFLY:
+    final votesAny = widget.meta['votes'];
+    final Map<String, dynamic> votesRaw = {};
+    if (votesAny is Map) votesAny.forEach((k, v) => votesRaw[k.toString()] = v);
+    votesRaw.forEach((optionId, votersRaw) {
+      if (currentUserId == null) return;
+      if (votersRaw is Map) {
+        if (votersRaw.containsKey(currentUserId)) userVotedOptionId = optionId;
+      }
+    });
+
+
+    return FutureBuilder<Map<String, String>>(
+      future: _avatarsFuture, // Use the cached future
+      builder: (context, snapshot) {
+        final idToAvatar = snapshot.data ?? const <String, String>{};
+
+        final pollOptions = widget.rawOptions.asMap().entries.map((entry) {
+          final i = entry.key;
+          final option = entry.value;
+          final id = option['id']?.toString() ?? i.toString();
+          final titleText = option['title']?.toString() ?? 'Option ${i + 1}';
+          final votes = option['votes'] is int
+              ? option['votes'] as int
+              : int.tryParse(option['votes']?.toString() ?? '0') ?? 0;
+
+          final voterUrls = (widget.optionVoterIds[id] ?? [])
+              .map((uid) => idToAvatar[uid])
+              .whereType<String>()
+              .toList();
+
+          return PollOption(
+            id: id,
+            title: Text(
+              titleText,
+              style: const TextStyle(fontSize: 16),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+            votes: votes,
+            voterAvatars: voterUrls,
+          );
+        }).toList();
+
+        return FlutterPolls(
+          pollId: widget.message.id,
+          createdBy: widget.message.authorId,
+          voteAnimation: !widget.isUserScroll,
+          allowToggleVote: true,
+          pollProgressbarHeight: 5,
+          hasVoted: userVotedOptionId != null,
+          userVotedOptionId: userVotedOptionId,
+          userToVote: currentUserId,
+          pollTitle: Text(question, overflow: TextOverflow.ellipsis),
+          pollOptions: pollOptions,
+          onVoted: (PollOption option, int totalVotes) async {
+            try {
+              await widget.onVote(widget.message, widget.meta, option.id!);
+              return true;
+            } catch (_) {
+              return false;
+            }
+          },
+        );
+      },
+    );
+  }
+}

@@ -13,8 +13,12 @@ import '../Components/Constants.dart';
 
 
 class JoinCommunity extends StatelessWidget {
-  const JoinCommunity({super.key});
 
+  final bool atWelcome;
+  const JoinCommunity({
+    super.key,
+   this.atWelcome = false,
+});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +42,7 @@ class JoinCommunity extends StatelessWidget {
                Expanded(
                  child: BlocConsumer<AppCubit,AppCubitStates>(
                    listener: (context , states) {
-                     if(states is CompoundIdChange && UserData !=null){
+                     if(states is CompoundIdChange && atWelcome ==false){
 
                        Navigator.pushAndRemoveUntil(
                          context,
@@ -47,7 +51,7 @@ class JoinCommunity extends StatelessWidget {
                              (Route<
                              dynamic> route) => false, // This predicate removes all previous routes
                        );
-                     } else if(states is CompoundIdChange && UserData == null){
+                     } else if(states is CompoundIdChange && atWelcome == true){
                        Navigator.pop(context);
                      }
                    },
@@ -81,7 +85,7 @@ class JoinCommunity extends StatelessWidget {
                             return ListTile(
                               tileColor:Colors.white38,
                               minTileHeight:70,
-                              onTap:()=>context.read<AppCubit>().selectCompound(compound: compound,atWelcome: true),
+                              onTap:()=>context.read<AppCubit>().selectCompound(compound: compound,atWelcome: atWelcome),
                               leading: ClipRRect(
                                 borderRadius:BorderRadius.circular(10),
                                 child: compound.pictureUrl != null ?

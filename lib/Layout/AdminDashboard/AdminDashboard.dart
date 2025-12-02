@@ -5,6 +5,7 @@ import 'package:WhatsUnity/Components/Constants.dart';
 import 'package:WhatsUnity/Layout/Cubit/AdminDashboard/cubit.dart';
 import 'package:WhatsUnity/Layout/Cubit/AdminDashboard/states.dart';
 
+import '../../Confg/Enums.dart';
 import '../Cubit/ReportCubit/cubit.dart';
 import '../chatWidget/Details/ChatMember.dart';
 import '../chatWidget/Details/Reports.dart';
@@ -33,6 +34,7 @@ class AdminDashboard extends StatelessWidget {
                     onPressed: () async {
                       context.read<AdminCubit>().indexChange(index);
                       ReportCubit.get(context).getReportList();
+                      cubit.filterRequests(UserState.New);
                     },
                     child: Column(
                       children: [
@@ -61,6 +63,7 @@ class AdminDashboard extends StatelessWidget {
                ),
              ],
               if(cubit.index ==1) ...[
+
                 Expanded(
                   child: MembersManagement(),
                 ),

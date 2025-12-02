@@ -67,7 +67,14 @@ class MyApp extends StatelessWidget {
           debugShowMaterialGrid: false,
           theme: myLightTheme(),
           supportedLocales: L10n.all,
-          locale:const Locale('en'),
+          localeResolutionCallback: (deviceLocale, supportedLocales) {
+            // Return device locale if supported, else fallback to first supported
+            if (deviceLocale != null &&
+                supportedLocales.any((l) => l.languageCode == deviceLocale.languageCode)) {
+              return deviceLocale;
+            }
+            return supportedLocales.first;
+          },
           localizationsDelegates:const[
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,

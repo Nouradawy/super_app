@@ -29,7 +29,6 @@ import '../BrainStorming.dart';
 import '../Details/ChatDetails.dart';
 import '../Details/ChatMember.dart';
 import '../MessageWidget.dart';
-import '../UploadProgressMessage.dart';
 import 'ChatCacheService.dart';
 import 'ChatService.dart';
 import 'ReplyBar.dart';
@@ -171,7 +170,13 @@ class _GeneralChatState extends State<GeneralChat> {
     sortedMessages.sort((a, b) {
       final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return aDate.compareTo(bDate); // Sort ascending (oldest first)
+
+      int result = aDate.compareTo(bDate);
+      // If dates are identical, use ID to ensure stability
+      if (result == 0) {
+        return a.id.compareTo(b.id);
+      }
+      return result;
     });
 
     if (mounted) {
