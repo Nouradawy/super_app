@@ -281,14 +281,23 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
         );
       }
       else if(message is types.ImageMessage){
+    // 1. Calculate Aspect Ratio from metadata to prevent layout shift
+    double? w = message.width;
+    double? h = message.height;
+
+    // Default to square if metadata is missing to prevent 0-height collapse
+    double aspectRatio = (w != null && h != null && h > 0) ? w / h : 1.0;
         return ConstrainedBox(
           constraints: BoxConstraints(maxHeight:250 , maxWidth: 250),
-          child: DriveImageMessage(
-            key: ValueKey('msg_${message.id}_$fileId'),
-            fileId: fileId!,
-            driveService: driveService, // Pass your drive service instance
-            message : message,
-            userName : userName,
+          child: AspectRatio(
+            aspectRatio: aspectRatio,
+            child: DriveImageMessage(
+              key: ValueKey('msg_${message.id}_$fileId'),
+              fileId: fileId!,
+              driveService: driveService, // Pass your drive service instance
+              message : message,
+              userName : userName,
+            ),
           ),
         );
       } else if(message is types.AudioMessage) {
@@ -612,14 +621,25 @@ Widget widgetByType(Color msgTextColor , types.Message  message , String? fileId
           );
         }).toList();
 
-        return PollWithAvatars(
-          message: message,
-          meta: meta,
-          isUserScroll: isUserScroll,
-          allUserIds: allUserIds,
-          rawOptions: rawOptions,
-          optionVoterIds: optionVoterIds,
-          onVote: _handlePollVote, // Pass the callback
+        return FlutterPolls(
+          pollId: message.id,
+          createdBy: message.authorId,
+          voteAnimation: !isUserScroll,
+          allowToggleVote:true,
+          pollProgressbarHeight: 5,
+          hasVoted: userVotedOptionId != null,
+          userVotedOptionId: userVotedOptionId,
+          userToVote: currentUserId,
+          pollTitle: Text(question, overflow: TextOverflow.ellipsis),
+          pollOptions: pollOptions,
+          onVoted: (PollOption option, int totalVotes) async {
+            try {
+              await _handlePollVote(message, effectiveMeta, option.id!);
+              return true;
+            } catch (_) {
+              return false;
+            }
+          },
         );
       },
     );

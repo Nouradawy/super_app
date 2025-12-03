@@ -32,6 +32,7 @@ class MainScreen extends StatelessWidget {
               currentIndex: AppCubit.get(context).bottomNavIndex,
               onTap: (index)=>AppCubit.get(context).bottomNavIndexChange(index),
               items: [
+
                 BottomNavigationBarItem(
                     icon: FaIcon(FontAwesomeIcons.house,size: 18),
                     label: "Home"
