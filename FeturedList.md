@@ -52,3 +52,21 @@ User Management: View resident details, approve/decline verification requests, a
 Reputation Score: (Future) Track user behavior based on reports filed against them.
 
 Content Moderation: Isolate suspicious messages for review before they go public.
+
+what data i collect :
+fullname , username , phone number , ownertype(owner, rental) , profile picture , apartment number , building number , compound id
+verification files : user upload a proof of ownership document for his apartment , this documnet stored in supabase bucket and
+we keep this data only for admin verifications and if there are a conflicts when a new user add the same apartment so we can 
+resolve the issue knowing who is the actual owner
+
+we use google drive api for uploading pictures in chat this pictures uploaded over there personal google drive account and we only take
+the link to view this image per need
+
+we use gumlet to stream audio files it is uploaded first to google drive then to gumlet servers 
+
+using google sign in as provider and using firbase for notifications , supabase as database
+
+i want to publish my application over google play i want a step-by-step guide for publishing this application ,
+i might making it freemium at first but i might consider adding ads in future 
+also i want you to verify my privacy and policy to check if there are anything missing .
+

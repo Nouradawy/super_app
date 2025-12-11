@@ -4,22 +4,25 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:googleapis/admob/v1.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'Components/Constants.dart';
 import 'Confg/Enums.dart';
 import 'Confg/supabase.dart';
 
+import 'Layout/Cubit/ManagerCubit/cubit.dart';
 import 'Layout/Cubit/cubit.dart';
 import 'Layout/MainScreen.dart';
 import 'Services/PresenceManager.dart';
 
 class OtpScreen extends StatefulWidget {
-  const OtpScreen({super.key, this.email});
+  const OtpScreen({super.key, this.email ,  this.isProfile});
 
   final String? email;
+  final bool? isProfile;
 
-  OtpScreen copyWithEmail(String email) => OtpScreen(email: email);
+  OtpScreen copyWithEmail(String email) => OtpScreen(email: email , isProfile: false,);
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -129,6 +132,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final email = _emailController.text.trim();
     final code = _collectCode();
     if (email.isEmpty || code.length != 6) return;
@@ -137,41 +141,73 @@ class _OtpScreenState extends State<OtpScreen> {
     try {
       // Adjust OTP type to your flow. Commonly OtpType.signup or OtpType.email.
       await supabase.auth.verifyOTP(
+        type: widget.isProfile == true?OtpType.emailChange:OtpType.signup,
         email: email,
         token: code,
-        type: OtpType.signup,
       );
 
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) {
-          context.read<AppCubit>().getPostsData(selectedCompoundId);
-          context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
-          UserData = Supabase.instance.client.auth.currentSession?.user;
-          userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
-          AppCubit.get(context).verificationFilesUpload();
-          AppCubit.get(context).signInSwitcher();
-          return PresenceManager(child: MainScreen());
-        }),
-            (route) => false,
-      );
-    } catch (_) {
-      // Keep UI minimal; add toast/snackbar if desired
+
+      if(widget.isProfile ==false){
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) {
+            UserData = Supabase.instance.client.auth.currentSession?.user;
+            userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+            context.read<AppCubit>().loadCompoundMembers(selectedCompoundId!);
+            if(userRole != Roles.manager) {
+              context.read<AppCubit>().getPostsData(selectedCompoundId);
+            } else {
+              context.read<ManagerCubit>().currentMaintenanceType = MaintenanceReportType.maintenance;
+              context.read<ManagerCubit>().getMaintenanceReports();
+              context.read<ManagerCubit>().filterRequests(type:MaintenanceReportType.maintenance ,statusFilter:ManagerReportsFilter.all);
+            }
+
+            AppCubit.get(context).verificationFilesUpload();
+
+            return PresenceManager(child: MainScreen());
+          }),
+              (route) => false,
+        );
+      } else {
+        final authRes = await supabase.auth.refreshSession();
+        final session = authRes.session;
+        UserData = session?.user;
+        await AppCubit.get(context).loadCompoundMembers(selectedCompoundId!);
+      }
+
+    } catch (e) {
+      debugPrint('verifyOTP unknown error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification failed. Try again.')));
     } finally {
       if (mounted) setState(() => _verifying = false);
+
+      if(widget.isProfile == true && _verifying  ==false){
+        AppCubit.get(context).isOTP = false;
+        AppCubit.get(context).profileApplyChanges();
+      }
     }
   }
 
   Future<void> _resend() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty || _secondsLeft > 0) return;
 
+    if (email.isEmpty || _secondsLeft > 0) return;
     setState(() => _resending = true);
     try {
-      await supabase.auth.resend(type: OtpType.signup, email: email);
+       await supabase.auth.resend(
+          type: OtpType.signup ,
+          email:email);
+
       _startTimer();
-    } catch (_) {
-      // Silent fail UI
+    }  on AuthException catch (e, st) {
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e, st) {
+      debugPrint('Resend unknown error: $e\n$st');
     } finally {
       if (mounted) setState(() => _resending = false);
     }
@@ -276,27 +312,30 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
             ),
 
-            IconButton(
-              tooltip: _isEditingEmail ? 'Lock' : 'Edit',
-              onPressed: () {
-                setState(() {
-                  _isEditingEmail = !_isEditingEmail;
-                  if (_isEditingEmail) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _emailFocusNode.requestFocus();
-                    });
-                  } else {
-                    FocusScope.of(context).unfocus();
-                  }
-                });
-              },
-              icon: Icon(_isEditingEmail ? Icons.lock_open : Icons.edit),
-            ),
-            Icon(
-              emailEmpty ? Icons.warning_amber_rounded : Icons.check_circle,
-              color: emailEmpty ? Colors.orange : Colors.green,
-              size: 20,
-            ),
+            if(widget.isProfile ==false) ...[
+              IconButton(
+                tooltip: _isEditingEmail ? 'Lock' : 'Edit',
+                onPressed: () {
+                  setState(() {
+                    _isEditingEmail = !_isEditingEmail;
+                    if (_isEditingEmail) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _emailFocusNode.requestFocus();
+                      });
+                    } else {
+                      FocusScope.of(context).unfocus();
+                    }
+                  });
+                },
+                icon: Icon(_isEditingEmail ? Icons.lock_open : Icons.edit),
+              ),
+              Icon(
+                emailEmpty ? Icons.warning_amber_rounded : Icons.check_circle,
+                color: emailEmpty ? Colors.orange : Colors.green,
+                size: 20,
+              ),
+            ]
+
           ],
         ),
       ],
@@ -310,51 +349,88 @@ class _OtpScreenState extends State<OtpScreen> {
     return Directionality(
       textDirection: TextDirection.ltr, // Prevents null TextDirection issues
       child: Scaffold(
-        appBar: AppBar(title: const Text('Verify email')),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: 100,),
-                    _buildCompactEmailField(),
-                    const SizedBox(height: 8),
+        appBar: widget.isProfile==true?null:AppBar(title: const Text('Verify email')),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
 
-                    const SizedBox(height: 12),
-                    _buildOtpBoxes(),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: _canVerify ? _verify : null,
-                        child: _verifying
+                      SizedBox(
+                          height: widget.isProfile ==false
+                          ? 100
+                          : 5),
+                      _buildCompactEmailField(),
+                      const SizedBox(height: 8),
+
+                      const SizedBox(height: 12),
+                      _buildOtpBoxes(),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _canVerify ? _verify : null,
+                          child: _verifying
+                              ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                              : const Text('Verify'),
+                        ),
+                      ),
+
+
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: (){
+                          if(_resending || _secondsLeft > 0 || emailEmpty){
+                            return ;
+                          }
+                          if(widget.isProfile == false){
+                            _resend;
+                          } else {
+                            AppCubit.get(context).requestEmailChange(widget.email!);
+                            _startTimer();
+                          }
+
+                        },
+                        child: _resending
                             ? const SizedBox(
-                          width: 18,
                           height: 18,
+                          width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                            : const Text('Verify'),
+                            : Text(
+                          _secondsLeft > 0 ? 'Resend code in $_secondsLeft s' : 'Resend code',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: (_resending || _secondsLeft > 0 || emailEmpty) ? null : _resend,
-                      child: _resending
-                          ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                          : Text(
-                        _secondsLeft > 0 ? 'Resend code in $_secondsLeft s' : 'Resend code',
-                      ),
-                    ),
-                  ],
+
+                      if(widget.isProfile ==true)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: ElevatedButton(
+                            onPressed: (){
+                              //TODO:emit state to cancel this screen
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              if(widget.isProfile == true){
+                                AppCubit.get(context).isOTP = false;
+                                AppCubit.get(context).profileApplyChanges();
+                              }
+                            },
+                            child:  const Text('Cancel'),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

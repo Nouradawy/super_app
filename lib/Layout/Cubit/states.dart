@@ -1,10 +1,35 @@
+import '../../Confg/Enums.dart';
+
 abstract class AppCubitStates{}
 
 class AppInitialState extends AppCubitStates{}
 class InputIsPasswordState extends AppCubitStates{}
 class SignInState extends AppCubitStates{}
 class SignupRoleChangeState extends AppCubitStates{}
+class ProfileApplyChangesState extends AppCubitStates{}
+
+class AppProfileSectionToggledState extends AppCubitStates {
+  final ProfileSection section;
+  final int? index;
+  AppProfileSectionToggledState({required this.section, required this.index});
+}
+class AppPasswordUpdatedState extends AppCubitStates {}
+
+class AppEmailChangeRequestedState extends AppCubitStates {
+  final String newEmail;
+  AppEmailChangeRequestedState(this.newEmail);
+}
+
+class AppEmailChangeVerifiedState extends AppCubitStates {}
+
+class AppEmailChangeFailedState extends AppCubitStates {
+  final String message;
+
+  AppEmailChangeFailedState(this.message);
+}
+
 class MessageSentState extends AppCubitStates{}
+class LoadAnnouncementState extends AppCubitStates{}
 class GoogleSigninStates extends AppCubitStates{}
 class AccountSettingsExpandStates extends AppCubitStates{}
 class SignUpSignIn_Toggle extends AppCubitStates{}

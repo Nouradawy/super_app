@@ -14,6 +14,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
+import '../Layout/Cubit/ManagerCubit/cubit.dart';
 import '../Layout/Cubit/states.dart';
 import '../Layout/chatWidget/Details/ChatMember.dart';
 import '../Layout/chatWidget/MessageWidget.dart';
@@ -42,7 +43,7 @@ Future<void> loadCachedData () async{
   }
 }
 
-Future<void> presetBeforeSignin(context) async {
+Future<void> presetBeforeSignin(BuildContext context) async {
   final cubit = AppCubit.get(context);
   if (categories.isEmpty) {
     await cubit.loadCompounds();
@@ -90,9 +91,12 @@ Future<void> presetBeforeSignin(context) async {
   }
   // 3\) Load members, posts, etc.
   await cubit.loadCompoundMembers(selectedCompoundId!);
-  await cubit.getPostsData(selectedCompoundId);
-
   userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+  if(userRole != Roles.manager) {
+    await cubit.getPostsData(selectedCompoundId);
+  }
+
+
 }
 
 Future<void> requestPermission() async {
@@ -184,14 +188,14 @@ class _DriveImageMessageState extends State<DriveImageMessage> {
     _downloadFuture = widget.driveService.downloadFile(widget.fileId);
   }
 
-  @override
-  void didUpdateWidget(covariant DriveImageMessage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.fileId != widget.fileId) {
-      // Only refetch if the file actually changed
-      _downloadFuture = widget.driveService.downloadFile(widget.fileId);
-    }
-  }
+  // @override
+  // void didUpdateWidget(covariant DriveImageMessage oldWidget) {
+  //   super.didUpdateWidget(oldWidget);
+  //   if (oldWidget.fileId != widget.fileId) {
+  //     // Only refetch if the file actually changed
+  //     _downloadFuture = widget.driveService.downloadFile(widget.fileId);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -533,7 +537,7 @@ Widget defaultTextForm(
     ),
     suffixIcon:IsPassword?
     isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : IconButton(onPressed: () {}, icon: Icon(SuffixIcon),)
-        :isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : IconButton(onPressed: () {}, icon: Icon(SuffixIcon),),
+        :isactive ? IconButton(onPressed: () {AppCubit.get(context).Passon();}, icon: Icon(AppCubit.get(context).suffixIcon),) : null,
   ) ,
   );
 }

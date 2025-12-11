@@ -13,7 +13,7 @@ class GoogleDriveService {
   // Use google_sign_in to handle user authentication
   GoogleDriveService() {
     _googleSignIn = GoogleSignIn(
-      serverClientId: "979693285877-vnsab3eklg72or3ghe3tdrts3r08vfrt.apps.googleusercontent.com",
+      serverClientId: "117175444216-v40drl15ekah8q8gsrgc5ul035elq7rq.apps.googleusercontent.com",
       scopes: scopes,
 
     );

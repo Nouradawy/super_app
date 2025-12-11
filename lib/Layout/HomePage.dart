@@ -1,6 +1,4 @@
-import 'dart:io';
 
-import 'package:WhatsUnity/Layout/chatWidget/GeneralChat/GeneralChat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart';
@@ -16,19 +14,15 @@ import 'package:WhatsUnity/Layout/chatWidget/AudioWaveformPainter.dart';
 import 'package:WhatsUnity/Layout/wellcomingPage.dart';
 import 'package:WhatsUnity/Network/CacheHelper.dart';
 import 'package:WhatsUnity/Themes/lightTheme.dart';
-
-
 import '../Components/Constants.dart';
 import '../Components/Social.dart';
 import '../Confg/Enums.dart';
-import '../Model/MaintenanceReport.dart';
+import 'AnnouncmentScreen.dart';
 import 'Profile.dart';
 
 class HomePage extends StatelessWidget {
-  final TextEditingController Search = TextEditingController();
+   const HomePage({super.key});
 
-
-   HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +47,14 @@ class HomePage extends StatelessWidget {
       {
         "icon": "assets/Svg/cleaning.svg",
         "Name": context.loc.cleaning,
+        "icon color":Colors.teal.shade600,
+        "icon bg":Colors.teal.shade100,
+        "Background" :Colors.teal.shade50,
+        "text Color":Colors.teal.shade900
+      },
+      {
+        "icon": "assets/Svg/announcement.svg",
+        "Name": context.loc.announcements,
         "icon color":Colors.teal.shade600,
         "icon bg":Colors.teal.shade100,
         "Background" :Colors.teal.shade50,
@@ -172,7 +174,7 @@ class HomePage extends StatelessWidget {
                                   itemBuilder: (context,index){
                                     final service = services[index];
                                     return Container(
-                                      width: MediaQuery.sizeOf(context).width*0.28,
+                                      width: MediaQuery.sizeOf(context).width*0.25,
                                       margin: const EdgeInsets.only(right:10),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12), // <-- Rounded corners
@@ -184,11 +186,19 @@ class HomePage extends StatelessWidget {
                                           borderRadius: BorderRadius.circular(12), // <-- Rounded corners
                                         ),
                                         onPressed: (){
+                                          if(index == 3){
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(builder: (context) => AnnouncementScreen()),
+                                            );
+                                          }else{
                                             context.read<AppCubit>().getMaintenanceReports(MaintenanceReportType.values[index]);
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(builder: (context) => Maintenance(maintenanceType: MaintenanceReportType.values[index],)),
                                             );
+                                          }
+
 
                                         },
                                         child: Column(

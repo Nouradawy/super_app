@@ -2,8 +2,6 @@
 import 'dart:io';
 import 'package:WhatsUnity/Layout/Cubit/states.dart';
 import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-import 'package:condition_builder/condition_builder.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

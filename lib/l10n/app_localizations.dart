@@ -164,6 +164,12 @@ abstract class AppLocalizations {
   /// **'Password'**
   String get password;
 
+  /// No description provided for @confirmPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Password'**
+  String get confirmPassword;
+
   /// No description provided for @roleSelection.
   ///
   /// In en, this message translates to:
@@ -265,6 +271,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Care service'**
   String get cleaning;
+
+  /// No description provided for @announcements.
+  ///
+  /// In en, this message translates to:
+  /// **'Announcements'**
+  String get announcements;
 
   /// No description provided for @socialTab.
   ///

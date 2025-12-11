@@ -1,5 +1,6 @@
 
 import 'dart:async';
+import 'package:WhatsUnity/Layout/Cubit/ManagerCubit/cubit.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -25,9 +26,15 @@ import 'l10n/l10n.dart';
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   Bloc.observer = const SimpleBlocObserver();
+  if (Firebase.apps.isEmpty) {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  } else {
+  // Optional: Log that it was already initialized (for debugging)
+  print("Firebase was already initialized!");
+  }
   // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await Supabase.initialize(
@@ -58,6 +65,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create:(context) => AppCubit()..loadCompounds(),),
         BlocProvider(create: (context)=> ReportCubit()),
         BlocProvider(create: (context)=> AdminCubit()),
+        BlocProvider(create: (context)=> ManagerCubit()),
       ],
       child: ChangeNotifierProvider(
         create: (_) => AuthManager(),

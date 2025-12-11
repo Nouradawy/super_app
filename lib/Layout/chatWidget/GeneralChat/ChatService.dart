@@ -1,5 +1,6 @@
 // lib/chat/services/chat_service.dart
 
+import 'package:WhatsUnity/Confg/supabase.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 
@@ -77,14 +78,23 @@ class ChatService {
   }
 
   /// Marks a message as deleted.
-  Future<void> deleteMessage(String messageId) async {
+  Future<void> deleteMessage(types.Message message) async {
     final now = (await NTP.now()).toUtc();
-    await _supabase.from('messages').update({
-      'text': "this message was deleted",
-      'uri': null,
-      'metadata': {'type': 'text'},
-      'deleted_at': now.toIso8601String(),
-    }).eq('id', messageId);
+    if(message.authorId == currentUser?.id) {
+      await _supabase.from('messages').update({
+        'text': "this message was deleted",
+        'uri': null,
+        'metadata': {'type': 'text'},
+        'deleted_at': now.toIso8601String(),
+      }).eq('id', message.id);
+    } else {
+      await _supabase.from('messages').update({
+        'text': "this message was deleted by admin",
+        'uri': null,
+        'metadata': {'type': 'text'},
+        'deleted_at': now.toIso8601String(),
+      }).eq('id', message.id);
+    }
   }
 
   /// Resolves user details from the 'profiles' table.

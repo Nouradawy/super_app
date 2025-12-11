@@ -944,7 +944,7 @@ class _GeneralChatState extends State<GeneralChat> {
       fileId: fileId,
       reactionsController: _reactionsController,
       onReply: (msg) => setState(() => _repliedMessage = msg),
-      onDelete: (msg) => _chatService.deleteMessage(msg.id),
+      onDelete: (msg) => _chatService.deleteMessage(msg),
       onMessageVisible: (msgId) => _chatService.markMessageAsSeen(msgId, _userId),
       chatController: _chatController,
       userCache: _userCache,

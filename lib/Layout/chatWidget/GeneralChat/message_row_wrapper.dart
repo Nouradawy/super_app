@@ -9,6 +9,7 @@ import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:WhatsUnity/Layout/chatWidget/Details/ChatMember.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../../../Confg/Enums.dart';
 import '../MessageWidget.dart';
 
 
@@ -308,7 +309,7 @@ class MessageRowWrapper extends StatelessWidget {
         menuItems: [
           MenuItem(label: 'Reply', icon: Icons.reply),
           MenuItem(label: 'Copy', icon: Icons.copy),
-          isSentByMe?MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true):MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
+          (isSentByMe || userRole == Roles.admin )?MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true):MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
 
 
 

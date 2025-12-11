@@ -24,6 +24,7 @@ import '../../Services//GoogleDriveService.dart';
 import '../../Services/PresenceManager.dart';
 import '../../Services/gumletService.dart';
 import '../MainScreen.dart';
+import 'ManagerCubit/cubit.dart';
 
 
 
@@ -37,10 +38,20 @@ class AppCubit extends Cubit<AppCubitStates> {
   int bottomNavIndex = 0;
   bool isPassword = true;
   Roles? roleName ;
+  bool isAnnouncment = false;
 
   IconData? suffixIcon = Icons.visibility;
-  bool ActivateDropdown = false;
-  int AccountIndex = 0;
+  ///--------------Profile----------------
+
+  bool activateDropdown = false;
+  ProfileSection? activeSection;
+  int accountIndex = -1;
+  bool isOTP = false;
+  final Map<ProfileSection,int?> activeIndexBySection = {
+    ProfileSection.account: null,
+    ProfileSection.preferences: null,
+    ProfileSection.support: null,
+  };
   /// used to Get Current TabBar (Chat - Social) Index at HomePage
   int  tabBarIndex =  0 ;
   bool isRecording = false;
@@ -63,6 +74,11 @@ class AppCubit extends Cubit<AppCubitStates> {
   bool conflictGuard = false;
 
 
+  void loadAnnouncement(){
+    isAnnouncment = true;
+    emit(LoadAnnouncementState());
+  }
+
   Future<void> apartmentAlreadyTaken({
     required String compoundId,
     required String buildingNum,
@@ -80,12 +96,11 @@ class AppCubit extends Cubit<AppCubitStates> {
     if(rows.isNotEmpty) {
       // conflictGuard  =true;
       apartmentConflict =true;
-    }else {
+    } else {
       // conflictGuard  = false;
       apartmentConflict =  false;
     }
     emit(FormValidationState());
-
   }
 
   Map<String, dynamic> get currentPresence {
@@ -242,7 +257,6 @@ class AppCubit extends Cubit<AppCubitStates> {
     emit(InputIsPasswordState());
   }
 
-
   void micOnPressed(){
     isRecording = !isRecording;
     emit(isRecordingStates());
@@ -261,11 +275,39 @@ class AppCubit extends Cubit<AppCubitStates> {
   void SendChatMessage(){
     emit(MessageSentState());
   }
+///------------------------profile-----------------------------------
+  void accountSettingsDropdown(ProfileSection section , int index){
+    final current = activeIndexBySection[section];
+    activeIndexBySection[section] = (current == index) ? null : index;
 
-  void AccountSettingsDropdown(index){
-    AccountIndex = index;
-    ActivateDropdown = !ActivateDropdown;
-    emit(AccountSettingsExpandStates());
+    emit(AppProfileSectionToggledState(section: section, index: activeIndexBySection[section]));
+  }
+
+  bool isActive(ProfileSection section, int index) {
+    return activeIndexBySection[section] == index;
+  }
+
+  void profileApplyChanges()=>emit(ProfileApplyChangesState());
+
+
+  void appPasswordUpdated()=>emit(AppPasswordUpdatedState());
+
+  Future<void> requestEmailChange(String newEmail, {String? redirectUrl}) async {
+    try {
+      // This triggers Supabase to send an OTP to the new email (if secure email change is enabled)
+      await supabase.auth.updateUser(
+        UserAttributes(email: newEmail),
+        emailRedirectTo: redirectUrl, // optional deep link/url
+      );
+      isOTP =true;
+      emit(AppEmailChangeRequestedState(newEmail));
+
+    } on AuthException catch (e) {
+      debugPrint("Error: ${e.message}");
+      emit(AppEmailChangeFailedState(e.message));
+    } catch (e) {
+      emit(AppEmailChangeFailedState('Unknown error'));
+    }
   }
 
 
@@ -338,21 +380,21 @@ class AppCubit extends Cubit<AppCubitStates> {
       debugPrint('Supabase Google auth error: $e\n$st');
     }
   }
+
   void continueGoogleRegistration( context , String fullName , int roleId , String buildingName , String apartmentNum ,OwnerTypes ownerType , String phoneNumber , String userName) async {
     await supabase.from('profiles').update({
       'full_name':fullName,
       'display_name': userName,
       'owner_type': ownerType.name,
       'phone_number' : phoneNumber,
-      'userState' : UserState.New.name,
     }
     ).eq('id',Userid);
 
     if(roleId != 1){
-      final updateRole = await supabase.from('user_roles').update({'role_id':roleId}).eq('user_id', Userid).single();
+      final updateRole = await supabase.from('user_roles').update({'role_id':roleId}).eq('user_id', Userid);
     }
 
-    if(roleId !=2){
+
       if (selectedCompoundId == null) {
         debugPrint('continueGoogleRegistration: selectedCompoundId is null');
         return;
@@ -392,17 +434,20 @@ class AppCubit extends Cubit<AppCubitStates> {
         });
 
 
-    }
+
 
 
     UserData = Supabase.instance.client.auth.currentSession?.user;
-    userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+    userRole = Roles.values[roleId-1];
     signupGoogleEmail = null;
     signupGoogleUserName = null;
     if(UserData != null) {
 
       await loadCompoundMembers(selectedCompoundId!);
-      await getPostsData(selectedCompoundId);
+
+      if(userRole != Roles.manager) {
+        await getPostsData(selectedCompoundId);
+      }
       await verificationFilesUpload();
 
       Navigator.pushReplacement(
@@ -430,6 +475,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   Future<void> signOut() async {
     signInGoogle = false;
+
     final int existingIndex = prevSignIn.indexWhere(
             (m) => m.containsKey(Userid));
     final newValue = {
@@ -453,7 +499,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
       // 2. Clear any local user data.
       UserData = null;
-
+      bottomNavIndex = 0;
 
       // 3. Emit a new state to notify the UI that sign-out is complete.
       emit(AppSignOutSuccessState()); // You'll need to create this state
@@ -825,6 +871,7 @@ class AppCubit extends Cubit<AppCubitStates> {
     }
     emit(GetPostsDataStates());
   }
+
   Future<void> postNewComment (int compoundId , String postId , int postIndex , TextEditingController newComment) async {
     // await supabase.from('Posts').select('Comments').eq('compound_id', compoundId).eq('id',postId).single();
     List newComments= [];

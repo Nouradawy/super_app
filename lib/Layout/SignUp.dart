@@ -21,6 +21,7 @@ import '../Components/Constants.dart';
 import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
 import '../OTPScreen.dart';
+import 'Cubit/ManagerCubit/cubit.dart';
 import 'MainScreen.dart';
 
 
@@ -36,6 +37,7 @@ class SignUp extends StatelessWidget {
   final TextEditingController phoneNumber = TextEditingController();
   final _formKey1 = GlobalKey<FormState>();
   final _formKey2 = GlobalKey<FormState>();
+  final _formKey3 = GlobalKey<FormState>();
 
 
 
@@ -45,8 +47,6 @@ class SignUp extends StatelessWidget {
 
     final cubit = AppCubit.get(context);
     if(cubit.signupGoogleUserName != null) displayName.text = cubit.signupGoogleUserName!;
-    bool signupMail = false;
-    bool signinMail = false;
     return BlocBuilder<AppCubit, AppCubitStates>(
       builder: (BuildContext context, state) {
 
@@ -88,7 +88,7 @@ class SignUp extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                roleSelection (context ,buildingNum ,apartmentNum, _formKey2 ),
+                                roleSelection (context ,buildingNum ,apartmentNum, _formKey2 ,_formKey3),
                               ],
                             ),
                           const SizedBox(height: 20),
@@ -149,7 +149,7 @@ Column heading (BuildContext context){
   );
 }
 
-Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey2 ) {
+Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey2 , _formKey3 ) {
   return Column(
     children: [
       SizedBox(height: 20),
@@ -167,6 +167,9 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey
           ),
           child: MaterialButton(
             onPressed: () {
+              if(selectedCompoundId !=null){
+                AppCubit.get(context).resetUserData();
+              }
               if (AppCubit.get(context).roleName != Roles.user) {
                 AppCubit.get(context,).SignupRoleName(Roles.user);
 
@@ -180,7 +183,7 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey
             ),
             child: Row(
               children: [
-                SizedBox(width: 20),
+                const SizedBox(width: 20),
                 Container(
                   padding: EdgeInsets.all(5),
                   width: 35,
@@ -232,6 +235,9 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey
           ),
           child: MaterialButton(
             onPressed: () {
+              if(selectedCompoundId !=null){
+                AppCubit.get(context).resetUserData();
+              }
               if (AppCubit.get(context).roleName != Roles.manager) {
                 AppCubit.get(context).SignupRoleName(Roles.manager);
               } else {
@@ -244,7 +250,7 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey
             ),
             child: Row(
               children: [
-                SizedBox(width: 35),
+                const SizedBox(width: 20),
                 Container(
                   padding: EdgeInsets.all(5),
                   width: 35,
@@ -281,6 +287,8 @@ Column roleSelection (BuildContext context ,buildingNum ,apartmentNum , _formKey
             ),
           ),
         ),
+      if(AppCubit.get(context).roleName == Roles.manager)
+      managerInfo (context , _formKey3 ),
       if (AppCubit.get(context).roleName == Roles.user)
         apartmentInfo (context , buildingNum ,  apartmentNum , _formKey2 ),
     ],
@@ -468,6 +476,126 @@ Form apartmentInfo (BuildContext context ,TextEditingController buildingNum ,
   );
 }
 
+Form managerInfo (BuildContext context ,GlobalKey _formKey3 ) {
+
+  return Form(
+    key:_formKey3,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 15,
+      children: [
+        const SizedBox(height: 7,),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left:15.0),
+              child: MaterialButton(
+                padding:EdgeInsets.zero,
+                height: 50,
+                elevation: 0,
+                color: HexColor("#dae7f7"),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                onPressed: () {
+                  newCompound(context);
+                },
+                child: Container(
+                  width: MediaQuery.sizeOf(context).width*0.80/2,
+                  alignment: AlignmentDirectional.centerStart,
+                  padding: EdgeInsets.only(left: 20),
+                  child: Text(
+                    selectedCompoundId == null
+                        ? context.loc.signUpAddCompound
+                        : MyCompounds.values.last.toString(),
+                  ),
+                ),
+              ),
+            ),
+
+
+          ],
+        ),
+
+        Stack(
+          alignment: AlignmentDirectional.topEnd,
+          children: [
+            SizedBox(
+              width: MediaQuery.sizeOf(context).width*0.75,
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount:
+                  2, // Number of columns in the grid
+                  crossAxisSpacing:
+                  8.0, // Spacing between columns
+                  mainAxisSpacing: 8.0, // Spacing between rows
+                ),
+                itemCount: context.read<AppCubit>().verFiles?.length ?? 0,
+                itemBuilder: (context, index) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(context.read<AppCubit>().verFiles![index].path),
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                },
+              ),
+            ),
+            context.read<AppCubit>().verFiles != null
+                ? IconButton(
+              onPressed: () {
+                context.read<AppCubit>().verFiles = null;
+              },
+              icon: Icon(Icons.close),
+            )
+                : DottedBorder(
+              options: RoundedRectDottedBorderOptions(
+                radius: Radius.circular(8),
+                strokeWidth: 2,
+                color: Colors.grey.shade400,
+                dashPattern: [5],
+              ),
+              child: Container(
+                alignment: AlignmentDirectional.center,
+                height: MediaQuery.sizeOf(context).height*0.15,
+                width: MediaQuery.sizeOf(context).width*0.8,
+                decoration: BoxDecoration(
+
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
+                    Text(context.loc.uploadPhotosVerFiles,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
+
+                    MaterialButton(
+                      onPressed: ()=>context.read<AppCubit>().verFileImport(),
+                      color:HexColor("f0f2f5"),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18.0),
+                      ),
+                      child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
+
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 Form form (BuildContext context , TextEditingController email ,
     TextEditingController fullName , TextEditingController displayName ,
     TextEditingController password ,TextEditingController phoneNumber , GlobalKey _formKey1) {
@@ -605,7 +733,7 @@ Column submitButton( BuildContext buildContext ,context ,
   return Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if(AppCubit.get(context).apartmentConflict || (AppCubit.get(context).verFiles==null && AppCubit.get(context).signingIn ))...[
+      if((AppCubit.get(context).apartmentConflict && AppCubit.get(context).signInToggler ==false && AppCubit.get(context).roleName != Roles.manager) || (AppCubit.get(context).verFiles==null && AppCubit.get(context).signingIn && AppCubit.get(context).signInToggler ==false && AppCubit.get(context).roleName != Roles.manager))...[
         Text(buildContext.loc.apartmentConflict1, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
         Text(buildContext.loc.apartmentConflict2, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
         if(AppCubit.get(context).verFiles==null)
@@ -628,36 +756,43 @@ Column submitButton( BuildContext buildContext ,context ,
 
             ///Sign up case......
             if (AppCubit.get(context).signInToggler == false) {
-              await AppCubit.get(context).apartmentAlreadyTaken(
-                compoundId: selectedCompoundId!.toString(),
-                buildingNum: buildingNum.text,
-                apartmentNum: apartmentNum.text,
-              );
-              // 2) Validate forms; stop if either is invalid
-              final isForm1Valid = _formKey1.currentState?.validate() ?? false;
-              final isForm2Valid = _formKey2.currentState?.validate() ?? false;
-              if (!isForm1Valid || !isForm2Valid) {
-                return; // Do not continue to signup or toggle signing state
-              }
+
+              if(AppCubit.get(context).roleName != Roles.manager){
+                await AppCubit.get(context).apartmentAlreadyTaken(
+                  compoundId: selectedCompoundId!.toString(),
+                  buildingNum: buildingNum.text,
+                  apartmentNum: apartmentNum.text,
+                );
+                // 2) Validate forms; stop if either is invalid
+                final isForm1Valid = _formKey1.currentState?.validate() ??
+                    false;
+                final isForm2Valid = _formKey2.currentState?.validate() ??
+                    false;
+                if (!isForm1Valid || !isForm2Valid) {
+                  return; // Do not continue to signup or toggle signing state
+                }
 
 
+                final building = buildingNum.text.trim();
+                final apartment = apartmentNum.text.trim();
+                if ((selectedCompoundId == null) ||
+                    (building.isEmpty || apartment.isEmpty)) {
+                  if (!buildContext.mounted) return;
+                  ScaffoldMessenger.of(buildContext)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(
+                        behavior: SnackBarBehavior.floating,
+                        content: Text(selectedCompoundId == null
+                            ? 'Please select a compound.'
+                            : 'Building and apartment are required.'),
+                      ),
+                    );
+                  return;
+                }
 
-              final building = buildingNum.text.trim();
-              final apartment = apartmentNum.text.trim();
-              if ((selectedCompoundId == null) ||  (building.isEmpty || apartment.isEmpty) ) {
-                if (!buildContext.mounted) return;
-                ScaffoldMessenger.of(buildContext)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    SnackBar(
-                      behavior: SnackBarBehavior.floating,
-                      content: Text( selectedCompoundId == null?'Please select a compound.' : 'Building and apartment are required.'),
-                    ),
-                  );
-                return;
               }
               AppCubit.get(context).signInSwitcher();
-
               try {
                 await supabase.auth.signUp(
                   email: email.text,
@@ -667,8 +802,8 @@ Column submitButton( BuildContext buildContext ,context ,
                     "FullName": fullName.text,
                     "role_id": AppCubit.get(context).roleName!.index+1,
                     'compound_id':selectedCompoundId.toString(),
-                    'building_num': buildingNum.text,
-                    'apartment_num': apartmentNum.text,
+                    'building_num': AppCubit.get(context).roleName != Roles.manager?buildingNum.text:'-1',
+                    'apartment_num': AppCubit.get(context).roleName != Roles.manager?apartmentNum.text:'-1',
                     "ownerType" : AppCubit.get(context).ownerType.name,
                     "phoneNumber" : phoneNumber.text,
                   },
@@ -705,6 +840,7 @@ Column submitButton( BuildContext buildContext ,context ,
             }
             ///Sign in case......
             else {
+              AppCubit.get(context).signInSwitcher();
               AppCubit.get(context).resetUserData();
               try{
                 await supabase.auth.signInWithPassword(
@@ -732,11 +868,14 @@ Column submitButton( BuildContext buildContext ,context ,
 
 
             UserData = Supabase.instance.client.auth.currentSession?.user;
-            userRole = Roles.values[UserData?.userMetadata?["role_id"]];
 
             if (UserData != null) {
-              presetBeforeSignin(context);
+
+              userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
+              debugPrint(" current user rolename : ${userRole?.name}");
+              await presetBeforeSignin(context);
               AppCubit.get(context).signInSwitcher();
+
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -805,18 +944,22 @@ Column signInProviders (BuildContext context ,TextEditingController fullName ,
 
 
               // 2) Validate forms; stop if either is invalid
-              final isForm1Valid = _formKey1.currentState?.validate() ?? false;
-              final isForm2Valid = _formKey2.currentState?.validate() ?? false;
-              if (!isForm1Valid || !isForm2Valid) {
-                return; // Do not continue to signup or toggle signing state
+              if(AppCubit.get(context).roleName != Roles.manager){
+                final isForm1Valid = _formKey1.currentState?.validate() ?? false;
+                final isForm2Valid = _formKey2.currentState?.validate() ?? false;
+                if (!isForm1Valid || !isForm2Valid) {
+                  return; // Do not continue to signup or toggle signing state
+                }
+                await AppCubit.get(context).apartmentAlreadyTaken(
+                  compoundId: selectedCompoundId!.toString(),
+                  buildingNum: buildingNum.text,
+                  apartmentNum: apartmentNum.text,
+                );
               }
-              await AppCubit.get(context).apartmentAlreadyTaken(
-                compoundId: selectedCompoundId!.toString(),
-                buildingNum: buildingNum.text,
-                apartmentNum: apartmentNum.text,
-              );
 
-              AppCubit.get(context).continueGoogleRegistration(context ,fullName.text , AppCubit.get(context).roleName!.index+1 ,buildingNum.text , apartmentNum.text ,AppCubit.get(context).ownerType , phoneNumber.text ,userName.text );
+
+
+              AppCubit.get(context).continueGoogleRegistration(context ,fullName.text , AppCubit.get(context).roleName!.index+1 ,AppCubit.get(context).roleName != Roles.manager?buildingNum.text:'-1' , AppCubit.get(context).roleName != Roles.manager?apartmentNum.text:'-1' ,AppCubit.get(context).ownerType , phoneNumber.text ,userName.text );
             }
 
           },

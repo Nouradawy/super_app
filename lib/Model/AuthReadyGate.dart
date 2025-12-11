@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../Components/Constants.dart';
 import '../Confg/Enums.dart';
 import '../Confg/supabase.dart';
+import '../Layout/Cubit/ManagerCubit/cubit.dart';
 import '../Layout/Cubit/cubit.dart';
 import '../Layout/MainScreen.dart';
 import '../Network/CacheHelper.dart';
@@ -43,12 +45,15 @@ class _AuthReadyGateState extends State<AuthReadyGate> {
       };
     }
 
-      // 3\) Load members, posts, etc.
-    await cubit.loadCompoundMembers(selectedCompoundId!);
-    await cubit.getPostsData(selectedCompoundId);
-
     userRole = Roles.values[UserData?.userMetadata?["role_id"]-1];
     debugPrint("Logedin as :${userRole?.name}");
+      // 3\) Load members, posts, etc.
+    await cubit.loadCompoundMembers(selectedCompoundId!);
+    if(userRole != Roles.manager) {
+      cubit.getPostsData(selectedCompoundId);
+    }
+
+
     requestPermission();
   }
 

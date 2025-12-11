@@ -1,4 +1,5 @@
 
+import 'package:WhatsUnity/Layout/Gatekeeper_user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -10,6 +11,7 @@ import '../Confg/supabase.dart';
 import 'AdminDashboard/AdminDashboard.dart';
 import 'BuildingChat.dart';
 import 'Cubit/cubit.dart';
+import 'ManagerHomePage.dart';
 import 'Profile.dart';
 
 class MainScreen extends StatelessWidget {
@@ -18,8 +20,8 @@ class MainScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List screens=[
-      HomePage(),
-      BuildingChat(),
+      GatekeeperScreen(index: userRole == Roles.manager?0:1,),
+      if(userRole != Roles.manager) BuildingChat(),
       Profile(),
       AdminDashboard(),
     ];
@@ -31,12 +33,13 @@ class MainScreen extends StatelessWidget {
               type:BottomNavigationBarType.fixed,
               currentIndex: AppCubit.get(context).bottomNavIndex,
               onTap: (index)=>AppCubit.get(context).bottomNavIndexChange(index),
-              items: [
+              items: <BottomNavigationBarItem>[
 
                 BottomNavigationBarItem(
                     icon: FaIcon(FontAwesomeIcons.house,size: 18),
                     label: "Home"
                 ),
+                if(userRole != Roles.manager)
                 BottomNavigationBarItem(
                     icon: FaIcon(FontAwesomeIcons.solidMessage,size: 18),
                     label: "Chats"

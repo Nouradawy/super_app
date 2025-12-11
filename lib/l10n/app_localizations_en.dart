@@ -42,6 +42,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get password => 'Password';
 
   @override
+  String get confirmPassword => 'Confirm Password';
+
+  @override
   String get roleSelection => 'Select Your Role';
 
   @override
@@ -94,6 +97,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cleaning => 'Care service';
+
+  @override
+  String get announcements => 'Announcements';
 
   @override
   String get socialTab => 'Social';

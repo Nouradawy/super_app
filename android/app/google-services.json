@@ -1,41 +1,42 @@
 {
   "project_info": {
-    "project_number": "979693285877",
-    "project_id": "super-app-c86fc",
-    "storage_bucket": "super-app-c86fc.firebasestorage.app"
+    "project_number": "117175444216",
+    "project_id": "whatsunity-c1657",
+    "storage_bucket": "whatsunity-c1657.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:979693285877:android:288193857c2eb0849270bc",
+        "mobilesdk_app_id": "1:117175444216:android:cdd69139ef6ea3d9be910d",
         "android_client_info": {
-          "package_name": "com.example.super_app"
+          "package_name": "com.nouradawy.whats_unity"
         }
       },
       "oauth_client": [
         {
-          "client_id": "979693285877-vnsab3eklg72or3ghe3tdrts3r08vfrt.apps.googleusercontent.com",
+          "client_id": "117175444216-v34a48vm8rjq724st1q0blfmg9dqpnj6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nouradawy.whats_unity",
+            "certificate_hash": "5063498174b7976354b02bb97682763a7cde9a5d"
+          }
+        },
+        {
+          "client_id": "117175444216-v40drl15ekah8q8gsrgc5ul035elq7rq.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAlt-RItw34zTROpIxFEtr_3ai8QwDWwQc"
+          "current_key": "AIzaSyCMJfz_ek9ZWWE92zcAx9Ac5-8rXPo1qvI"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "979693285877-vnsab3eklg72or3ghe3tdrts3r08vfrt.apps.googleusercontent.com",
+              "client_id": "117175444216-v40drl15ekah8q8gsrgc5ul035elq7rq.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.nouradawy.superApp"
-              }
             }
           ]
         }

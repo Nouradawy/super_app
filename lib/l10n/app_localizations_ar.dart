@@ -42,6 +42,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get password => 'كلمة السر';
 
   @override
+  String get confirmPassword => 'تأكيد كلمة السر';
+
+  @override
   String get roleSelection => 'اختار دورك';
 
   @override
@@ -93,6 +96,9 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get cleaning => 'كيرسيرفس';
+
+  @override
+  String get announcements => 'تصريحات';
 
   @override
   String get socialTab => 'تفاعل';
