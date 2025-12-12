@@ -1,5 +1,7 @@
 // lib/chat/widgets/message_row_wrapper.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:flutter_chat_reactions/flutter_chat_reactions.dart';
@@ -29,6 +31,7 @@ class MessageRowWrapper extends StatelessWidget {
   final List<types.Message> localMessages;
   final bool showDateHeaders;
   final String currentUserId;
+  final double? uploadProgress;
 
   // NEW: notify parent about visibility for sticky header computation
   final void Function(String messageId, int index, double visibleFraction, DateTime? createdAt) onVisibilityForHeader;
@@ -52,7 +55,8 @@ class MessageRowWrapper extends StatelessWidget {
     required this.localMessages,
     required this.showDateHeaders,
     required this.currentUserId,
-    required this.isUserScrolling
+    required this.isUserScrolling,
+    this.uploadProgress
   });
 
   @override
@@ -301,6 +305,63 @@ class MessageRowWrapper extends StatelessWidget {
       }
     }
 
+    Widget contentWidget;
+    if (message is types.CustomMessage &&
+        message.metadata?['type'] == 'image' &&
+        message.metadata?['filePath'] != null) {
+
+      final String path = message.metadata!['filePath'];
+      final double progress = uploadProgress ?? 0.0;
+
+      contentWidget = Container(
+        constraints: const BoxConstraints(
+          maxWidth: 250, // Limit width of image bubble
+          maxHeight: 300,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.grey[200],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          alignment: Alignment.center,
+          fit: StackFit.expand,
+          children: [
+            // Local Image
+            Image.file(
+              File(path),
+              fit: BoxFit.cover,
+            ),
+            // Dark Overlay
+            Container(color: Colors.black38),
+            // Progress Indicator
+            Center(
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 4,
+                color: Colors.white,
+                backgroundColor: Colors.white24,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Standard message rendering
+      contentWidget = MessageWidget(
+        message: message,
+        controller: reactionsController,
+        messageIndex: index,
+        chatController: chatController,
+        userName: userNameString,
+        userCache: userCache,
+        isPreviousMessageFromSameUser: isPreviousMessageFromSameUser,
+        isSentByMe: isSentByMe,
+        fileId: fileId,
+        localMessages: localMessages,
+        isUserScroll: isUserScrolling,
+      );
+    }
      final messageContent = ChatMessageWrapper(
       messageId: message.id,
       controller: reactionsController,
@@ -310,6 +371,7 @@ class MessageRowWrapper extends StatelessWidget {
           MenuItem(label: 'Reply', icon: Icons.reply),
           MenuItem(label: 'Copy', icon: Icons.copy),
           (isSentByMe || userRole == Roles.admin )?MenuItem(label: 'Delete', icon: Icons.delete_forever, isDestructive: true):MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
+          if(userRole == Roles.admin) MenuItem(label: 'Report', icon: Icons.report_outlined, isDestructive: true),
 
 
 
@@ -370,19 +432,7 @@ class MessageRowWrapper extends StatelessWidget {
            currentUserId: currentUserId,
          );
        },
-      child: MessageWidget(
-        message: message,
-        controller: reactionsController,
-        messageIndex: index,
-        chatController: chatController,
-        userName: userNameString,
-        userCache: userCache,
-        isPreviousMessageFromSameUser: isPreviousMessageFromSameUser,
-        isSentByMe: isSentByMe,
-        fileId: fileId,
-        localMessages: localMessages,
-        isUserScroll: isUserScrolling,
-      ),
+      child: contentWidget,
     );
 
     final List<Widget> messageBody = [

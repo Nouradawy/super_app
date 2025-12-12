@@ -11,6 +11,7 @@ import 'Components/Constants.dart';
 import 'Confg/Enums.dart';
 import 'Confg/supabase.dart';
 import 'Layout/Cubit/AdminDashboard/cubit.dart';
+import 'Layout/Cubit/ChatDetailsCubit/cubit.dart';
 import 'Layout/Cubit/ReportCubit/cubit.dart';
 import 'Layout/Cubit/cubit.dart';
 import 'Layout/SignUp.dart';
@@ -66,6 +67,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (context)=> ReportCubit()),
         BlocProvider(create: (context)=> AdminCubit()),
         BlocProvider(create: (context)=> ManagerCubit()),
+        BlocProvider(create: (context)=> ChatDetailsCubit()),
       ],
       child: ChangeNotifierProvider(
         create: (_) => AuthManager(),

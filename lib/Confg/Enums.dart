@@ -4,8 +4,10 @@ enum UserState{
   approved,
   unApproved,
   onConflict,
+  chatBanned,
   banned
 }
+
 enum AuthStatus { unknown, authenticated, unauthenticated }
 enum Roles {user,manager,admin ,developer}
 enum OwnerTypes {owner,rental}

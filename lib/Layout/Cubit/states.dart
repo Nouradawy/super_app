@@ -1,4 +1,7 @@
+import 'package:flutter/cupertino.dart';
+
 import '../../Confg/Enums.dart';
+import '../chatWidget/Details/ChatMember.dart';
 
 abstract class AppCubitStates{}
 
@@ -30,6 +33,15 @@ class AppEmailChangeFailedState extends AppCubitStates {
 
 class MessageSentState extends AppCubitStates{}
 class LoadAnnouncementState extends AppCubitStates{}
+class ProfileUpdatedState extends AppCubitStates{
+  final ChatMember member;
+
+  ProfileUpdatedState({required this.member});
+}
+class UserRoleChangedState extends AppCubitStates{
+  final Roles role;
+  UserRoleChangedState({required this.role});
+}
 class GoogleSigninStates extends AppCubitStates{}
 class AccountSettingsExpandStates extends AppCubitStates{}
 class SignUpSignIn_Toggle extends AppCubitStates{}

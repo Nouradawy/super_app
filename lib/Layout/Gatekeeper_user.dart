@@ -118,7 +118,32 @@ class GatekeeperScreen extends StatelessWidget {
                   ),
                 ),
               ),
-            )
+            ).on(
+            () => currentUser?.userState == UserState.banned,
+            () => Scaffold(
+              appBar: AppBar(),
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.no_accounts,
+                      color: Colors.redAccent,
+                      size: 100,
+                    ),
+                    SizedBox(height: 60),
+                    SizedBox(
+                      width: MediaQuery.sizeOf(context).width * 0.8,
+                      child: Text(
+                        "Your account has been banned . For breaking Community Rules.",
+                        style: TextStyle(fontSize: 16, color: Colors.black54),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        )
             .build(orElse: () {
               if(index == 1) {
                 return HomePage();

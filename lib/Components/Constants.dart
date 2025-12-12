@@ -28,6 +28,7 @@ bool isBrainStorming = false;
 Map<String,dynamic> MyCompounds = {'0': "Add New Community"};
 List<Map<String,dynamic>> prevSignIn = [];
 int? selectedCompoundId;
+bool enabledMultiCompound = false;
 
 bool _isRequestingPermissions = false;
 

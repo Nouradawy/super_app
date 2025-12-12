@@ -19,27 +19,30 @@ class MainScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List screens=[
-      GatekeeperScreen(index: userRole == Roles.manager?0:1,),
-      if(userRole != Roles.manager) BuildingChat(),
-      Profile(),
-      AdminDashboard(),
-    ];
+
 
     return BlocBuilder<AppCubit,AppCubitStates>(
       builder: (context,states) {
+        final cubit = AppCubit.get(context);
+        final Roles? role = cubit.currentUserRole ?? userRole;
+        final List screens=[
+          GatekeeperScreen(index: role == Roles.manager?0:1,),
+          if(role != Roles.manager) BuildingChat(),
+          Profile(),
+          if (role == Roles.admin) AdminDashboard(),
+        ];
         return Scaffold(
           bottomNavigationBar: BottomNavigationBar(
               type:BottomNavigationBarType.fixed,
-              currentIndex: AppCubit.get(context).bottomNavIndex,
-              onTap: (index)=>AppCubit.get(context).bottomNavIndexChange(index),
+              currentIndex: cubit.bottomNavIndex,
+              onTap: (index)=>cubit.bottomNavIndexChange(index),
               items: <BottomNavigationBarItem>[
 
                 BottomNavigationBarItem(
                     icon: FaIcon(FontAwesomeIcons.house,size: 18),
                     label: "Home"
                 ),
-                if(userRole != Roles.manager)
+                if(role != Roles.manager)
                 BottomNavigationBarItem(
                     icon: FaIcon(FontAwesomeIcons.solidMessage,size: 18),
                     label: "Chats"
@@ -57,14 +60,14 @@ class MainScreen extends StatelessWidget {
                         ,size: 19),
                     label: "Profile"
                 ),
-                if(userRole == Roles.admin)
+                if(role == Roles.admin)
                   BottomNavigationBarItem(
                       icon: FaIcon(FontAwesomeIcons.userTie
                           ,size: 19),
                       label: "Admin dashboard"
                   ),
               ]),
-          body: screens[AppCubit.get(context).bottomNavIndex],
+          body: screens[cubit.bottomNavIndex],
         );
       }
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../Layout/Cubit/cubit.dart';
+import 'RealtimeUserService.dart';
 
 class PresenceManager extends StatefulWidget {
   final Widget child;
@@ -27,13 +28,19 @@ class _PresenceManagerState extends State<PresenceManager> with WidgetsBindingOb
 
     // Initialize the global presence channel using the stored instance
     _appCubit.initializePresence();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      RealtimeUserService.instance.init(context);
+    });
+
   }
 
   @override
   void dispose() {
     // Stop listening to app lifecycle events
     WidgetsBinding.instance.removeObserver(this);
-
+    RealtimeUserService.instance.dispose();
     // 3. Safely use the stored instance in dispose(). Do NOT use context.read() here.
     _appCubit.disconnectPresence();
     super.dispose();

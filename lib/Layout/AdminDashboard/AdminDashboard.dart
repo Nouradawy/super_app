@@ -58,6 +58,7 @@ class AdminDashboard extends StatelessWidget {
              if(cubit.index ==0) ...[
                Expanded(
                  child: ChatMembersScreen(
+                   isAdmin:true,
                    compoundId: selectedCompoundId!,
                  ),
                ),
@@ -68,6 +69,7 @@ class AdminDashboard extends StatelessWidget {
                 ),
               ],
               if(cubit.index ==2) ...[
+
                 Expanded(
                   child: Reports(),
                 ),

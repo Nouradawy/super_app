@@ -43,8 +43,6 @@ class SignUp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-
     final cubit = AppCubit.get(context);
     if(cubit.signupGoogleUserName != null) displayName.text = cubit.signupGoogleUserName!;
     return BlocBuilder<AppCubit, AppCubitStates>(

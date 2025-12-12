@@ -3,6 +3,7 @@
 import 'dart:async'; // <<< Added for Timer
 import 'dart:io';
 
+import 'package:condition_builder/condition_builder.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flyer_chat_system_message/flyer_chat_system_message.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:mime/mime.dart';
 
 import 'package:supabase/supabase.dart';
@@ -23,6 +25,7 @@ import 'package:uuid/uuid.dart';
 import 'package:ntp/ntp.dart';
 
 import '../../../Components/Constants.dart';
+import '../../../Confg/Enums.dart';
 import '../../../Confg/supabase.dart';
 import '../../Cubit/ChatDetailsCubit/cubit.dart';
 import '../BrainStorming.dart';
@@ -53,11 +56,12 @@ class _VisibleMessage {
   _VisibleMessage(this.index, this.fraction, this.createdAt);
 }
 
-class _GeneralChatState extends State<GeneralChat> {
+class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin {
   // Services
   late final ChatService _chatService;
   late final ChatCacheService _cacheService;
-
+  @override
+  bool get wantKeepAlive => true;
   // State
   bool _isInitializing = true;
   bool _isUserScrolling = false;
@@ -126,6 +130,7 @@ class _GeneralChatState extends State<GeneralChat> {
     _chatTextController.removeListener(_handleTypingStatus);
     _chatTextController.dispose();
     _scrollIdleTimer?.cancel();
+
     super.dispose();
   }
 
@@ -728,6 +733,8 @@ class _GeneralChatState extends State<GeneralChat> {
       _uploadProgress[localId] = 0.0; // Initialize progress
     });
 
+    _addOrUpdateMessages([placeholderMessage]);
+
     // 2. Upload the file to Google Drive
     final fileName = '${const Uuid().v4()}.${result.path.split('.').last}';
     final driveLink = await driveService.uploadFile(
@@ -929,6 +936,10 @@ class _GeneralChatState extends State<GeneralChat> {
     if (message is types.ImageMessage) {
       fileId = extractDriveFileId(message.source);
     }
+    double? uploadProgress;
+    if (message is types.CustomMessage && message.metadata?['localId'] != null) {
+      uploadProgress = _uploadProgress[message.metadata!['localId']];
+    }
     final messagesList = List<types.Message>.from(_chatController.messages);
     final controllerIndex = messagesList.indexWhere((m) => m.id == message.id);
     final bool isPreviousMessageFromSameUser =
@@ -956,11 +967,13 @@ class _GeneralChatState extends State<GeneralChat> {
       showDateHeaders: _isUserScrolling,
       currentUserId: _userId,
       isUserScrolling: _isUserScrolling,
+      uploadProgress: uploadProgress,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_isInitializing) {
       return Scaffold(
         appBar: AppBar(
@@ -992,128 +1005,185 @@ class _GeneralChatState extends State<GeneralChat> {
       );
     }
 
-   if(isBrainStorming ==false){
-     return Scaffold(
-       appBar: AppBar(
-         title: MaterialButton(
-             onPressed: () {
-               Navigator.push(
-                 context,
-                 MaterialPageRoute(
-                   builder: (context) => BlocProvider(
-                     create:(context) => ChatDetailsCubit(),
-                     child: ChatDetails(
-                       compoundId: widget.compoundId,
+
+     return ConditionBuilder<dynamic>.on(
+           () => currentUser?.userState == UserState.banned,
+           () => Scaffold(
+         appBar: AppBar(),
+         body: Center(
+           child: Column(
+             mainAxisAlignment: MainAxisAlignment.center,
+             children: [
+               Icon(
+                 Icons.no_accounts,
+                 color: Colors.redAccent,
+                 size: 100,
+               ),
+               SizedBox(height: 60),
+               SizedBox(
+                 width: MediaQuery.sizeOf(context).width * 0.8,
+                 child: Text(
+                   "Your account has been banned . For breaking Community Rules.",
+                   style: TextStyle(fontSize: 16, color: Colors.black54),
+                 ),
+               ),
+             ],
+           ),
+         ),
+       ),
+     )
+     .on(
+           () => currentUser?.userState == UserState.chatBanned,
+           () => Scaffold(
+         appBar: AppBar(),
+         body: Center(
+           child: Column(
+             mainAxisAlignment: MainAxisAlignment.center,
+             children: [
+               Icon(
+                 Symbols.chat_error,
+                 color: Colors.redAccent,
+                 size: 100,
+               ),
+               SizedBox(height: 60),
+               SizedBox(
+                 width: MediaQuery.sizeOf(context).width * 0.8,
+                 child: Text(
+                   "Your account has been banned . For breaking Community Rules.",
+                   style: TextStyle(fontSize: 16, color: Colors.black54),
+                 ),
+               ),
+             ],
+           ),
+         ),
+       ),
+     )
+         .build(orElse: () {
+       if(isBrainStorming ==false){
+         return Scaffold(
+           appBar: AppBar(
+             title: MaterialButton(
+                 onPressed: () {
+                   Navigator.push(
+                     context,
+                     MaterialPageRoute(
+                       builder: (context) => BlocProvider(
+                         create:(context) => ChatDetailsCubit(),
+                         child: ChatDetails(
+                           compoundId: widget.compoundId,
+                         ),
+                       ),
                      ),
+                   );
+                 },
+
+                 child: Row(
+                   mainAxisSize: MainAxisSize.min,
+                   spacing: 10,
+                   children: [
+                     Container(
+                         width: 40,
+                         height: 40,
+                         decoration: BoxDecoration(
+                             color: Colors.white70,
+                             shape: BoxShape.circle
+                         ),
+                         child:ClipOval(child: getCompoundPicture(widget.compoundId,38))
+                     ),
+                     Text("General Chat"),
+                   ],
+                 )),
+             actions:[IconButton(onPressed: () {
+               AppCubit.get(context).getBrainStormData(channelId!);
+               brainStormingSwitch();
+             }, icon: Icon(Icons.analytics_outlined),)],
+
+           ),
+
+           body: Stack(
+             children: [
+               NotificationListener<ScrollNotification>(
+                 onNotification: _onScrollNotification,
+                 child: Chat(
+                   chatController: _chatController,
+                   currentUserId: _userId,
+                   onMessageSend: (text) => _handleSendPressed(text),
+                   onAttachmentTap: _handleAttachmentPressed,
+                   resolveUser: (id) async {
+                     await _resolveUser(id);
+                     return _userCache[id];
+                   },
+                   builders: types.Builders(
+                     textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                     imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                     audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                     customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
+                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                     // systemMessageBuilder: (context, message, index, {
+                     //   required bool isSentByMe,
+                     //   types.MessageGroupStatus? groupStatus,
+                     // }) => FlyerChatSystemMessage(message: message, index: index),
+
+                     chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
+                       itemBuilder: itemBuilder,
+                       initialScrollToEndMode: InitialScrollToEndMode.none,
+
+                     ),
+                     composerBuilder: (context) {
+                       return BlocBuilder<AppCubit, AppCubitStates>(
+                           buildWhen: (previous, current) => current is ShowHideMicStates,
+                           builder: (context, state) {
+                             return Visibility(
+                               visible: !AppCubit.get(context).isRecording,
+                               child: Composer(
+                                 gap: 0,
+                                 sendIcon: Icon(Icons.send),
+                                 textEditingController: _chatTextController,
+                                 handleSafeArea: true,
+                                 sigmaX: 3,
+                                 sigmaY: 3,
+                                 sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
+                               ),
+                             );
+                           });
+                     },
                    ),
                  ),
-               );
-             },
-
-             child: Row(
-               mainAxisSize: MainAxisSize.min,
-               spacing: 10,
-               children: [
-                 Container(
-                     width: 40,
-                     height: 40,
-                     decoration: BoxDecoration(
-                         color: Colors.white70,
-                         shape: BoxShape.circle
-                     ),
-                     child:ClipOval(child: getCompoundPicture(widget.compoundId,38))
-                 ),
-                 Text("General Chat"),
-               ],
-             )),
-         actions:[IconButton(onPressed: () {
-           AppCubit.get(context).getBrainStormData(channelId!);
-           brainStormingSwitch();
-         }, icon: Icon(Icons.analytics_outlined),)],
-
-       ),
-
-       body: Stack(
-         children: [
-           NotificationListener<ScrollNotification>(
-             onNotification: _onScrollNotification,
-             child: Chat(
-               chatController: _chatController,
-               currentUserId: _userId,
-               onMessageSend: (text) => _handleSendPressed(text),
-               onAttachmentTap: _handleAttachmentPressed,
-               resolveUser: (id) async {
-                 await _resolveUser(id);
-                 return _userCache[id];
-               },
-               builders: types.Builders(
-                 textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                 imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                 audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                 customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
-                     _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                 // systemMessageBuilder: (context, message, index, {
-                 //   required bool isSentByMe,
-                 //   types.MessageGroupStatus? groupStatus,
-                 // }) => FlyerChatSystemMessage(message: message, index: index),
-             
-                 chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
-                   itemBuilder: itemBuilder,
-                   initialScrollToEndMode: InitialScrollToEndMode.none,
-             
-                 ),
-                 composerBuilder: (context) {
-                   return BlocBuilder<AppCubit, AppCubitStates>(
-                       buildWhen: (previous, current) => current is ShowHideMicStates,
-                       builder: (context, state) {
-                         return Visibility(
-                           visible: !AppCubit.get(context).isRecording,
-                           child: Composer(
-                             gap: 0,
-                             sendIcon: Icon(Icons.send),
-                             textEditingController: _chatTextController,
-                             handleSafeArea: true,
-                             sigmaX: 3,
-                             sigmaY: 3,
-                             sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
-                           ),
-                         );
-                       });
-                 },
                ),
-             ),
-           ),
-           // sticky date header overlay
-           Positioned(
-             top: 0,
-             left: 0,
-             right: 0,
-             child: _buildStickyDateHeader(),
-           ),
-
-           if (_repliedMessage != null)
-             Positioned(
-               bottom: 65,
-               left: MediaQuery.of(context).size.width * 0.1,
-               child: ReplyBar(
-                 repliedMessage: _repliedMessage!,
-                 onCancel: () => setState(() => _repliedMessage = null),
+               // sticky date header overlay
+               Positioned(
+                 top: 0,
+                 left: 0,
+                 right: 0,
+                 child: _buildStickyDateHeader(),
                ),
-             ),
-         ],
-       ),
-     );
-   } else {
-     return BrainStorming(
-       channelId: channelId!,
-       onClose: (){
-         brainStormingSwitch();
-       },
-     );
-   }
+
+               if (_repliedMessage != null)
+                 Positioned(
+                   bottom: 65,
+                   left: MediaQuery.of(context).size.width * 0.1,
+                   child: ReplyBar(
+                     repliedMessage: _repliedMessage!,
+                     onCancel: () => setState(() => _repliedMessage = null),
+                   ),
+                 ),
+             ],
+           ),
+         );
+       } else {
+         return BrainStorming(
+           channelId: channelId!,
+           onClose: (){
+             brainStormingSwitch();
+           },
+         );
+       }
+       });
+
+
   }
 }
 

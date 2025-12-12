@@ -23,6 +23,7 @@ class ReportCubit extends Cubit<ReportCubitState> {
   ReportAUsers? reportUser;
   ReportAUserFilter filter = ReportAUserFilter.All;
   List<ReportAUsers> reportListData = [];
+  List<ReportAUsers> userFilteredReports = [];
 
 
 
@@ -94,6 +95,11 @@ ListView reportsList(){
     },
   );
 }
+
+
+  Future<void> reportFilterUser(String userId) async {
+    await supabase.from("Report_user").select('*').eq('reportedUserId',userId);
+  }
 
 Future<void> fileReportToUser()async {
   await supabase.from('Report_user').insert(

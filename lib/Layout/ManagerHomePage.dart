@@ -82,7 +82,7 @@ class ManagerHomepage extends StatelessWidget {
             appBar: AppBar(
               backgroundColor:Colors.white,
               leadingWidth: 120,
-              title:DropdownMenu(
+              title:enabledMultiCompound?DropdownMenu(
                 initialSelection: selectedCompoundId?.toString(),
                 width: MediaQuery.sizeOf(context).width * 0.55,
                 inputDecorationTheme: InputDecorationTheme(
@@ -136,7 +136,11 @@ class ManagerHomepage extends StatelessWidget {
                     await CacheHelper.saveData(key: "compoundCurrentIndex", value: selectedCompoundId);
                   }
                 },
-              ),
+              ):Text(MyCompounds.values.last,style: GoogleFonts.plusJakartaSans(
+              color: HexColor("#111518"),
+              fontSize: 17,
+              fontWeight: FontWeight.w500,
+            ),),
               leading: Container(
                   alignment: AlignmentDirectional.center,
                   padding: EdgeInsets.only(left: 7),
@@ -146,12 +150,12 @@ class ManagerHomepage extends StatelessWidget {
                     style: GoogleFonts.lobster(fontSize: 20 ,fontWeight: FontWeight.w500 , color: Colors.indigo.shade500 ,),
                   )),
               actions:[
-                 IconButton(onPressed: (){
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => Profile()),
-                );
-              }, icon: Icon(Icons.notifications)),
+              //    IconButton(onPressed: (){
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(builder: (context) => Profile()),
+              //   );
+              // }, icon: Icon(Icons.notifications)),
 
               ],
 

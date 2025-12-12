@@ -24,6 +24,7 @@ import '../../Services//GoogleDriveService.dart';
 import '../../Services/PresenceManager.dart';
 import '../../Services/gumletService.dart';
 import '../MainScreen.dart';
+import '../chatWidget/Details/ChatMember.dart';
 import 'ManagerCubit/cubit.dart';
 
 
@@ -38,6 +39,7 @@ class AppCubit extends Cubit<AppCubitStates> {
   int bottomNavIndex = 0;
   bool isPassword = true;
   Roles? roleName ;
+  Roles? currentUserRole;
   bool isAnnouncment = false;
 
   IconData? suffixIcon = Icons.visibility;
@@ -72,6 +74,32 @@ class AppCubit extends Cubit<AppCubitStates> {
   ///---------------SignUp--------------
   bool apartmentConflict = false;
   bool conflictGuard = false;
+
+  void onProfileUpdated(ChatMember member) {
+    // Update whatever fields you mirror in cubit
+    // e.g. displayName = profileRow['display_name'];
+    debugPrint("current user : ${currentUser?.userState?.name}");
+    emit(ProfileUpdatedState(member: member));
+  }
+
+  // Called when user_roles role id changes
+  void onUserRoleChanged(Roles newRole) {
+    currentUserRole = newRole;
+    userRole = newRole;
+    // Possibly reset tabs, home, etc.
+    if (bottomNavIndex >= _bottomNavLengthForRole(newRole)) {
+      bottomNavIndex = 0;
+    }
+
+    emit(UserRoleChangedState(role:newRole));
+  }
+
+  int _bottomNavLengthForRole(Roles? role) {
+    // Matches your MainScreen logic
+    if (role == Roles.admin) return 4;
+    if (role == Roles.manager) return 2;
+    return 3; // user
+  }
 
 
   void loadAnnouncement(){
@@ -818,7 +846,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   Future<void> fetchPostsData (String postHead , bool getCalls , String? type , List<XFile>? files , int compoundId ) async {
 
-    if(files != null || files!.isNotEmpty){
+    if(files != null){
 
       for (final xfile in files) {
         final bytes = await xfile.readAsBytes();

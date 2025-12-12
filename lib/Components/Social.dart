@@ -24,6 +24,7 @@ class Social extends StatelessWidget {
 
   TextEditingController postHead = TextEditingController();
   List<XFile>? file;
+  List<String> moreMenu = ["Delete"];
 
   Social({super.key});
 
@@ -160,10 +161,25 @@ class Social extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  if(userRole == Roles.admin || currentUser?.id == cubit.Posts[index]["author_id"])
                                   Positioned(
                                       right:15,
                                       top:28,
-                                      child: Icon(Icons.more_horiz)),
+                                      child: PopupMenuButton<String>(
+                                        tooltip: '',
+                                        onSelected: (selectedValue) async {
+                                          debugPrint(selectedValue);
+                                          await supabase.from("Posts").delete().eq('author_id', cubit.Posts[index]["author_id"]).eq('id',cubit.Posts[index]["id"]);
+                                          AppCubit.get(context).getPostsData(selectedCompoundId!);
+                                        },
+                                          itemBuilder: (ctx) => moreMenu
+                                              .map((f)=>PopupMenuItem<String>(
+                                            value:f,
+                                            child: Text(f),
+                                          )).toList(),
+                                        child: Icon(Icons.more_horiz),
+
+                                      )),
                                 ],
                               ),
                               SizedBox(
