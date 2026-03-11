@@ -18,14 +18,11 @@ class RealtimeUserService {
   RealtimeChannel? _rolesChannel;
 
   void init(BuildContext context) {
-    final client = supabase; // your global client
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
 
-    final userId = user.id;
+    final userId = currentUser?.id;
 
     // \[1] Listen on profiles table for this user
-    _profileChannel ??= client.channel('public:profiles:$userId')
+    _profileChannel ??= supabase.channel('public:profiles:$userId')
       ..onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
@@ -38,7 +35,7 @@ class RealtimeUserService {
       ..subscribe();
 
     // \[2] Listen on user_roles (or equivalent) for this user
-    _rolesChannel ??= client.channel('public:user_roles:$userId')
+    _rolesChannel ??= supabase.channel('public:user_roles:$userId')
       ..onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
@@ -62,7 +59,7 @@ class RealtimeUserService {
   void _handleProfileUpdate(BuildContext context, PostgresChangePayload payload) {
     if (!context.mounted) return;
     final newRecord = payload.newRecord;
-
+    debugPrint(newRecord['userState']);
     if (currentUser == null) return;
 
     final appCubit = AppCubit.get(context);

@@ -29,7 +29,6 @@ Map<String,dynamic> MyCompounds = {'0': "Add New Community"};
 List<Map<String,dynamic>> prevSignIn = [];
 int? selectedCompoundId;
 bool enabledMultiCompound = false;
-
 bool _isRequestingPermissions = false;
 
 Future<void> loadCachedData () async{
@@ -71,7 +70,7 @@ Future<void> presetBeforeSignin(BuildContext context) async {
 
       }
     } else {
-
+    debugPrint("PrevSign is empty");
     if(selectedCompoundId ==null ){
 
       final compoundId =await supabase.from('user_apartments').select('compound_id').eq('user_id', Userid).single();

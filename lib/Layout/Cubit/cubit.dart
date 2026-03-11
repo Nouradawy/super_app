@@ -166,9 +166,8 @@ class AppCubit extends Cubit<AppCubitStates> {
     postsCarouselIndex = index;
     emit(postsOnChangedCarsoleState());
   }
-
+  double micPadding =0;
   void showHideMicBrain(){
-
       emit(ShowHideMicStates());
   }
 
@@ -228,6 +227,7 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   void bottomNavIndexChange(index){
     bottomNavIndex = index;
+    debugPrint("current bottom nav index : $bottomNavIndex");
     if(bottomNavIndex!=0) tabBarIndex=0;
     emit(BottomNavIndexChangeStates());
   }

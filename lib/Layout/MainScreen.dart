@@ -31,7 +31,9 @@ class MainScreen extends StatelessWidget {
           Profile(),
           if (role == Roles.admin) AdminDashboard(),
         ];
+
         return Scaffold(
+          resizeToAvoidBottomInset: false,
           bottomNavigationBar: BottomNavigationBar(
               type:BottomNavigationBarType.fixed,
               currentIndex: cubit.bottomNavIndex,

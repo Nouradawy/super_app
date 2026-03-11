@@ -27,7 +27,7 @@ class BuildingChat extends StatelessWidget {
               builder: (context,state){
                 if(AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
                   return Positioned(
-                    bottom: 0,
+                    bottom: 0 + AppCubit.get(context).micPadding,
                     right: 0,
                     child: SafeArea(
                       child: SocialMediaRecorder(

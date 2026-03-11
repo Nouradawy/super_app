@@ -1,3 +1,4 @@
+import 'package:WhatsUnity/Components/Constants.dart';
 import 'package:WhatsUnity/Confg/Enums.dart';
 import 'package:WhatsUnity/Layout/Cubit/ReportCubit/cubit.dart';
 import 'package:flutter/material.dart';
@@ -47,7 +48,23 @@ class ChatDetailsCubit extends Cubit<ChatDetailsStates> {
   }
 
   Future<void> banUser(String userid , UserState banType) async {
+    debugPrint("ban pressed:$userid");
+
     await supabase.from('profiles').update({"userState":banType.name}).eq('id',userid);
+    final index = ChatMembers.indexWhere((m) => m.id == userid);
+    if (index != -1) {
+      ChatMembers[index] = ChatMember(
+          id: ChatMembers[index].id,
+          displayName: ChatMembers[index].displayName,
+          building: ChatMembers[index].building,
+          apartment: ChatMembers[index].apartment,
+          userState: banType,
+          phoneNumber: ChatMembers[index].phoneNumber,
+          ownerType: ChatMembers[index].ownerType,
+        avatarUrl: ChatMembers[index].avatarUrl,
+        fullName: ChatMembers[index].fullName
+      );
+    }
     emit(BanMemberState());
   }
 

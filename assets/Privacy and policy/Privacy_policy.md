@@ -52,7 +52,7 @@ You can stop all collection of information by the Application easily by uninstal
 
 **Data Retention Policy**
 
-The Service Provider will retain User Provided data for as long as you use the Application and for a reasonable time thereafter. Verification documents are retained as long as the account is active or until a residency conflict is resolved. If you'd like them to delete User Provided Data that you have provided via the Application, please contact them at nouradawyonex@gmail.com and they will respond in a reasonable time.
+The Service Provider will retain User Provided data for as long as you use the Application and for a reasonable time thereafter. Verification documents are retained as long as the account is active or until a residency conflict is resolved. If you'd like them to delete User Provided Data that you have provided via the Application, please contact them at support@whatsunity.work.gd and they will respond in a reasonable time.
 
 **Children**
 

@@ -117,6 +117,7 @@ Future<void> newCompound(BuildContext context) {
   return showDialog(
     context: context,
     builder: (BuildContext context) {
+
       return AlertDialog(
         backgroundColor: Colors.white,
         content: SizedBox(
@@ -731,7 +732,14 @@ Column submitButton( BuildContext buildContext ,context ,
   return Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if((AppCubit.get(context).apartmentConflict && AppCubit.get(context).signInToggler ==false && AppCubit.get(context).roleName != Roles.manager) || (AppCubit.get(context).verFiles==null && AppCubit.get(context).signingIn && AppCubit.get(context).signInToggler ==false && AppCubit.get(context).roleName != Roles.manager))...[
+      if((AppCubit.get(context).apartmentConflict
+          && AppCubit.get(context).signInToggler ==false
+          && AppCubit.get(context).roleName != Roles.manager)
+          || (AppCubit.get(context).apartmentConflict
+              && AppCubit.get(context).verFiles==null
+              && AppCubit.get(context).signingIn
+              && AppCubit.get(context).signInToggler ==false
+              && AppCubit.get(context).roleName != Roles.manager))...[
         Text(buildContext.loc.apartmentConflict1, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
         Text(buildContext.loc.apartmentConflict2, style: buildContext.txt.signSubtitle.copyWith(color: Colors.pinkAccent ,fontWeight: FontWeight.w400)),
         if(AppCubit.get(context).verFiles==null)

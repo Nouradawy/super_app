@@ -69,6 +69,7 @@ class HomePage extends StatelessWidget {
 
         return Scaffold(
             backgroundColor:Colors.white,
+            resizeToAvoidBottomInset: false,
             appBar: AppBar(
               backgroundColor:Colors.white,
               leadingWidth: 120,
@@ -282,11 +283,15 @@ class HomePage extends StatelessWidget {
 
                 ),
                 BlocBuilder<AppCubit,AppCubitStates>(
-                  buildWhen: (prev , current)=>current is TabBarIndexStates || current  is ShowHideMicStates  || current is BottomNavIndexChangeStates || current is CompoundMembersUpdated || current is UpdatePostCommentsState,
+                  buildWhen: (prev , current)=> current is TabBarIndexStates
+                      || current  is ShowHideMicStates
+                      || current is BottomNavIndexChangeStates
+                      || current is CompoundMembersUpdated
+                      || current is UpdatePostCommentsState,
                     builder: (context,state){
-                      if(AppCubit.get(context).tabBarIndex==1 && AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
+                      if((AppCubit.get(context).tabBarIndex==1 || AppCubit.get(context).bottomNavIndex==1) && AppCubit.get(context).isChatInputEmpty && isBrainStorming ==false) {
                         return Positioned(
-                          bottom: 0,
+                          bottom: 0 + AppCubit.get(context).micPadding,
                           right: 0,
                           child: SafeArea(
                             child: SocialMediaRecorder(

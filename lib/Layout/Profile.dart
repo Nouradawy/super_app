@@ -25,7 +25,7 @@ class Profile extends StatelessWidget {
   final List profile = ["Edit Profile","Notifications","Privacy","Security" , "SignOut"];
   final List account = ["Edit Profile","Change Password"];
   final List preferences = ["Notifications","Appearance"];
-  final List support = ["Help Center","Privacy Policy","Terms of Use"];
+  final List support = ["Help Center","Privacy Policy","Terms of Use" , "Delete Account"];
 
   TextEditingController userName = TextEditingController(text: currentUser?.displayName);
   TextEditingController fullName = TextEditingController(text: currentUser?.fullName);
@@ -527,8 +527,101 @@ class Profile extends StatelessWidget {
                                         key: ValueKey('support_collapsed_$index'),
                                         padding: EdgeInsets.zero,
                                         onPressed: () async {
+                                          if(index == 1)
+                                          {
 
-                                          cubit.accountSettingsDropdown(ProfileSection.support , index);
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                final currentLocale = Localizations.localeOf(context);
+                                                return Dialog(
+                                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
+                                                    child: Padding(
+                                                        padding: const EdgeInsets.all(16),
+                                                        child: currentLocale.languageCode == "ar"
+                                                            ? PolicyDialog(mdFileName: 'Privacy_policy_ar.md')
+                                                            : PolicyDialog(mdFileName: 'Privacy_policy.md')
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                            // context.read<AppCubit>().signOut();
+
+                                          } else if(index == 2 ) {
+
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                final currentLocale = Localizations.localeOf(context);
+                                                return Dialog(
+                                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
+                                                    child: Padding(
+                                                        padding: const EdgeInsets.all(16),
+                                                        child: currentLocale.languageCode == "ar"
+                                                            ? PolicyDialog(mdFileName: 'Terms_conditions_ar.md')
+                                                            : PolicyDialog(mdFileName: 'Terms_conditions.md')
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                          }
+                                          else if(index == 3) {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => Dialog(
+                                                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                                child: ConstrainedBox(
+                                                  constraints: const BoxConstraints(maxHeight: 200, minWidth: 200),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(16),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        const SizedBox(height: 30,),
+                                                        Text("It's sad seeing you Leaving" , style:GoogleFonts.openSans(fontWeight: FontWeight.w600) ,),
+                                                        const SizedBox(height: 7,),
+                                                        Text("Are you sure you want to delete your account ?", style:GoogleFonts.openSans()),
+                                                        const SizedBox(height: 20,),
+
+                                                        MaterialButton(
+                                                          color: Colors.deepOrange,
+                                                          height: 42,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                                          elevation: 0,
+                                                          onPressed: () async {
+                                                            final Uri emailLaunchUri = Uri(
+                                                              scheme: 'mailto',
+                                                              path: 'support@whatsunity.work.gd',
+                                                              query: 'subject=Delete My Account&body=Please delete my WhatsUnity account with userId = ${currentUser?.id} - associated with this email.',
+                                                            );
+                                                            if (!await launchUrl(emailLaunchUri)) {
+                                                              // Fallback if mail app doesn't open
+                                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not launch email app')));
+                                                            }
+                                                          },
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            spacing: 10,
+                                                            children: [
+                                                              FaIcon(FontAwesomeIcons.arrowRightFromBracket,color: HexColor("#ae060e"),size: 16,),
+                                                              Text("Delete My Account" , style: GoogleFonts.plusJakartaSans(color: Colors.white ,fontSize: 14, fontWeight: FontWeight.w900),),
+                                                            ],
+                                                          ),),
+                                                      ],),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            cubit.accountSettingsDropdown(ProfileSection.support , index);
+                                          }
+
 
                                         },
                                         child: Column(
@@ -554,41 +647,94 @@ class Profile extends StatelessWidget {
                                         padding: EdgeInsets.zero,
                                         onPressed: () async {
 
+
                                           if(index == 1)
                                           {
+
                                             showDialog(
                                               context: context,
-                                              builder: (context) => Dialog(
-                                                insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                                                child: ConstrainedBox(
-                                                  constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.all(16),
-                                                    child: PolicyDialog(
-                                                      mdFileName: context.loc.language == "English"
-                                                          ? 'Privacy_policy.md'
-                                                          : 'Privacy_policy_ar.md',
+                                              builder: (context) {
+                                                final currentLocale = Localizations.localeOf(context);
+                                                return Dialog(
+                                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
+                                                    child: Padding(
+                                                        padding: const EdgeInsets.all(16),
+                                                        child: currentLocale.languageCode == "ar"
+                                                            ? PolicyDialog(mdFileName: 'Privacy_policy_ar.md')
+                                                            : PolicyDialog(mdFileName: 'Privacy_policy.md')
                                                     ),
                                                   ),
-                                                ),
-                                              ),
+                                                );
+                                              },
                                             );
                                             // context.read<AppCubit>().signOut();
 
-                                          } else if(index == 2) {
+                                          } else if(index == 2 ) {
+
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                final currentLocale = Localizations.localeOf(context);
+                                                return Dialog(
+                                                  insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                                                  child: ConstrainedBox(
+                                                    constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
+                                                    child: Padding(
+                                                        padding: const EdgeInsets.all(16),
+                                                        child: currentLocale.languageCode == "ar"
+                                                            ? PolicyDialog(mdFileName: 'Terms_conditions_ar.md')
+                                                            : PolicyDialog(mdFileName: 'Terms_conditions.md')
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                          }
+                                          else if(index == 3) {
                                             showDialog(
                                               context: context,
                                               builder: (context) => Dialog(
                                                 insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                                                 child: ConstrainedBox(
-                                                  constraints: const BoxConstraints(maxHeight: 520, minWidth: 320),
+                                                  constraints: const BoxConstraints(maxHeight: 200, minWidth: 200),
                                                   child: Padding(
                                                     padding: const EdgeInsets.all(16),
-                                                    child: PolicyDialog(
-                                                        mdFileName: context.loc.language == "English"
-                                                            ?'Terms_condetions.md'
-                                                            :'Terms_condetions_ar.md'
-                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        const SizedBox(height: 30,),
+                                                        Text("It's sad seeing you Leaving" , style:GoogleFonts.openSans(fontWeight: FontWeight.w600) ,),
+                                                        const SizedBox(height: 7,),
+                                                        Text("Are you sure you want to delete your account ?", style:GoogleFonts.openSans()),
+                                                        const SizedBox(height: 20,),
+
+                                                        MaterialButton(
+                                                          color: Colors.deepOrange,
+                                                          height: 42,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                                          elevation: 0,
+                                                          onPressed: () async {
+                                                            final Uri emailLaunchUri = Uri(
+                                                              scheme: 'mailto',
+                                                              path: 'support@whatsunity.work.gd',
+                                                              query: 'subject=Delete My Account&body=Please delete my WhatsUnity account with userId = ${currentUser?.id} - associated with this email.',
+                                                            );
+                                                            if (!await launchUrl(emailLaunchUri)) {
+                                                              // Fallback if mail app doesn't open
+                                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not launch email app')));
+                                                            }
+                                                          },
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            spacing: 10,
+                                                            children: [
+                                                              FaIcon(FontAwesomeIcons.arrowRightFromBracket,color: HexColor("#ae060e"),size: 16,),
+                                                              Text("Delete My Account" , style: GoogleFonts.plusJakartaSans(color: Colors.white ,fontSize: 14, fontWeight: FontWeight.w900),),
+                                                            ],
+                                                          ),),
+                                                      ],),
                                                   ),
                                                 ),
                                               ),

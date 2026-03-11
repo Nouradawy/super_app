@@ -56,7 +56,7 @@ class _VisibleMessage {
   _VisibleMessage(this.index, this.fraction, this.createdAt);
 }
 
-class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin {
+class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   // Services
   late final ChatService _chatService;
   late final ChatCacheService _cacheService;
@@ -97,16 +97,48 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
-
+  double _bottomPadding = 0.0;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _chatService = ChatService(supabase);
     _cacheService = ChatCacheService();
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _chatTextController.addListener(_handleTypingStatus);
     _initializeChat();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Only react on tab index 0
+    final appCubit = AppCubit.get(context);
+      //false
+
+    // 1. Get raw metrics
+    final view = View.of(context);
+    final physicalBottom = view.viewInsets.bottom;
+    final pixelRatio = view.devicePixelRatio;
+
+    // 2. Calculate logical height
+    final logicalBottom = physicalBottom / pixelRatio;
+
+    // 3. Apply your fix: Subtract 65 only if keyboard is visible (height > 0)
+    // We use .clamp(0.0, double.infinity) to prevent negative padding crashes.
+    final newBottomPadding = logicalBottom > 0
+        ? (logicalBottom - 55).clamp(0.0, double.infinity)
+        : 0.0;
+
+    // 4. Update state only if changed
+    if (_bottomPadding != newBottomPadding ) {
+      setState(() {
+        AppCubit.get(context).micPadding = newBottomPadding;
+        AppCubit.get(context).showHideMicBrain();
+        debugPrint("i am still alive");
+        _bottomPadding = newBottomPadding;
+      });
+    }
   }
 
   @override
@@ -120,6 +152,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _realtimeChannel?.unsubscribe();
     _pollingTimers.values.forEach((timer) => timer.cancel()); // Cancel all timers
     _chatController.dispose();
@@ -428,7 +461,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
       // Prompt user to sign in if they haven't already
       AppCubit.get(context).googleSignin();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please link your Google Drive account first.')),
+        const SnackBar(content: Text('looks like you arent signed in with google account we will try to log you in first.')),
       );
       return;
     }
@@ -474,14 +507,14 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
                               _handleImageSelection();
                             },
                           ),
-                          ListTile(
-                            leading: const Icon(Icons.attach_file),
-                            title: const Text('File'),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _handleFileSelection();
-                            },
-                          ),
+                          // ListTile(
+                          //   leading: const Icon(Icons.attach_file),
+                          //   title: const Text('File'),
+                          //   onTap: () {
+                          //     Navigator.pop(context);
+                          //     _handleFileSelection();
+                          //   },
+                          // ),
                           ListTile(
                             leading: const Icon(Icons.how_to_vote_outlined),
                             title: const Text('Poll'),
@@ -974,6 +1007,8 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    
+
     if (_isInitializing) {
       return Scaffold(
         appBar: AppBar(
@@ -1061,6 +1096,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
          .build(orElse: () {
        if(isBrainStorming ==false){
          return Scaffold(
+           resizeToAvoidBottomInset: true,
            appBar: AppBar(
              title: MaterialButton(
                  onPressed: () {
@@ -1100,77 +1136,83 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
            ),
 
-           body: Stack(
-             children: [
-               NotificationListener<ScrollNotification>(
-                 onNotification: _onScrollNotification,
-                 child: Chat(
-                   chatController: _chatController,
-                   currentUserId: _userId,
-                   onMessageSend: (text) => _handleSendPressed(text),
-                   onAttachmentTap: _handleAttachmentPressed,
-                   resolveUser: (id) async {
-                     await _resolveUser(id);
-                     return _userCache[id];
-                   },
-                   builders: types.Builders(
-                     textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                     imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                     audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
-                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                     customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
-                         _messageBuilder(context, message, index, isSentByMe: isSentByMe),
-                     // systemMessageBuilder: (context, message, index, {
-                     //   required bool isSentByMe,
-                     //   types.MessageGroupStatus? groupStatus,
-                     // }) => FlyerChatSystemMessage(message: message, index: index),
+           body: Padding(
+             padding: EdgeInsets.only(bottom: _bottomPadding),
+             child: Stack(
+               fit: StackFit.expand,
+               children: [
+                 Positioned.fill(
+                   child: NotificationListener<ScrollNotification>(
+                     onNotification: _onScrollNotification,
+                     child: Chat(
+                       chatController: _chatController,
+                       currentUserId: _userId,
+                       onMessageSend: (text) => _handleSendPressed(text),
+                       onAttachmentTap: _handleAttachmentPressed,
+                       resolveUser: (id) async {
+                         await _resolveUser(id);
+                         return _userCache[id];
+                       },
+                       builders: types.Builders(
+                         textMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                             _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                         imageMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                             _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                         audioMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus}) =>
+                             _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                         customMessageBuilder: (context, message, index, {required bool isSentByMe, groupStatus})=>
+                             _messageBuilder(context, message, index, isSentByMe: isSentByMe),
+                         // systemMessageBuilder: (context, message, index, {
+                         //   required bool isSentByMe,
+                         //   types.MessageGroupStatus? groupStatus,
+                         // }) => FlyerChatSystemMessage(message: message, index: index),
 
-                     chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
-                       itemBuilder: itemBuilder,
-                       initialScrollToEndMode: InitialScrollToEndMode.none,
+                         chatAnimatedListBuilder: (context, itemBuilder) => ChatAnimatedList(
+                           itemBuilder: itemBuilder,
+                           initialScrollToEndMode: InitialScrollToEndMode.none,
 
+                         ),
+                         composerBuilder: (context) {
+                           return BlocBuilder<AppCubit, AppCubitStates>(
+                               buildWhen: (previous, current) => current is ShowHideMicStates,
+                               builder: (context, state) {
+                                 return Visibility(
+                                   visible: !AppCubit.get(context).isRecording,
+                                   child: Composer(
+                                     gap: 0,
+                                     sendIcon: Icon(Icons.send),
+                                     textEditingController: _chatTextController,
+                                     handleSafeArea: true,
+                                     sigmaX: 3,
+                                     sigmaY: 3,
+                                     sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
+                                   ),
+                                 );
+                               });
+                         },
+                       ),
                      ),
-                     composerBuilder: (context) {
-                       return BlocBuilder<AppCubit, AppCubitStates>(
-                           buildWhen: (previous, current) => current is ShowHideMicStates,
-                           builder: (context, state) {
-                             return Visibility(
-                               visible: !AppCubit.get(context).isRecording,
-                               child: Composer(
-                                 gap: 0,
-                                 sendIcon: Icon(Icons.send),
-                                 textEditingController: _chatTextController,
-                                 handleSafeArea: true,
-                                 sigmaX: 3,
-                                 sigmaY: 3,
-                                 sendButtonHidden: AppCubit.get(context).isChatInputEmpty,
-                               ),
-                             );
-                           });
-                     },
                    ),
                  ),
-               ),
-               // sticky date header overlay
-               Positioned(
-                 top: 0,
-                 left: 0,
-                 right: 0,
-                 child: _buildStickyDateHeader(),
-               ),
-
-               if (_repliedMessage != null)
+                 // sticky date header overlay
                  Positioned(
-                   bottom: 65,
-                   left: MediaQuery.of(context).size.width * 0.1,
-                   child: ReplyBar(
-                     repliedMessage: _repliedMessage!,
-                     onCancel: () => setState(() => _repliedMessage = null),
-                   ),
+                   top: 0,
+                   left: 0,
+                   right: 0,
+                   child: _buildStickyDateHeader(),
                  ),
-             ],
+
+                 if (_repliedMessage != null)
+                   Positioned(
+                     bottom: 65,
+                     left: MediaQuery.of(context).size.width * 0.1,
+                     child: ReplyBar(
+                       repliedMessage: _repliedMessage!,
+                       onCancel: () => setState(() => _repliedMessage = null),
+                     ),
+                   ),
+               ],
+             ),
            ),
          );
        } else {

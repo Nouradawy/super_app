@@ -315,241 +315,14 @@ class Social extends StatelessWidget {
   }
 
   Future<void> newPost(
-      BuildContext context,
+      BuildContext rootContext,
       TextEditingController postHead,
-  ) async {
-    bool postingInProgress = false;
+      ) async {
+    // We delegate to a StatefulWidget to handle Keyboard listeners properly
     return showDialog(
-      context: context,
+      context: rootContext,
       builder: (BuildContext context) {
-        bool getCalls = false;
-        return StatefulBuilder(
-          builder: (context, setStateOfDialog) {
-            return AlertDialog(
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              backgroundColor: Colors.white,
-              content: SizedBox(
-                width: MediaQuery.sizeOf(context).width*0.98,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(child: Text(context.loc.postCreate)),
-                    Divider(thickness: 0.5),
-                    Row(
-                      children: [
-
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: currentUser?.avatarUrl != null? NetworkImage(currentUser!.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                        ),
-
-                        SizedBox(width: 10),
-                        Text(
-                            currentUser?.displayName ?? "Guest",
-                            style: context.txt.socialUserName
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 10),
-                    PostTextForm(
-                      context,
-                      controller: postHead,
-                      keyboardType: TextInputType.text,
-                      hintText: context.loc.statusButton,
-                    ),
-
-                    Padding(
-                      padding: const EdgeInsets.only(top:8.0),
-                      child: Stack(
-                        alignment: AlignmentDirectional.topEnd,
-                        children: [
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount:
-                              2, // Number of columns in the grid
-                              crossAxisSpacing:
-                              8.0, // Spacing between columns
-                              mainAxisSpacing: 8.0, // Spacing between rows
-                            ),
-                            itemCount: file?.length ?? 0,
-                            itemBuilder: (context, index) {
-                              return ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  File(file![index].path),
-                                  fit: BoxFit.cover,
-                                ),
-                              );
-                            },
-                          ),
-                          file != null
-                              ? IconButton(
-                            onPressed: () {
-                              file = null;
-                              setStateOfDialog(() {});
-                            },
-                            icon: Icon(Icons.close),
-                          )
-                              : DottedBorder(
-                            options: RoundedRectDottedBorderOptions(
-                              radius: Radius.circular(8),
-                              strokeWidth: 2,
-                              color: Colors.grey.shade400,
-                              dashPattern: [5],
-                            ),
-                            child: Container(
-                              alignment: AlignmentDirectional.center,
-                              height: MediaQuery.sizeOf(context).height*0.2,
-                              width: MediaQuery.sizeOf(context).width*0.8,
-                              decoration: BoxDecoration(
-
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Text(context.loc.emptyPhotos,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w700),),
-                                  Text(context.loc.uploadPhotosPosts,style: GoogleFonts.plusJakartaSans(fontWeight:FontWeight.w400),),
-                                  MaterialButton(
-                                    onPressed: () async{
-                                      List<XFile>? result = await ImagePicker()
-                                          .pickMultiImage(
-                                        imageQuality: 70,
-                                        maxWidth: 1440,
-                                      );
-
-                                      if (result.isEmpty) return;
-
-                                      file = result;
-                                      setStateOfDialog(() {});
-                                    },
-                                    color:HexColor("f0f2f5"),
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18.0),
-                                    ),
-                                    child: Text(context.loc.upload  ,style:GoogleFonts.plusJakartaSans(color: Colors.black , fontWeight: FontWeight.w600)),
-
-                                  ),
-
-
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if(getCalls == true)  Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [Text("Name"), Text("Position")],
-                            ),
-                            MaterialButton(
-                              padding: EdgeInsets.only(right: 21, left: 15),
-                              onPressed: () {},
-                              elevation: 0,
-                              color: Colors.blue,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15.0),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.phone),
-                                  SizedBox(width: 5),
-                                  Text(
-                                    "Call now",
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 5.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: MediaQuery.sizeOf(context).width * 0.50,
-                            child: Text(
-                              "Add to your post",
-                              style: GoogleFonts.plusJakartaSans(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              getCalls = true;
-                              setStateOfDialog(() {});
-                            },
-                            icon: Icon(Icons.phone),
-                            splashRadius: 10,
-                          ),
-
-                          // Icon(Icons.pin_drop),
-                        ],
-                      ),
-                    ),
-
-                    MaterialButton(
-                      onPressed: postingInProgress
-                          ? null
-                          : () async {
-                        postingInProgress = true;
-                        setStateOfDialog((){ });
-
-                        await AppCubit.get(context).fetchPostsData(postHead.text, getCalls, null, file, selectedCompoundId!);
-
-                        postingInProgress = false;
-                        setStateOfDialog((){ });
-                        Navigator.pop(context);
-
-                      },
-                      color: Colors.blue,
-                      disabledColor: Colors.blue.withAlpha(200),
-                      elevation: 0,
-                      minWidth: double.infinity,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15.0),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 8,
-                        children: [
-                          Text(
-                            "Post",
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if(postingInProgress) SizedBox( height: 30 , width: 30,child: CircularProgressIndicator()),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
+        return CreatePostDialog(postHead: postHead);
       },
     );
   }
@@ -560,216 +333,13 @@ class Social extends StatelessWidget {
       TextEditingController postHead,
       int index,
       ChatMember postUser,
-
       ) async {
 
+    // Delegate to the new CommentPopupDialog which handles keyboard resizing
     return showDialog(
       context: context,
       builder: (BuildContext context) {
-        final cubit = AppCubit.get(context);
-        final isSending = ValueNotifier<bool>(false);
-        return StatefulBuilder(
-          builder: (context, setStateOfDialog) {
-
-            TextEditingController newComment = TextEditingController();
-            return AlertDialog(
-              contentPadding: EdgeInsets.only( bottom: 15),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(9), // Set your desired radius
-              ),
-              backgroundColor: Colors.white,
-              content: SingleChildScrollView(
-                physics: BouncingScrollPhysics(),
-                child: SizedBox(
-                  width: MediaQuery.sizeOf(context).width,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: MediaQuery.sizeOf(context).width,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(8),
-                            topRight: Radius.circular(8),
-                          ),
-                          color: context.txt.socialBackgroundColor,
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: 10,
-                            top: 10,
-                            bottom: 5,
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: Colors.grey.shade200,
-                                    backgroundImage: postUser.avatarUrl != null? NetworkImage(postUser.avatarUrl.toString()):AssetImage("assets/defaultUser.webp"),
-                                  ),
-
-                                  SizedBox(width: 10),
-                                  Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        postUser.displayName,
-                                        style: context.txt.socialUserName
-                                      ),
-                                      Text(
-                                          formatPostTime(DateTime.tryParse(cubit.Posts[index]['created_at'])!),
-                                        style:
-                                        context.txt.socialPostSince
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: AlignmentDirectional.topStart,
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                  child: Text(
-                                    cubit.Posts[index]["post_head"],
-                                    style: context.txt.socialPostHead
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: MediaQuery.sizeOf(context).width*0.95,
-                        child: BlocBuilder<AppCubit, AppCubitStates>(
-                          builder: (context, states) {
-                            final source = (cubit.Posts[index]['source_url'] as List<dynamic>?) ?? [];
-                            return PostCarousel(
-                              userName: postUser.displayName,
-                              source: source,
-                              onPageChanged: (i) => cubit.onChangedCarousel(i),
-                            );
-                          },
-                        ),
-                      ),
-
-                      Container(
-                        width: MediaQuery.sizeOf(context).width * 0.95,
-                        decoration: BoxDecoration(
-                          color: context.txt.socialBackgroundColor,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(8),
-                            bottomRight: Radius.circular(8),
-                          ),
-                        ),
-
-                        child: Column(
-                          children: [
-                            //<---------------------Comments and Likes Indicators -------------------->
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal:
-                                MediaQuery.sizeOf(context).width * 0.04,
-                                vertical: 4,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    "${(cubit.Posts[index]['Comments'] as List? ?? []).length} ${context.loc.comment}",
-                                    style: context.txt.commentsCount
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Divider(
-                              indent:
-                              MediaQuery.sizeOf(context).width *
-                                  0.04,
-                              endIndent:
-                              MediaQuery.sizeOf(context).width *
-                                  0.04,
-                              height: 1.1,
-                              color: Colors.black12,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 0,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  MaterialButton(
-                                    onPressed: () {},
-                                    child: Row(
-                                      spacing: 5,
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.thumb_up_alt_outlined,
-                                          color: context.txt.socialIconColor,
-                                          size: 20,
-                                        ),
-                                        Text(context.loc.like),
-                                      ],
-                                    ),
-                                  ),
-                                  MaterialButton(
-                                    onPressed: () {
-                                    },
-                                    child: Row(
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.center,
-                                      spacing: 5,
-                                      children: [
-                                        Icon(
-                                          Icons.chat_outlined,
-                                          color: context.txt.socialIconColor,
-                                          size: 20,
-                                        ),
-                                        Text(context.loc.comment),
-                                      ],
-                                    ),
-                                  ),
-                                  MaterialButton(
-                                    onPressed: () {},
-                                    child: Row(
-                                      crossAxisAlignment:
-                                      CrossAxisAlignment.center,
-                                      spacing: 5,
-                                      children: [
-                                        Icon(
-                                          Icons.share_rounded,
-                                          color: context.txt.socialIconColor,
-                                          size: 20,
-                                        ),
-                                        Text(context.loc.share),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 10),
-
-                      commentsSection (context:context , cubit:cubit , index:index , newComment:newComment ,isSending:isSending , setStateOfDialog:setStateOfDialog),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
+        return CommentPopupDialog(index: index, postUser: postUser);
       },
     );
   }
@@ -822,5 +392,551 @@ class LessSensitivePageScrollPhysics extends PageScrollPhysics {
 
     // Snap to the nearest whole page
     return page.round() * metrics.viewportDimension;
+  }
+
+
+}
+
+// -----------------------------------------------------------------------------
+// NEW WIDGET: CreatePostDialog
+// This handles all state and keyboard events for the "New Post" dialog
+// -----------------------------------------------------------------------------
+class CreatePostDialog extends StatefulWidget {
+  final TextEditingController postHead;
+  const CreatePostDialog({super.key, required this.postHead});
+
+  @override
+  State<CreatePostDialog> createState() => _CreatePostDialogState();
+}
+
+class _CreatePostDialogState extends State<CreatePostDialog> with WidgetsBindingObserver {
+  // Dialog State
+  List<XFile>? file;
+  bool getCalls = false;
+  bool postingInProgress = false;
+
+  // Keyboard State
+  double _keyboardHeight = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Manually calculate keyboard height from raw view data
+    final view = View.of(context);
+    final physicalBottom = view.viewInsets.bottom;
+    final pixelRatio = view.devicePixelRatio;
+    final logicalBottom = physicalBottom / pixelRatio;
+
+    if (_keyboardHeight != logicalBottom) {
+      setState(() {
+        _keyboardHeight = logicalBottom;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+
+    return AlertDialog(
+      // Use insetPadding to compress the dialog from the bottom based on keyboard height.
+      // We add 24 to maintain the default bottom margin.
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, _keyboardHeight + 24),
+
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      backgroundColor: Colors.white,
+      content: SizedBox(
+        width: screenWidth * 0.98,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(child: Text(context.loc.postCreate)),
+              Divider(thickness: 0.5),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: currentUser?.avatarUrl != null
+                        ? NetworkImage(currentUser!.avatarUrl.toString())
+                        : AssetImage("assets/defaultUser.webp"),
+                  ),
+                  SizedBox(width: 10),
+                  Text(currentUser?.displayName ?? "Guest",
+                      style: context.txt.socialUserName),
+                ],
+              ),
+              SizedBox(height: 10),
+              PostTextForm(
+                context,
+                controller: widget.postHead,
+                keyboardType: TextInputType.text,
+                hintText: context.loc.statusButton,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Stack(
+                  alignment: AlignmentDirectional.topEnd,
+                  children: [
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 8.0,
+                        mainAxisSpacing: 8.0,
+                      ),
+                      itemCount: file?.length ?? 0,
+                      itemBuilder: (context, index) {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            File(file![index].path),
+                            fit: BoxFit.cover,
+                          ),
+                        );
+                      },
+                    ),
+                    file != null
+                        ? IconButton(
+                      onPressed: () {
+                        setState(() {
+                          file = null;
+                        });
+                      },
+                      icon: Icon(Icons.close),
+                    )
+                        : DottedBorder(
+                      options: RoundedRectDottedBorderOptions(
+                        radius: Radius.circular(8),
+                        strokeWidth: 2,
+                        color: Colors.grey.shade400,
+                        dashPattern: [5],
+                      ),
+                      child: Container(
+                        alignment: AlignmentDirectional.center,
+                        height: MediaQuery.sizeOf(context).height * 0.2,
+                        width: MediaQuery.sizeOf(context).width * 0.8,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              context.loc.emptyPhotos,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              context.loc.uploadPhotosPosts,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w400),
+                            ),
+                            MaterialButton(
+                              onPressed: () async {
+                                List<XFile>? result =
+                                await ImagePicker().pickMultiImage(
+                                  imageQuality: 70,
+                                  maxWidth: 1440,
+                                );
+                                if (result.isEmpty) return;
+                                setState(() {
+                                  file = result;
+                                });
+                              },
+                              color: HexColor("f0f2f5"),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18.0),
+                              ),
+                              child: Text(context.loc.upload,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      color: Colors.black,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (getCalls == true)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [Text("Name"), Text("Position")],
+                    ),
+                    MaterialButton(
+                      padding: EdgeInsets.only(right: 21, left: 15),
+                      onPressed: () {},
+                      elevation: 0,
+                      color: Colors.blue,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone),
+                          SizedBox(width: 5),
+                          Text(
+                            "Call now",
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: MediaQuery.sizeOf(context).width * 0.50,
+                      child: Text(
+                        "Add to your post",
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          getCalls = true;
+                        });
+                      },
+                      icon: Icon(Icons.phone),
+                      splashRadius: 10,
+                    ),
+                  ],
+                ),
+              ),
+              MaterialButton(
+                onPressed: postingInProgress
+                    ? null
+                    : () async {
+                  setState(() {
+                    postingInProgress = true;
+                  });
+
+                  await AppCubit.get(context).fetchPostsData(
+                      widget.postHead.text,
+                      getCalls,
+                      null,
+                      file,
+                      selectedCompoundId!);
+
+                  if (mounted) {
+                    setState(() {
+                      postingInProgress = false;
+                    });
+                    Navigator.pop(context);
+                  }
+                },
+                color: Colors.blue,
+                disabledColor: Colors.blue.withAlpha(200),
+                elevation: 0,
+                minWidth: double.infinity,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15.0),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: [
+                    Text(
+                      "Post",
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (postingInProgress)
+                      SizedBox(
+                          height: 30,
+                          width: 30,
+                          child: CircularProgressIndicator()),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CommentPopupDialog extends StatefulWidget {
+  final int index;
+  final ChatMember postUser;
+
+  const CommentPopupDialog({
+    super.key,
+    required this.index,
+    required this.postUser,
+  });
+
+  @override
+  State<CommentPopupDialog> createState() => _CommentPopupDialogState();
+}
+
+class _CommentPopupDialogState extends State<CommentPopupDialog> with WidgetsBindingObserver {
+  late TextEditingController newComment;
+  final ValueNotifier<bool> isSending = ValueNotifier(false);
+  double _keyboardHeight = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    newComment = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    newComment.dispose();
+    isSending.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final view = View.of(context);
+    final physicalBottom = view.viewInsets.bottom;
+    final pixelRatio = view.devicePixelRatio;
+    final logicalBottom = physicalBottom / pixelRatio;
+
+    if (_keyboardHeight != logicalBottom) {
+      setState(() {
+        _keyboardHeight = logicalBottom;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cubit = AppCubit.get(context);
+
+    return AlertDialog(
+      // Use insetPadding based on keyboard height
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, _keyboardHeight + 24),
+
+      contentPadding: EdgeInsets.only(bottom: 15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(9),
+      ),
+      backgroundColor: Colors.white,
+      content: SingleChildScrollView(
+        physics: BouncingScrollPhysics(),
+        child: SizedBox(
+          width: MediaQuery.sizeOf(context).width,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: MediaQuery.sizeOf(context).width,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
+                  color: context.txt.socialBackgroundColor,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 10,
+                    top: 10,
+                    bottom: 5,
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: widget.postUser.avatarUrl != null
+                                ? NetworkImage(widget.postUser.avatarUrl.toString())
+                                : AssetImage("assets/defaultUser.webp"),
+                          ),
+                          SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.postUser.displayName,
+                                style: context.txt.socialUserName,
+                              ),
+                              Text(
+                                formatPostTime(DateTime.tryParse(cubit.Posts[widget.index]['created_at'])!),
+                                style: context.txt.socialPostSince,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: AlignmentDirectional.topStart,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                          ),
+                          child: Text(
+                            cubit.Posts[widget.index]["post_head"],
+                            style: context.txt.socialPostHead,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: MediaQuery.sizeOf(context).width * 0.95,
+                child: BlocBuilder<AppCubit, AppCubitStates>(
+                  builder: (context, states) {
+                    final source = (cubit.Posts[widget.index]['source_url'] as List<dynamic>?) ?? [];
+                    return PostCarousel(
+                      userName: widget.postUser.displayName,
+                      source: source,
+                      onPageChanged: (i) => cubit.onChangedCarousel(i),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                width: MediaQuery.sizeOf(context).width * 0.95,
+                decoration: BoxDecoration(
+                  color: context.txt.socialBackgroundColor,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.sizeOf(context).width * 0.04,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            "${(cubit.Posts[widget.index]['Comments'] as List? ?? []).length} ${context.loc.comment}",
+                            style: context.txt.commentsCount,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      indent: MediaQuery.sizeOf(context).width * 0.04,
+                      endIndent: MediaQuery.sizeOf(context).width * 0.04,
+                      height: 1.1,
+                      color: Colors.black12,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          MaterialButton(
+                            onPressed: () {},
+                            child: Row(
+                              spacing: 5,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.thumb_up_alt_outlined,
+                                  color: context.txt.socialIconColor,
+                                  size: 20,
+                                ),
+                                Text(context.loc.like),
+                              ],
+                            ),
+                          ),
+                          MaterialButton(
+                            onPressed: () {},
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              spacing: 5,
+                              children: [
+                                Icon(
+                                  Icons.chat_outlined,
+                                  color: context.txt.socialIconColor,
+                                  size: 20,
+                                ),
+                                Text(context.loc.comment),
+                              ],
+                            ),
+                          ),
+                          MaterialButton(
+                            onPressed: () {},
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              spacing: 5,
+                              children: [
+                                Icon(
+                                  Icons.share_rounded,
+                                  color: context.txt.socialIconColor,
+                                  size: 20,
+                                ),
+                                Text(context.loc.share),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 10),
+
+              // Comments Section
+              commentsSection(
+                context: context,
+                cubit: cubit,
+                index: widget.index,
+                newComment: newComment,
+                isSending: isSending,
+                setStateOfDialog: setState, // Use setState of this widget
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

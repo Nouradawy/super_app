@@ -26,27 +26,7 @@ import 'l10n/l10n.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
-  Bloc.observer = const SimpleBlocObserver();
-  if (Firebase.apps.isEmpty) {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
-  } else {
-  // Optional: Log that it was already initialized (for debugging)
-  print("Firebase was already initialized!");
-  }
-  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-  await Supabase.initialize(
-    // ⚠️ IMPORTANT: Replace with your own URL and Anon Key
-    url: 'https://nouradawysupabase.duckdns.org',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjQwOTk1MjAwLCJleHAiOjE5NTY1NTY4MDB9.EOD6RIRAhlJkyIRu92VOWxuCh9E5eJ_DCRWXvAO7YyA',
-  );
-  supabase = Supabase.instance.client;
-  await CacheHelper.init();
-
-  await loadCachedData();
 
   runApp(const MyApp());
 }
@@ -59,7 +39,8 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-
+    final mq = MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first,);
+    final capped = mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 0.8, maxScaleFactor: 1),);
 
     return MultiBlocProvider(
       providers: [
@@ -71,50 +52,58 @@ class MyApp extends StatelessWidget {
       ],
       child: ChangeNotifierProvider(
         create: (_) => AuthManager(),
-        child: MaterialApp(
-          title: 'Flutter Demo',
-          debugShowCheckedModeBanner:false,
-          debugShowMaterialGrid: false,
-          theme: myLightTheme(),
-          supportedLocales: L10n.all,
-          localeResolutionCallback: (deviceLocale, supportedLocales) {
-            // Return device locale if supported, else fallback to first supported
-            if (deviceLocale != null &&
-                supportedLocales.any((l) => l.languageCode == deviceLocale.languageCode)) {
-              return deviceLocale;
-            }
-            return supportedLocales.first;
-          },
-          localizationsDelegates:const[
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ] ,
-           builder: (context, child) {
-             return Directionality(
-               textDirection: TextDirection.ltr,
-               child: child ?? const SizedBox.shrink(),
-             );
-           },
-           home:
-           Builder(
-             builder: (context) {
-               final auth = context.watch<AuthManager>();
-               if (auth.status == AuthStatus.unknown) {
-                 return const Scaffold(
-                   body: Center(child: CircularProgressIndicator()),
-                 );
-               }
-               if (auth.status == AuthStatus.authenticated &&
-                   AppCubit.get(context).signupGoogleEmail == null &&
-                   AppCubit.get(context).signInGoogle == false) {
-                 return const AuthReadyGate();
-               }
-               requestPermission();
-               return SignUp();
-             },
-           ),
+        child: LayoutBuilder(
+
+          builder: (BuildContext context, BoxConstraints constraints) {
+            return MediaQuery(
+              data: capped,
+              child: MaterialApp(
+                title: 'Flutter Demo',
+                debugShowCheckedModeBanner:false,
+                debugShowMaterialGrid: false,
+                theme: myLightTheme(),
+                supportedLocales: L10n.all,
+                localeResolutionCallback: (deviceLocale, supportedLocales) {
+                  // Return device locale if supported, else fallback to first supported
+                  if (deviceLocale != null &&
+                      supportedLocales.any((l) => l.languageCode == deviceLocale.languageCode)) {
+                    return deviceLocale;
+                  }
+                  return supportedLocales.first;
+                },
+                localizationsDelegates:const[
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ] ,
+                 builder: (context, child) {
+                   return Directionality(
+                     textDirection: TextDirection.ltr,
+                     child: child ?? const SizedBox.shrink(),
+                   );
+                 },
+                 home:
+                 Builder(
+                   builder: (context) {
+                     final auth = context.watch<AuthManager>();
+                     if (auth.status == AuthStatus.unknown) {
+                       return const Scaffold(
+                         body: Center(child: CircularProgressIndicator()),
+                       );
+                     }
+                     if (auth.status == AuthStatus.authenticated &&
+                         AppCubit.get(context).signupGoogleEmail == null &&
+                         AppCubit.get(context).signInGoogle == false) {
+                       return const AuthReadyGate();
+                     }
+                     requestPermission();
+                     return SignUp();
+                   },
+                 ),
+              ),
+            );
+          }
         ),
       ),
     );
