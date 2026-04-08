@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+4
+version: 1.0.0+5
 
 environment:
   sdk: ^3.7.2
@@ -75,6 +75,8 @@ dependencies:
   material_symbols_icons: ^4.2874.0
   carousel_slider: ^5.1.1
   condition_builder: ^2.1.0
+  equatable: ^2.0.8
+  provider: ^6.1.1
 
 
 
@@ -92,6 +94,7 @@ dependencies:
       url: https://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@github.com/Nouradawy/super_app.git
       ref: flutter_polls
   url_launcher: ^6.3.2
+  flutter_dotenv: ^6.0.0
 
 dependency_overrides:
    record_linux: ^1.1.1
@@ -137,6 +140,7 @@ flutter:
     - assets/Svg/
     - assets/Privacy and policy/
     - assets/compoundsLogo/
+    - .env
   #   - images/a_dot_ham.jpeg
 
   # To add assets to your application, add an assets section, like this:
