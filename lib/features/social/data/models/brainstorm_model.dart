@@ -15,17 +15,29 @@ class BrainStormModel extends BrainStorm {
   });
 
   factory BrainStormModel.fromJson(Map<String, dynamic> json) {
+    // Robustly handle 'Image' being either a List of Maps or a single Map
+    List<Map<String, dynamic>> parseImage(dynamic imageJson) {
+      if (imageJson == null) return [];
+      if (imageJson is List) {
+        return List<Map<String, dynamic>>.from(imageJson);
+      }
+      if (imageJson is Map) {
+        return [Map<String, dynamic>.from(imageJson)];
+      }
+      return [];
+    }
+
     return BrainStormModel(
       id: json['id'] as String,
       authorId: json['author_id'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       compoundId: json['compound_id'] as int,
       channelId: json['channel_id'] as int,
-      title: json['title'] ?? '',
-      image: List<Map<String, dynamic>>.from(json['imageSources'] ?? []),
-      options: List<Map<String, dynamic>>.from(json['options'] ?? []),
-      comments: List<Map<String, dynamic>>.from(json['comments'] ?? []),
-      votes: json['votes'] as Map<String, dynamic>?,
+      title: json['Title'] ?? json['title'] ?? '',
+      image: parseImage(json['Image'] ?? json['image'] ?? json['imageSources']),
+      options: List<Map<String, dynamic>>.from(json['Options'] ?? json['options'] ?? []),
+      comments: List<Map<String, dynamic>>.from(json['comments'] ?? json['Comments'] ?? []),
+      votes: (json['Votes'] ?? json['votes']) as Map<String, dynamic>?,
     );
   }
 
@@ -36,11 +48,11 @@ class BrainStormModel extends BrainStorm {
       'created_at': createdAt.toIso8601String(),
       'compound_id': compoundId,
       'channel_id': channelId,
-      'title': title,
-      'imageSources': image,
-      'options': options,
+      'Title': title,
+      'Image': image,
+      'Options': options,
       'comments': comments,
-      'votes': votes,
+      'Votes': votes,
     };
   }
 }

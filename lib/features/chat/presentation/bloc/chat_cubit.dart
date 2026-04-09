@@ -55,6 +55,13 @@ class ChatCubit extends Cubit<ChatState> {
     }
   }
 
+  void updateMicPadding(double padding) {
+    micPadding = padding;
+    if (state is ChatMessagesLoaded) {
+      emit((state as ChatMessagesLoaded).copyWith(micPadding: padding));
+    }
+  }
+
   void toggleRecording() {
     isRecording = !isRecording;
     if (state is ChatMessagesLoaded) {
@@ -79,7 +86,6 @@ class ChatCubit extends Cubit<ChatState> {
     _currentPage = 0;
     _messages = [];
     _hasMore = true;
-    isBrainStorming = false;
     emit(ChatLoading());
     try {
       final messages = await fetchMessagesUsecase(
@@ -126,15 +132,17 @@ class ChatCubit extends Cubit<ChatState> {
         _currentPage++;
       }
       
-      emit((state as ChatMessagesLoaded).copyWith(
-          messages: List.from(_messages),
-          hasMore: _hasMore,
-          isChatInputEmpty: isChatInputEmpty,
-          isRecording: isRecording,
-          isBrainStorming: isBrainStorming));
+      if (state is ChatMessagesLoaded) {
+        emit((state as ChatMessagesLoaded).copyWith(
+            messages: List.from(_messages),
+            hasMore: _hasMore,
+            isChatInputEmpty: isChatInputEmpty,
+            isRecording: isRecording,
+            isBrainStorming: isBrainStorming,
+            micPadding: micPadding));
+      }
     } catch (e) {
       // Keep existing messages but notify error? 
-      // For now just keep state.
     }
   }
 
@@ -163,22 +171,28 @@ class ChatCubit extends Cubit<ChatState> {
       _messages.sort((a, b) => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
           .compareTo(b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
     }
-    emit((state as ChatMessagesLoaded).copyWith(
-        messages: List.from(_messages),
-        hasMore: _hasMore,
-        isChatInputEmpty: isChatInputEmpty,
-        isRecording: isRecording,
-        isBrainStorming: isBrainStorming));
+    if (state is ChatMessagesLoaded) {
+      emit((state as ChatMessagesLoaded).copyWith(
+          messages: List.from(_messages),
+          hasMore: _hasMore,
+          isChatInputEmpty: isChatInputEmpty,
+          isRecording: isRecording,
+          isBrainStorming: isBrainStorming,
+          micPadding: micPadding));
+    }
   }
 
   void _removeMessage(String messageId) {
     _messages.removeWhere((m) => m.id == messageId);
-    emit((state as ChatMessagesLoaded).copyWith(
-        messages: List.from(_messages),
-        hasMore: _hasMore,
-        isChatInputEmpty: isChatInputEmpty,
-        isRecording: isRecording,
-        isBrainStorming: isBrainStorming));
+    if (state is ChatMessagesLoaded) {
+      emit((state as ChatMessagesLoaded).copyWith(
+          messages: List.from(_messages),
+          hasMore: _hasMore,
+          isChatInputEmpty: isChatInputEmpty,
+          isRecording: isRecording,
+          isBrainStorming: isBrainStorming,
+          micPadding: micPadding));
+    }
   }
 
   Future<void> sendMessage({

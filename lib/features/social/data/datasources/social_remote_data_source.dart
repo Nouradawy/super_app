@@ -59,7 +59,7 @@ class SocialRemoteDataSourceImpl implements SocialRemoteDataSource {
     required String authorId,
     required List<Map<String, dynamic>> imageSources,
   }) async {
-    await client.from('Social').insert({
+    await client.from('Posts').insert({
       'post_head': postHead,
       'getCalls': getCalls,
       'compound_id': compoundId,
@@ -75,7 +75,7 @@ class SocialRemoteDataSourceImpl implements SocialRemoteDataSource {
     required String postId,
     required List<Map<String, dynamic>> comments,
   }) async {
-    await client.from('Social').update({'Comments': comments}).eq('id', postId);
+    await client.from('Posts').update({'Comments': comments}).eq('id', postId);
   }
 
   @override
