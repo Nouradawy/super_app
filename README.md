@@ -164,6 +164,10 @@ WhatsUnity is **in Google Play testing** (internal / closed testing as applicabl
 
 ## License and contributing
 
-> Add your license (e.g. MIT, proprietary) and contribution guidelines here.
+**Copyright © 2026 Nour Adawy. All rights reserved.**
+
+> This repository and its contents are proprietary and confidential. No part of this software—including but not limited to source code, compiled binaries, UI/UX designs, and documentation—may be copied, reproduced, distributed, transmitted, modified, or otherwise used in any form or by any means without the prior explicit written permission of the copyright owner.
+
+This is **not** an open-source project. All rights are exclusively retained by the author.
 
 For questions about architecture or onboarding, prefer documenting decisions next to the relevant `feature/` module and Supabase schema.
