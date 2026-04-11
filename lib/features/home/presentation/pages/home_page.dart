@@ -67,270 +67,272 @@ class HomePage extends StatelessWidget {
         "text Color": Colors.teal.shade900,
       },
     ];
-    return BlocBuilder<AppCubit, AppCubitStates>(
-      buildWhen: (prev, current) {
-        return current is BottomNavIndexChangeStates || current is AppCubitInitialStates || current is TabBarIndexStates;
-      },
-      builder: (context, state) {
-        return BlocBuilder<AuthCubit, AuthState>(
-          builder: (context, authState) {
-            final authCubit = context.read<AuthCubit>();
-            final currentSelectedCompoundId = (authState is Authenticated) ? authState.selectedCompoundId : authCubit.selectedCompoundId;
-            final currentMyCompounds = (authState is Authenticated) ? authState.myCompounds : authCubit.myCompounds;
-            final isEnabledMultiCompound = (authState is Authenticated) ? authState.enabledMultiCompound : authCubit.enabledMultiCompound;
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, authState) {
+        final authCubit = context.read<AuthCubit>();
+        final currentSelectedCompoundId = (authState is Authenticated) ? authState.selectedCompoundId : authCubit.selectedCompoundId;
+        final currentMyCompounds = (authState is Authenticated) ? authState.myCompounds : authCubit.myCompounds;
+        final isEnabledMultiCompound = (authState is Authenticated) ? authState.enabledMultiCompound : authCubit.enabledMultiCompound;
 
-            return Scaffold(
-              backgroundColor: Colors.white,
-              resizeToAvoidBottomInset: false,
-              appBar: AppBar(
-                backgroundColor: Colors.white,
-                leadingWidth: 120,
-                title:
-                    isEnabledMultiCompound
-                        ? DropdownMenu(
-                          initialSelection: currentSelectedCompoundId?.toString(),
-                          width: MediaQuery.sizeOf(context).width * 0.55,
-                          inputDecorationTheme: InputDecorationTheme(
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                            labelStyle: GoogleFonts.plusJakartaSans(color: HexColor("#111518"), fontSize: 13, fontWeight: FontWeight.w500),
-                            constraints: const BoxConstraints(maxHeight: 50),
+        return Scaffold(
+          backgroundColor: Colors.white,
+          resizeToAvoidBottomInset: false,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            leadingWidth: 120,
+            title:
+                isEnabledMultiCompound
+                    ? DropdownMenu(
+                      initialSelection: currentSelectedCompoundId?.toString(),
+                      width: MediaQuery.sizeOf(context).width * 0.55,
+                      inputDecorationTheme: InputDecorationTheme(
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        labelStyle: GoogleFonts.plusJakartaSans(color: HexColor("#111518"), fontSize: 13, fontWeight: FontWeight.w500),
+                        constraints: const BoxConstraints(maxHeight: 50),
+                      ),
+                      menuStyle: MenuStyle(
+                        backgroundColor: WidgetStateProperty.all(Colors.white),
+                        fixedSize: WidgetStateProperty.all<Size>(Size(MediaQuery.sizeOf(context).width * 0.55, double.infinity)),
+                        elevation: WidgetStateProperty.all(0.5),
+                        shape: WidgetStateProperty.all(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5), // adjust radius
+                            // optional border
                           ),
-                          menuStyle: MenuStyle(
-                            backgroundColor: WidgetStateProperty.all(Colors.white),
-                            fixedSize: WidgetStateProperty.all<Size>(Size(MediaQuery.sizeOf(context).width * 0.55, double.infinity)),
-                            elevation: WidgetStateProperty.all(0.5),
-                            shape: WidgetStateProperty.all(
-                              RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5), // adjust radius
-                                // optional border
+                        ),
+                      ),
+
+                      dropdownMenuEntries:
+                          (currentMyCompounds.entries.toList().reversed).map((entry) {
+                            String key = entry.key;
+                            String value = entry.value;
+                            return DropdownMenuEntry<String>(leadingIcon: key == '0' ? Icon(Icons.add) : null, value: key, label: value.toString());
+                          }).toList(),
+                      onSelected: (selectedKey) async {
+                        if (selectedKey == '0') {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => JoinCommunity()));
+                        } else {
+                          final newCompoundId = int.parse(selectedKey.toString());
+                          authCubit.loadCompoundMembers(newCompoundId);
+                          authCubit.selectCompound(compoundId: newCompoundId, compoundName: currentMyCompounds[selectedKey]!, atWelcome: false);
+                          await CacheHelper.saveData(key: "compoundCurrentIndex", value: newCompoundId);
+                        }
+                      },
+                    )
+                    : Text(
+                      // Safely handle the case where currentMyCompounds might be empty
+                      currentMyCompounds.isNotEmpty ? currentMyCompounds.values.last.toString() : 'Select Community',
+                      style: GoogleFonts.plusJakartaSans(color: HexColor("#111518"), fontSize: 17, fontWeight: FontWeight.w500),
+                    ),
+            leading: Container(
+              alignment: AlignmentDirectional.center,
+              padding: EdgeInsets.only(left: 7),
+              child: Text("WhatsUnity", textScaler: TextScaler.noScaling, style: GoogleFonts.lobster(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.indigo.shade500)),
+            ),
+            actions: [
+              //   IconButton(onPressed: (){
+              //   Navigator.push(
+              //     context,
+              //     MaterialPageRoute(builder: (context) => Profile()),
+              //   );
+              // }, icon: Icon(Icons.notifications)),
+            ],
+          ),
+
+          body: Stack(
+            alignment: AlignmentDirectional.bottomEnd,
+            children: [
+              NestedScrollView(
+                headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar(
+                      backgroundColor: Colors.white,
+                      expandedHeight: MediaQuery.of(context).size.width * 0.40,
+                      flexibleSpace: FlexibleSpaceBar(
+                        background: Column(
+                          children: [
+                            //Searchbar
+                            const SizedBox(height: 30),
+
+                            //<-----------------ListView for Services---------------->
+                            Container(
+                              margin: EdgeInsets.only(left: MediaQuery.of(context).size.width * 0.075),
+                              height: MediaQuery.sizeOf(context).width * 0.28,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                clipBehavior: Clip.none,
+                                itemCount: services.length,
+                                itemBuilder: (context, index) {
+                                  final service = services[index];
+                                  return Container(
+                                    width: MediaQuery.sizeOf(context).width * 0.25,
+                                    margin: const EdgeInsets.only(right: 10),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12), // <-- Rounded corners
+                                      color: service["Background"],
+                                    ),
+                                    child: MaterialButton(
+                                      padding: EdgeInsets.zero,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12), // <-- Rounded corners
+                                      ),
+                                      onPressed: () {
+                                        if (index == 3) {
+                                          Navigator.push(context, MaterialPageRoute(builder: (context) => AnnouncementScreen()));
+                                        } else if (currentSelectedCompoundId != null) {
+                                          context.read<MaintenanceCubit>().getMaintenanceReports(
+                                            compoundId: currentSelectedCompoundId,
+                                            type: MaintenanceReportType.values[index],
+                                          );
+                                          Navigator.push(context, MaterialPageRoute(builder: (context) => Maintenance(maintenanceType: MaintenanceReportType.values[index])));
+                                        }
+                                      },
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+
+                                        children: [
+                                          const SizedBox(height: 15),
+                                          Container(
+                                            padding: const EdgeInsets.all(12),
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(shape: BoxShape.circle, color: service["icon bg"]),
+                                            child: SvgPicture.asset(colorFilter: ColorFilter.mode(service["icon color"], BlendMode.srcIn), service['icon']),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          SizedBox(
+                                            width: 100,
+                                            child: Text(
+                                              service['Name'],
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: service["text Color"]),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
-                          ),
-
-                          dropdownMenuEntries:
-                              (currentMyCompounds.entries.toList().reversed).map((entry) {
-                                String key = entry.key;
-                                String value = entry.value;
-                                return DropdownMenuEntry<String>(leadingIcon: key == '0' ? Icon(Icons.add) : null, value: key, label: value.toString());
-                              }).toList(),
-                          onSelected: (selectedKey) async {
-                            if (selectedKey == '0') {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => JoinCommunity()));
-                            } else {
-                              final newCompoundId = int.parse(selectedKey.toString());
-                              authCubit.loadCompoundMembers(newCompoundId);
-                              authCubit.selectCompound(compoundId: newCompoundId, compoundName: currentMyCompounds[selectedKey]!, atWelcome: false);
-                              await CacheHelper.saveData(key: "compoundCurrentIndex", value: newCompoundId);
-                            }
-                          },
-                        )
-                        : Text(
-                          // Safely handle the case where currentMyCompounds might be empty
-                          currentMyCompounds.isNotEmpty ? currentMyCompounds.values.last.toString() : 'Select Community',
-                          style: GoogleFonts.plusJakartaSans(color: HexColor("#111518"), fontSize: 17, fontWeight: FontWeight.w500),
-                        ),
-                leading: Container(
-                  alignment: AlignmentDirectional.center,
-                  padding: EdgeInsets.only(left: 7),
-                  child: Text("WhatsUnity", textScaler: TextScaler.noScaling, style: GoogleFonts.lobster(fontSize: 20, fontWeight: FontWeight.w500, color: Colors.indigo.shade500)),
-                ),
-                actions: [
-                  //   IconButton(onPressed: (){
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(builder: (context) => Profile()),
-                  //   );
-                  // }, icon: Icon(Icons.notifications)),
-                ],
-              ),
-
-              body: Stack(
-                alignment: AlignmentDirectional.bottomEnd,
-                children: [
-                  NestedScrollView(
-                    headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
-                      return [
-                        SliverAppBar(
-                          backgroundColor: Colors.white,
-                          expandedHeight: MediaQuery.of(context).size.width * 0.40,
-                          flexibleSpace: FlexibleSpaceBar(
-                            background: Column(
-                              children: [
-                                //Searchbar
-                                const SizedBox(height: 30),
-
-                                //<-----------------ListView for Services---------------->
-                                Container(
-                                  margin: EdgeInsets.only(left: MediaQuery.of(context).size.width * 0.075),
-                                  height: MediaQuery.sizeOf(context).width * 0.28,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    clipBehavior: Clip.none,
-                                    itemCount: services.length,
-                                    itemBuilder: (context, index) {
-                                      final service = services[index];
-                                      return Container(
-                                        width: MediaQuery.sizeOf(context).width * 0.25,
-                                        margin: const EdgeInsets.only(right: 10),
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(12), // <-- Rounded corners
-                                          color: service["Background"],
-                                        ),
-                                        child: MaterialButton(
-                                          padding: EdgeInsets.zero,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12), // <-- Rounded corners
-                                          ),
-                                          onPressed: () {
-                                            if (index == 3) {
-                                              Navigator.push(context, MaterialPageRoute(builder: (context) => AnnouncementScreen()));
-                                            } else if (currentSelectedCompoundId != null) {
-                                              context.read<MaintenanceCubit>().getMaintenanceReports(
-                                                compoundId: currentSelectedCompoundId,
-                                                type: MaintenanceReportType.values[index],
-                                              );
-                                              Navigator.push(context, MaterialPageRoute(builder: (context) => Maintenance(maintenanceType: MaintenanceReportType.values[index])));
-                                            }
-                                          },
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-
-                                            children: [
-                                              const SizedBox(height: 15),
-                                              Container(
-                                                padding: const EdgeInsets.all(12),
-                                                width: 50,
-                                                height: 50,
-                                                decoration: BoxDecoration(shape: BoxShape.circle, color: service["icon bg"]),
-                                                child: SvgPicture.asset(colorFilter: ColorFilter.mode(service["icon color"], BlendMode.srcIn), service['icon']),
-                                              ),
-                                              const SizedBox(height: 5),
-                                              SizedBox(
-                                                width: 100,
-                                                child: Text(
-                                                  service['Name'],
-                                                  textAlign: TextAlign.center,
-                                                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: service["text Color"]),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ];
-                    },
-                    body: DefaultTabController(
-                      // 1. Provide the controller here
-                      length: 2,
-                      child: TabChangeHandler(
-                        // 2. Use the listener widget we just created
-                        child: Builder(
-                          builder: (context) {
-                            if (currentSelectedCompoundId == null) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-
-                            // 3. Pass the key to Social, which is now a clean StatelessWidget
-                            return Social(key: ValueKey(currentSelectedCompoundId));
-                          },
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                  if (AppCubit.get(context).tabBarIndex == 1 || AppCubit.get(context).bottomNavIndex == 1)
-                    BlocBuilder<ChatCubit, ChatState>(
-                      builder: (context, state) {
-                        final chatCubit = context.read<ChatCubit>();
-
-                        final bool isChatInputEmpty = (state is ChatMessagesLoaded) ? state.isChatInputEmpty : chatCubit.isChatInputEmpty;
-                        final bool isBrainStormingLocal = (state is ChatMessagesLoaded) ? state.isBrainStorming : chatCubit.isBrainStorming;
-                        final int? channelIdLocal = (state is ChatMessagesLoaded) ? state.channelId : chatCubit.channelId;
-                        final double micPadding = (state is ChatMessagesLoaded) ? state.micPadding : chatCubit.micPadding;
-
-                        if (isChatInputEmpty && channelIdLocal != null) {
-                          return Positioned(
-                            bottom: micPadding,
-                            right: 0,
-                            child: SafeArea(
-                              child: SocialMediaRecorder(
-                                onButtonPress: () {
-                                  chatCubit.recordedAmplitudes.clear();
-                                  chatCubit.toggleRecording();
-                                },
-                                onButtonRelease: () {
-                                  if (chatCubit.isRecording) {
-                                    chatCubit.toggleRecording();
-                                  }
-                                },
-                                // This is called when the user finishes recording
-                                sendRequestFunction: (soundFile, duration) async {
-                                  debugPrint("attempting to save");
-                                  final parts = duration.split(':');
-                                  final minutes = int.tryParse(parts[0]) ?? 0;
-                                  final seconds = int.tryParse(parts[1]) ?? 0;
-                                  final parsedDuration = Duration(minutes: minutes, seconds: seconds);
-
-                                  final amplitudesToUpload = chatCubit.recordedAmplitudes;
-                                  // Assuming uploadVoiceNote logic is similar to BuildingChat
-                                  // We'll need to move uploadVoiceNote to ChatCubit or a Service
-                                  final fileName = 'voice_note_${const Uuid().v4()}.m4a';
-                                  final driveLink = await driveService.uploadFile(soundFile, fileName, 'audio');
-
-                                  if (driveLink != null) {
-                                    final gumletUrl = await uploadVoiceNoteGumlet(driveLink);
-                                    if (gumletUrl != null && authState is Authenticated) {
-                                      chatCubit.sendVoiceNote(
-                                        uri: gumletUrl,
-                                        duration: parsedDuration,
-                                        waveform: amplitudesToUpload,
-                                        channelId: channelIdLocal!,
-                                        userId: authState.user.id,
-                                      );
-                                    }
-                                  }
-                                },
-
-                                fullRecordPackageHeight: 80,
-
-                                // Customize the appearance to match your app
-                                backGroundColor: ChatColors.light().surfaceContainerHigh.withAlpha(100),
-                                initialButtonWidth: 40,
-                                initialButtonHight: 40,
-                                finalButtonWidth: 60,
-                                finalButtonHight: 60,
-
-                                encode: AudioEncoderType.AAC,
-                                waveformBuilder: (amplitudes) {
-                                  chatCubit.recordedAmplitudes = amplitudes;
-                                  return CustomPaint(painter: AudioWaveformPainter(amplitudes: amplitudes, waveColor: Colors.black));
-                                },
-
-                                // You can add more customizations here
-                                // lockButton: const Icon(Icons.lock, color: Colors.white),
-                                // slideToCancelText: "Slide to Cancel",
-                                // etc.
-                              ),
-                            ),
-                          );
-                        } else {
-                          return const SizedBox.shrink();
+                  ];
+                },
+                body: DefaultTabController(
+                  // 1. Provide the controller here
+                  length: 2,
+                  child: TabChangeHandler(
+                    // 2. Use the listener widget we just created
+                    child: Builder(
+                      builder: (context) {
+                        if (currentSelectedCompoundId == null) {
+                          return const Center(child: CircularProgressIndicator());
                         }
+
+                        // 3. Pass the key to Social, which is now a clean StatelessWidget
+                        return Social(key: ValueKey(currentSelectedCompoundId));
                       },
-                    ) else
-                  // This ensures that when the tab is NOT 1, the mic is physically removed
-                    const SizedBox.shrink(),
-                ],
+                    ),
+                  ),
+                ),
               ),
-            );
-          },
+              BlocBuilder<AppCubit ,AppCubitStates>(
+                  builder: (context , appState){
+                final appCubit = AppCubit.get(context);
+                if (AppCubit.get(context).tabBarIndex == 1 || AppCubit.get(context).bottomNavIndex == 1) {
+                 return BlocBuilder<ChatCubit, ChatState>(
+                    builder: (context, state) {
+                      final chatCubit = context.read<ChatCubit>();
+
+                      final bool isChatInputEmpty = (state is ChatMessagesLoaded) ? state.isChatInputEmpty : chatCubit.isChatInputEmpty;
+                      final bool isBrainStormingLocal = (state is ChatMessagesLoaded) ? state.isBrainStorming : chatCubit.isBrainStorming;
+                      final int? channelIdLocal = (state is ChatMessagesLoaded) ? state.channelId : chatCubit.channelId;
+                      final double micPadding = (state is ChatMessagesLoaded) ? state.micPadding : chatCubit.micPadding;
+
+                      if (isChatInputEmpty && channelIdLocal != null) {
+                        return Positioned(
+                          bottom: micPadding,
+                          right: 0,
+                          child: SafeArea(
+                            child: SocialMediaRecorder(
+                              onButtonPress: () {
+                                chatCubit.recordedAmplitudes.clear();
+                                chatCubit.toggleRecording();
+                              },
+                              onButtonRelease: () {
+                                if (chatCubit.isRecording) {
+                                  chatCubit.toggleRecording();
+                                }
+                              },
+                              // This is called when the user finishes recording
+                              sendRequestFunction: (soundFile, duration) async {
+                                debugPrint("attempting to save");
+                                final parts = duration.split(':');
+                                final minutes = int.tryParse(parts[0]) ?? 0;
+                                final seconds = int.tryParse(parts[1]) ?? 0;
+                                final parsedDuration = Duration(minutes: minutes, seconds: seconds);
+
+                                final amplitudesToUpload = chatCubit.recordedAmplitudes;
+                                // Assuming uploadVoiceNote logic is similar to BuildingChat
+                                // We'll need to move uploadVoiceNote to ChatCubit or a Service
+                                final fileName = 'voice_note_${const Uuid().v4()}.m4a';
+                                final driveLink = await driveService.uploadFile(soundFile, fileName, 'audio');
+
+                                if (driveLink != null) {
+                                  final gumletUrl = await uploadVoiceNoteGumlet(driveLink);
+                                  if (gumletUrl != null && authState is Authenticated) {
+                                    chatCubit.sendVoiceNote(
+                                      uri: gumletUrl,
+                                      duration: parsedDuration,
+                                      waveform: amplitudesToUpload,
+                                      channelId: channelIdLocal!,
+                                      userId: authState.user.id,
+                                    );
+                                  }
+                                }
+                              },
+
+                              fullRecordPackageHeight: 80,
+
+                              // Customize the appearance to match your app
+                              backGroundColor: ChatColors
+                                  .light()
+                                  .surfaceContainerHigh
+                                  .withAlpha(100),
+                              initialButtonWidth: 40,
+                              initialButtonHight: 40,
+                              finalButtonWidth: 60,
+                              finalButtonHight: 60,
+
+                              encode: AudioEncoderType.AAC,
+                              waveformBuilder: (amplitudes) {
+                                chatCubit.recordedAmplitudes = amplitudes;
+                                return CustomPaint(painter: AudioWaveformPainter(amplitudes: amplitudes, waveColor: Colors.black));
+                              },
+
+                              // You can add more customizations here
+                              // lockButton: const Icon(Icons.lock, color: Colors.white),
+                              // slideToCancelText: "Slide to Cancel",
+                              // etc.
+                            ),
+                          ),
+                        );
+                      } else {
+                        return const SizedBox.shrink();
+                      }
+                    },
+                  );
+                } else {
+                  // This ensures that when the tab is NOT 1, the mic is physically removed
+                  return const SizedBox.shrink();
+                }
+              })
+            ],
+          ),
         );
       },
     );

@@ -73,7 +73,10 @@ class MainScreen extends StatelessWidget {
                           label: "Admin dashboard"
                       ),
                   ]),
-              body: screens[cubit.bottomNavIndex],
+              body: IndexedStack(
+                index: cubit.bottomNavIndex,
+                children: List<Widget>.from(screens),
+              ),
             );
           }
         );

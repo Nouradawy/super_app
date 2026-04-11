@@ -72,9 +72,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mq = MediaQueryData.fromView(WidgetsBinding.instance.platformDispatcher.views.first);
-    final capped = mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 0.8, maxScaleFactor: 1));
-
     return MultiBlocProvider(
       providers: [
         BlocProvider(
@@ -152,65 +149,64 @@ class MyApp extends StatelessWidget {
       ],
       child: ChangeNotifierProvider(
         create: (_) => AuthManager(),
-        child: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
+        child: MaterialApp(
+          title: 'WhatsUnity',
+          debugShowCheckedModeBanner: false,
+          theme: myLightTheme(),
+          supportedLocales: L10n.all,
+          localeResolutionCallback: (deviceLocale, supportedLocales) {
+            if (deviceLocale != null &&
+                supportedLocales.any((l) => l.languageCode == deviceLocale.languageCode)) {
+              return deviceLocale;
+            }
+            return supportedLocales.first;
+          },
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
             return MediaQuery(
-              data: capped,
-              child: MaterialApp(
-                title: 'WhatsUnity',
-                debugShowCheckedModeBanner: false,
-                theme: myLightTheme(),
-                supportedLocales: L10n.all,
-                localeResolutionCallback: (deviceLocale, supportedLocales) {
-                  if (deviceLocale != null &&
-                      supportedLocales.any((l) => l.languageCode == deviceLocale.languageCode)) {
-                    return deviceLocale;
-                  }
-                  return supportedLocales.first;
-                },
-                localizationsDelegates: const [
-                  AppLocalizations.delegate,
-                  GlobalMaterialLocalizations.delegate,
-                  GlobalWidgetsLocalizations.delegate,
-                  GlobalCupertinoLocalizations.delegate,
-                ],
-                builder: (context, child) {
-                  return Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: child ?? const SizedBox.shrink(),
-                  );
-                },
-                home: Builder(
-                  builder: (context) {
-                    final auth = context.watch<AuthManager>();
-                    final authCubit = context.watch<AuthCubit>();
-                    if (auth.status == AuthStatus.unknown) {
-                      return const Scaffold(
-                        body: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    if (auth.status == AuthStatus.authenticated &&
-                        authCubit.signupGoogleEmail == null &&
-                        authCubit.signInGoogle == false) {
-                      return const AuthReadyGate();
-                    }
-                    requestPermission();
-                    // Wrap SignUp with a BlocProvider.value to ensure the AuthCubit is available
-                    // in its context, resolving the 'read' method error.
-                    return BlocProvider.value(
-                      value: authCubit,
-                      child: SignUp(),
-                    );
-                  },
-                ),
+              data: mq.copyWith(
+                textScaler: mq.textScaler.clamp(minScaleFactor: 0.8, maxScaleFactor: 1.0),
+              ),
+              child: Directionality(
+                textDirection: TextDirection.ltr,
+                child: child ?? const SizedBox.shrink(),
               ),
             );
           },
+          home: BlocBuilder<AuthCubit, AuthState>(
+            buildWhen: (previous, current) => previous.runtimeType != current.runtimeType,
+            builder: (context, state) {
+              final authManager = context.watch<AuthManager>();
+              final authCubit = context.read<AuthCubit>();
+
+              if (authManager.status == AuthStatus.unknown) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              if (authManager.status == AuthStatus.authenticated &&
+                  authCubit.signupGoogleEmail == null &&
+                  authCubit.signInGoogle == false) {
+                return const AuthReadyGate();
+              }
+
+              requestPermission();
+              return SignUp();
+            },
+          ),
         ),
       ),
     );
   }
 }
+
 
 class AuthManager extends ChangeNotifier {
   AuthStatus status = AuthStatus.unknown;
