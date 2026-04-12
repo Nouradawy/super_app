@@ -62,7 +62,7 @@ class _VisibleMessage {
   _VisibleMessage(this.index, this.fraction, this.createdAt);
 }
 
-class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin {
   // Services
   ChatCacheService? _cacheService;
   @override
@@ -79,7 +79,6 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
 
   late String _userId;
-  List<types.Message> _messages = [];
   final Map<String, types.User> _userCache = {};
   final Map<String, double> _uploadProgress = {};
   types.Message? _repliedMessage;
@@ -102,45 +101,41 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   int _currentPage = 0;
   bool _isLoading = false;
   bool _hasMore = true;
-  double _bottomPadding = 0.0;
   void _handleTypingStatus() {
     context.read<ChatCubit>().showHideMic(_chatTextController.text.isEmpty);
-    setState(() {}); // Ensure UI rebuilds for Send button visibility
+  }
+
+  static int _compareCreatedAtAsc(types.Message a, types.Message b) {
+    final at = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bt = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final c = at.compareTo(bt);
+    if (c != 0) return c;
+    return a.id.compareTo(b.id);
+  }
+
+  static List<types.Message> _sortedAsc(Iterable<types.Message> items) {
+    final list = List<types.Message>.from(items);
+    list.sort(_compareCreatedAtAsc);
+    return list;
+  }
+
+  /// Merges server-backed cubit messages with controller-only rows (e.g. upload placeholders).
+  Future<void> _applyCubitMessagesToController(List<types.Message> cubitMessages) async {
+    final cubitIds = cubitMessages.map((m) => m.id).toSet();
+    final onlyOnDevice = _chatController.messages
+        .where((m) => !cubitIds.contains(m.id))
+        .toList();
+    final merged = _sortedAsc([...cubitMessages, ...onlyOnDevice]);
+    await _chatController.setMessages(merged);
   }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _chatTextController.addListener(_handleTypingStatus);
     _initializeChat();
-  }
-
-  @override
-  void didChangeMetrics() {
-    // 1. Get raw metrics
-    final view = View.of(context);
-    final physicalBottom = view.viewInsets.bottom;
-    final pixelRatio = view.devicePixelRatio;
-
-    // 2. Calculate logical height
-    final logicalBottom = physicalBottom / pixelRatio;
-
-    // 3. Apply your fix: Subtract 65 only if keyboard is visible (height > 0)
-    // We use .clamp(0.0, double.infinity) to prevent negative padding crashes.
-    final newBottomPadding = logicalBottom > 0
-        ? (logicalBottom - 55).clamp(0.0, double.infinity)
-        : 0.0;
-
-    // 4. Update state only if changed
-    if (_bottomPadding != newBottomPadding ) {
-      setState(() {
-        _bottomPadding = newBottomPadding;
-      });
-      context.read<ChatCubit>().updateMicPadding(newBottomPadding);
-    }
   }
 
   @override
@@ -155,13 +150,12 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     for (var timer in _pollingTimers.values) {
       timer.cancel();
     }
     _chatController.dispose();
     if (channelId != null) {
-      _cacheService?.saveMessages(channelId!, _messages);
+      _cacheService?.saveMessages(channelId!, _chatController.messages);
     }
     _appCubit?.detachChatController();
     _chatTextController.removeListener(_handleTypingStatus);
@@ -196,115 +190,30 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     return false; // allow other listeners
   }
 
-  void _handleMessageUpdates(List<types.Message> messages) {
-    if (messages.isEmpty) return;
-
-    // Check for "processing" audio messages
-    for (final message in messages) {
-      if (message is types.AudioMessage && message.metadata?['status'] == 'processing') {
+  Future<void> _syncChatFromCubit(ChatMessagesLoaded loaded) async {
+    for (final message in loaded.messages) {
+      if (message is types.AudioMessage &&
+          message.metadata?['status'] == 'processing') {
         _startPollingForMessage(message);
       }
     }
 
-    _addOrUpdateMessages(messages);
+    await _applyCubitMessagesToController(loaded.messages);
 
-    // After adding/updating, check if we need to remove local versions of newly inserted messages
     final localIdsToRemove = <String>[];
-    
-    for (final message in messages) {
-       final localId = message.metadata?['localId'];
-       if (localId != null && message.id != localId) {
-         localIdsToRemove.add(localId);
-       }
-    }
-    
-    if (localIdsToRemove.isNotEmpty) {
-      for (final id in localIdsToRemove) {
-        try {
-          final messageToRemove = _chatController.messages.firstWhere((m) => m.id == id);
-          _chatController.removeMessage(messageToRemove);
-        } catch (_) {}
+    for (final message in loaded.messages) {
+      final localId = message.metadata?['localId'];
+      if (localId != null && message.id != localId) {
+        localIdsToRemove.add(localId);
       }
     }
-  }
 
-  void _addOrUpdateMessages(List<types.Message> newOrUpdatedMessages ) {
-    if (newOrUpdatedMessages.isEmpty) return;
-
-    final messageMap = {for (var msg in _messages) msg.id: msg};
-    for (final message in newOrUpdatedMessages) {
-      messageMap[message.id] = message;
-    }
-
-    final sortedMessages = messageMap.values.toList();
-    sortedMessages.sort((a, b) {
-      final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-
-      int result = aDate.compareTo(bDate);
-      // If dates are identical, use ID to ensure stability
-      if (result == 0) {
-        return a.id.compareTo(b.id);
-      }
-      return result;
-    });
-
-    if (mounted) {
-      setState(() {
-        _messages = sortedMessages;
-      });
-      // Sync _chatController with minimal changes to avoid clearing animations/flips.
-      // If the controller is empty (first load), it's cheaper and less error-prone to insert all.
-      if (_chatController.messages.isEmpty) {
-        _chatController.insertAllMessages(sortedMessages);
-      } else {
-        _syncControllerWithMessages(sortedMessages);
-      }
-    }
-  }
-
-  /// Applies minimal diffs to the InMemoryChatController to avoid UI flip / jump.
-  void _syncControllerWithMessages(List<types.Message> sortedMessages) {
-    // Snapshot of current controller messages
-    final existing = List<types.Message>.from(_chatController.messages);
-    final existingById = {for (var m in existing) m.id: m};
-
-    final newIds = sortedMessages.map((m) => m.id).toSet();
-    final existingIds = existingById.keys.toSet();
-
-    // 1. Remove messages that are no longer present
-    final toRemove = existingIds.difference(newIds);
-    for (final id in toRemove) {
-      final msg = existingById[id];
-      if (msg != null) {
-        try {
-          _chatController.removeMessage(msg);
-        } catch (_) {
-          // ignore individual failures to avoid breaking updates
-        }
-      }
-    }
-    // 2. Update existing messages and insert new ones in the correct order
-    // We'll iterate sortedMessages (chronological) and ensure the controller has them.
-    for (final msg in sortedMessages) {
-      final existingMsg = existingById[msg.id];
-      if (existingMsg != null) {
-        // Compare by id; if metadata or other fields changed, update
-        if (existingMsg != msg) {
-          try {
-            _chatController.updateMessage(existingMsg,msg);
-          } catch (_) {
-            // ignore update failure
-          }
-        }
-      } else {
-        // New message: insert
-        try {
-          _chatController.insertMessage(msg);
-        } catch (_) {
-          // ignore insert failure
-        }
-      }
+    for (final id in localIdsToRemove) {
+      try {
+        final messageToRemove =
+            _chatController.messages.firstWhere((m) => m.id == id);
+        await _chatController.removeMessage(messageToRemove);
+      } catch (_) {}
     }
   }
 
@@ -424,8 +333,6 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     setState(() {
       _uploadProgress[localId] = 0.0; // Initialize progress
     });
-
-    _addOrUpdateMessages([placeholderMessage]);
 
     // 2. Upload the file to Google Drive
     final fileName = '${const Uuid().v4()}.${result.path.split('.').last}';
@@ -554,11 +461,12 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
       onDelete: (m) => context.read<ChatCubit>().deleteMessage(m),
       onMessageVisible: (id) => context.read<ChatCubit>().markAsSeen(id, _userId),
       chatController: _chatController,
-      isPreviousMessageFromSameUser: index > 0 && _messages[index - 1].authorId == message.authorId,
+      isPreviousMessageFromSameUser: index > 0 &&
+          _chatController.messages[index - 1].authorId == message.authorId,
       userCache: _userCache,
       resolveUser: _resolveUser,
       onVisibilityForHeader: _onVisibilityForHeader,
-      localMessages: _messages,
+      localMessages: _chatController.messages,
       showDateHeaders: true,
       currentUserId: _userId,
       isUserScrolling: _isUserScrolling,
@@ -570,7 +478,8 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   Future<void> _handlePollVote(String messageId, int optionIndex) async {
     // 1. Get the current message from state or controller
-    final msg = _messages.firstWhere((m) => m.id == messageId, orElse: () => _chatController.messages.firstWhere((m) => m.id == messageId));
+    final msg = _chatController.messages
+        .firstWhere((m) => m.id == messageId);
     final metadata = Map<String, dynamic>.from(msg.metadata ?? {});
     final votes = Map<String, dynamic>.from(metadata['votes'] ?? {});
 
@@ -590,8 +499,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     // 4. Update locally and remotely
     metadata['votes'] = votes;
     final updatedMsg = (msg as types.TextMessage).copyWith(metadata: metadata);
-    
-    _addOrUpdateMessages([updatedMsg]);
+    _chatController.updateMessage(msg, updatedMsg);
 
     await supabase.from('messages').update({'metadata': metadata}).eq('id', messageId);
   }
@@ -874,18 +782,27 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
 
     return BlocListener<ChatCubit, ChatState>(
+      listenWhen: (previous, current) {
+        if (current is! ChatMessagesLoaded) return false;
+        if (previous is! ChatMessagesLoaded) return true;
+        return !identical(previous.messages, current.messages);
+      },
       listener: (context, state) {
-        if (state is ChatMessagesLoaded) {
-          _handleMessageUpdates(state.messages);
-        }
+        unawaited(_syncChatFromCubit(state as ChatMessagesLoaded));
       },
       child: BlocBuilder<ChatCubit, ChatState>(
+        buildWhen: (previous, current) {
+          if (previous is ChatMessagesLoaded && current is ChatMessagesLoaded) {
+            return previous.isBrainStorming != current.isBrainStorming;
+          }
+          return previous.runtimeType != current.runtimeType;
+        },
         builder: (context, state) {
           return BlocBuilder<SocialCubit, SocialState>(
             builder: (context, socialState) {
               final chatCubit = context.read<ChatCubit>();
-              bool isBrainStormingLocal = (state is ChatMessagesLoaded) 
-                  ? state.isBrainStorming 
+              final bool isBrainStormingLocal = (state is ChatMessagesLoaded)
+                  ? state.isBrainStorming
                   : chatCubit.isBrainStorming;
               if (_isInitializing) {
                 return Scaffold(
@@ -1025,9 +942,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
                     ),
 
-                    body: Padding(
-                          padding: EdgeInsets.only(bottom: _bottomPadding),
-                          child: Stack(
+                    body: Stack(
                             fit: StackFit.expand,
                             children: [
                               Positioned.fill(
@@ -1063,25 +978,46 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
                                       chatAnimatedListBuilder: (context, itemBuilder) =>
                                           ChatAnimatedList(
                                             itemBuilder: itemBuilder,
-                                            initialScrollToEndMode: InitialScrollToEndMode
-                                                .none,
-
+                                            initialScrollToEndMode:
+                                                InitialScrollToEndMode.jump,
                                           ),
                                       composerBuilder: (context) {
                                         return BlocBuilder<ChatCubit, ChatState>(
+                                            buildWhen: (p, c) {
+                                              if (p is ChatMessagesLoaded &&
+                                                  c is ChatMessagesLoaded) {
+                                                return p.isRecording !=
+                                                        c.isRecording ||
+                                                    p.isChatInputEmpty !=
+                                                        c.isChatInputEmpty;
+                                              }
+                                              return true;
+                                            },
                                             builder: (context, state) {
-                                              final isRecording = (state is ChatMessagesLoaded) ? state.isRecording : context.read<ChatCubit>().isRecording;
-                                              final isChatInputEmpty = (state is ChatMessagesLoaded) ? state.isChatInputEmpty : context.read<ChatCubit>().isChatInputEmpty;
+                                              final isRecording =
+                                                  (state is ChatMessagesLoaded)
+                                                      ? state.isRecording
+                                                      : context
+                                                          .read<ChatCubit>()
+                                                          .isRecording;
+                                              final isChatInputEmpty =
+                                                  (state is ChatMessagesLoaded)
+                                                      ? state.isChatInputEmpty
+                                                      : context
+                                                          .read<ChatCubit>()
+                                                          .isChatInputEmpty;
                                               return Visibility(
                                                 visible: !isRecording,
                                                 child: Composer(
                                                   gap: 0,
                                                   sendIcon: const Icon(Icons.send),
-                                                  textEditingController: _chatTextController,
+                                                  textEditingController:
+                                                      _chatTextController,
                                                   handleSafeArea: true,
                                                   sigmaX: 3,
                                                   sigmaY: 3,
-                                                  sendButtonHidden: isChatInputEmpty,
+                                                  sendButtonHidden:
+                                                      isChatInputEmpty,
                                                 ),
                                               );
                                             });
@@ -1113,7 +1049,6 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
                                 ),
                             ],
                           ),
-                        ),
                   );
                 } else {
                   return BrainStorming(

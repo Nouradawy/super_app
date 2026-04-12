@@ -252,11 +252,11 @@ class HomePage extends StatelessWidget {
                       final bool isChatInputEmpty = (state is ChatMessagesLoaded) ? state.isChatInputEmpty : chatCubit.isChatInputEmpty;
                       final bool isBrainStormingLocal = (state is ChatMessagesLoaded) ? state.isBrainStorming : chatCubit.isBrainStorming;
                       final int? channelIdLocal = (state is ChatMessagesLoaded) ? state.channelId : chatCubit.channelId;
-                      final double micPadding = (state is ChatMessagesLoaded) ? state.micPadding : chatCubit.micPadding;
+                      final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
 
-                      if (isChatInputEmpty && channelIdLocal != null) {
+                      if ((isChatInputEmpty && channelIdLocal != null && !isBrainStormingLocal) ) {
                         return Positioned(
-                          bottom: micPadding,
+                          bottom: keyboardBottom,
                           right: 0,
                           child: SafeArea(
                             child: SocialMediaRecorder(

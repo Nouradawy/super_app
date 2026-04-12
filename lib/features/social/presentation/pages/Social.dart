@@ -343,7 +343,6 @@ class _CreatePostDialogState extends State<CreatePostDialog> with WidgetsBinding
   List<XFile>? file;
   bool getCalls = false;
   bool postingInProgress = false;
-  double _keyboardHeight = 0.0;
 
   @override
   void initState() {
@@ -357,26 +356,14 @@ class _CreatePostDialogState extends State<CreatePostDialog> with WidgetsBinding
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    final view = View.of(context);
-    final physicalBottom = view.viewInsets.bottom;
-    final pixelRatio = view.devicePixelRatio;
-    final logicalBottom = physicalBottom / pixelRatio;
 
-    if (_keyboardHeight != logicalBottom) {
-      setState(() {
-        _keyboardHeight = logicalBottom;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.sizeOf(context).width;
 
     return AlertDialog(
-      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, _keyboardHeight + 24),
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, 0),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       backgroundColor: Colors.white,
       content: SizedBox(
@@ -562,7 +549,7 @@ class CommentPopupDialog extends StatefulWidget {
 class _CommentPopupDialogState extends State<CommentPopupDialog> with WidgetsBindingObserver {
   late TextEditingController newComment;
   final ValueNotifier<bool> isSending = ValueNotifier(false);
-  double _keyboardHeight = 0.0;
+
 
   @override
   void initState() {
@@ -579,24 +566,11 @@ class _CommentPopupDialogState extends State<CommentPopupDialog> with WidgetsBin
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    final view = View.of(context);
-    final physicalBottom = view.viewInsets.bottom;
-    final pixelRatio = view.devicePixelRatio;
-    final logicalBottom = physicalBottom / pixelRatio;
-
-    if (_keyboardHeight != logicalBottom) {
-      setState(() {
-        _keyboardHeight = logicalBottom;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, _keyboardHeight + 24),
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, 3),
       contentPadding: const EdgeInsets.only(bottom: 15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
       backgroundColor: Colors.white,

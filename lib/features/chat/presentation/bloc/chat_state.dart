@@ -40,7 +40,6 @@ class ChatMessagesLoaded extends ChatState {
   final bool isBrainStorming;
   final bool isRecording;
   final bool isChatInputEmpty;
-  final double micPadding;
 
   const ChatMessagesLoaded({
     required this.messages,
@@ -49,11 +48,10 @@ class ChatMessagesLoaded extends ChatState {
     this.isBrainStorming = false,
     this.isRecording = false,
     this.isChatInputEmpty = true,
-    this.micPadding = 0.0,
   });
 
   @override
-  List<Object?> get props => [messages, hasMore, channelId, isBrainStorming, isRecording, isChatInputEmpty, micPadding];
+  List<Object?> get props => [messages, hasMore, channelId, isBrainStorming, isRecording, isChatInputEmpty];
 
   ChatMessagesLoaded copyWith({
     List<types.Message>? messages,
@@ -62,7 +60,6 @@ class ChatMessagesLoaded extends ChatState {
     bool? isBrainStorming,
     bool? isRecording,
     bool? isChatInputEmpty,
-    double? micPadding,
   }) {
     return ChatMessagesLoaded(
       messages: messages ?? this.messages,
@@ -71,7 +68,6 @@ class ChatMessagesLoaded extends ChatState {
       isBrainStorming: isBrainStorming ?? this.isBrainStorming,
       isRecording: isRecording ?? this.isRecording,
       isChatInputEmpty: isChatInputEmpty ?? this.isChatInputEmpty,
-      micPadding: micPadding ?? this.micPadding,
     );
   }
 }

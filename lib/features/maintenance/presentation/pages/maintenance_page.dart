@@ -266,7 +266,6 @@ class _CreateMaintenanceReportDialogState
   bool isSending = false;
   List<XFile>? file;
   late final List<DropdownMenuEntry<String>> categoryEntries;
-  double _keyboardHeight = 0.0;
 
   @override
   void initState() {
@@ -307,25 +306,12 @@ class _CreateMaintenanceReportDialogState
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    final view = View.of(context);
-    final physicalBottom = view.viewInsets.bottom;
-    final pixelRatio = view.devicePixelRatio;
-    final logicalBottom = physicalBottom / pixelRatio;
-
-    if (_keyboardHeight != logicalBottom) {
-      setState(() {
-        _keyboardHeight = logicalBottom;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       // Use insetPadding based on keyboard height
-      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, _keyboardHeight + 24),
+      insetPadding: EdgeInsets.fromLTRB(24, 24, 24, 3),
       backgroundColor: Colors.white,
       contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
 

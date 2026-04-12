@@ -46,7 +46,9 @@ class MainScreen extends StatelessWidget {
             ];
 
             return Scaffold(
-              resizeToAvoidBottomInset: false,
+              // Let the body shrink with the keyboard so chat/composer stay above it.
+              // `false` caused a full-height body + manual padding hacks and a visible gap.
+              resizeToAvoidBottomInset: true,
               bottomNavigationBar: BottomNavigationBar(
                   type: BottomNavigationBarType.fixed,
                   currentIndex: cubit.bottomNavIndex,

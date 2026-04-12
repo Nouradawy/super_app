@@ -41,25 +41,47 @@ class ChatCubit extends Cubit<ChatState> {
   final int _pageSize = 20;
   bool _hasMore = true;
   RealtimeChannel? _realtimeChannel;
-  double micPadding = 0;
   int? channelId;
   bool isBrainStorming = false;
 
   List<types.Message> _messages = [];
 
+  /// `flutter_chat_ui` / [InMemoryChatController] expect chronological order:
+  /// index 0 = oldest, last index = newest (non-reversed [ChatAnimatedList]).
+  static int _compareCreatedAtAsc(types.Message a, types.Message b) {
+    final at = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bt = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final c = at.compareTo(bt);
+    if (c != 0) return c;
+    return a.id.compareTo(b.id);
+  }
+
+  static List<types.Message> _sortedCopyAsc(List<types.Message> list) {
+    final next = List<types.Message>.from(list);
+    next.sort(_compareCreatedAtAsc);
+    return next;
+  }
+
+  void _emitChatMessagesLoadedIfReady() {
+    if (state is! ChatMessagesLoaded) return;
+    final s = state as ChatMessagesLoaded;
+    emit(
+      s.copyWith(
+        messages: List<types.Message>.from(_messages),
+        hasMore: _hasMore,
+        isChatInputEmpty: isChatInputEmpty,
+        isRecording: isRecording,
+        isBrainStorming: isBrainStorming,
+      ),
+    );
+  }
+
   void showHideMic(bool isEmpty) {
     isChatInputEmpty = isEmpty;
     if (state is ChatMessagesLoaded) {
-      emit((state as ChatMessagesLoaded).copyWith(isChatInputEmpty: isEmpty, micPadding: micPadding));
+      emit((state as ChatMessagesLoaded).copyWith(isChatInputEmpty: isEmpty));
     } else {
       emit(ChatInputState(isEmpty));
-    }
-  }
-
-  void updateMicPadding(double padding) {
-    micPadding = padding;
-    if (state is ChatMessagesLoaded) {
-      emit((state as ChatMessagesLoaded).copyWith(micPadding: padding));
     }
   }
 
@@ -97,21 +119,22 @@ class ChatCubit extends Cubit<ChatState> {
         pageNum: pageRequested,
         onRemoteSynced: (synced, pageNum) => _applyRemoteSyncedPage(synced, pageNum),
       );
-      _messages = messages;
+      _messages = _sortedCopyAsc(messages);
       _currentPage++;
       _hasMore = messages.length >= _pageSize;
-      
+
       _subscribeToRealtime(channelId);
-      
-      emit(ChatMessagesLoaded(
-        messages: _messages,
-        hasMore: _hasMore,
-        channelId: channelId,
-        isBrainStorming: isBrainStorming,
-        isChatInputEmpty: isChatInputEmpty,
-        isRecording: isRecording,
-        micPadding: micPadding,
-      ));
+
+      emit(
+        ChatMessagesLoaded(
+          messages: List<types.Message>.from(_messages),
+          hasMore: _hasMore,
+          channelId: channelId,
+          isBrainStorming: isBrainStorming,
+          isChatInputEmpty: isChatInputEmpty,
+          isRecording: isRecording,
+        ),
+      );
     } catch (e) {
       emit(ChatError(e.toString()));
     }
@@ -132,20 +155,18 @@ class ChatCubit extends Cubit<ChatState> {
       
       if (messages.isEmpty) {
         _hasMore = false;
+        _emitChatMessagesLoadedIfReady();
       } else {
-        _messages.addAll(messages);
+        // Older pages must be *prepended* so the list stays oldest → newest
+        // (matches `InMemoryChatController` + non-reversed list).
+        _messages = _sortedCopyAsc([
+          ...List<types.Message>.from(messages),
+          ..._messages,
+        ]);
         _currentPage++;
       }
-      
-      if (state is ChatMessagesLoaded) {
-        emit((state as ChatMessagesLoaded).copyWith(
-            messages: List.from(_messages),
-            hasMore: _hasMore,
-            isChatInputEmpty: isChatInputEmpty,
-            isRecording: isRecording,
-            isBrainStorming: isBrainStorming,
-            micPadding: micPadding));
-      }
+
+      _emitChatMessagesLoadedIfReady();
     } catch (e) {
       // Keep existing messages but notify error? 
     }
@@ -170,21 +191,13 @@ class ChatCubit extends Cubit<ChatState> {
   void _addOrUpdateMessage(types.Message message) {
     final index = _messages.indexWhere((m) => m.id == message.id);
     if (index != -1) {
-      _messages[index] = message;
+      final next = List<types.Message>.from(_messages);
+      next[index] = message;
+      _messages = _sortedCopyAsc(next);
     } else {
-      _messages.add(message);
-      _messages.sort((a, b) => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-          .compareTo(b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+      _messages = _sortedCopyAsc([..._messages, message]);
     }
-    if (state is ChatMessagesLoaded) {
-      emit((state as ChatMessagesLoaded).copyWith(
-          messages: List.from(_messages),
-          hasMore: _hasMore,
-          isChatInputEmpty: isChatInputEmpty,
-          isRecording: isRecording,
-          isBrainStorming: isBrainStorming,
-          micPadding: micPadding));
-    }
+    _emitChatMessagesLoadedIfReady();
   }
 
   void _applyRemoteSyncedPage(List<types.Message> synced, int pageNum) {
@@ -192,46 +205,25 @@ class ChatCubit extends Cubit<ChatState> {
     if (synced.isEmpty) return;
 
     if (pageNum == 0) {
-      _messages = List<types.Message>.from(synced);
+      _messages = _sortedCopyAsc(synced);
     } else {
       final ids = _messages.map((m) => m.id).toSet();
+      final olderIncoming = <types.Message>[];
       for (final m in synced) {
         if (!ids.contains(m.id)) {
-          _messages.add(m);
+          olderIncoming.add(m);
           ids.add(m.id);
         }
       }
+      _messages = _sortedCopyAsc([...olderIncoming, ..._messages]);
     }
-    _messages.sort(
-      (a, b) => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
-          .compareTo(b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
-    );
 
-    if (state is ChatMessagesLoaded) {
-      emit(
-        (state as ChatMessagesLoaded).copyWith(
-          messages: List<types.Message>.from(_messages),
-          hasMore: _hasMore,
-          isChatInputEmpty: isChatInputEmpty,
-          isRecording: isRecording,
-          isBrainStorming: isBrainStorming,
-          micPadding: micPadding,
-        ),
-      );
-    }
+    _emitChatMessagesLoadedIfReady();
   }
 
   void _removeMessage(String messageId) {
-    _messages.removeWhere((m) => m.id == messageId);
-    if (state is ChatMessagesLoaded) {
-      emit((state as ChatMessagesLoaded).copyWith(
-          messages: List.from(_messages),
-          hasMore: _hasMore,
-          isChatInputEmpty: isChatInputEmpty,
-          isRecording: isRecording,
-          isBrainStorming: isBrainStorming,
-          micPadding: micPadding));
-    }
+    _messages = _messages.where((m) => m.id != messageId).toList();
+    _emitChatMessagesLoadedIfReady();
   }
 
   Future<void> sendMessage({
