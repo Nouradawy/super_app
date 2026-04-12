@@ -22,6 +22,7 @@ import 'package:WhatsUnity/features/auth/presentation/bloc/auth_state.dart';
 import 'package:WhatsUnity/features/auth/presentation/pages/welcome_page.dart';
 import 'package:WhatsUnity/features/chat/presentation/bloc/chat_cubit.dart';
 import 'package:WhatsUnity/features/chat/presentation/bloc/chat_state.dart';
+import 'package:WhatsUnity/features/chat/presentation/widgets/chat_scope.dart';
 import 'package:WhatsUnity/features/chat/presentation/widgets/chatWidget/AudioWaveformPainter.dart';
 import 'package:WhatsUnity/features/maintenance/presentation/bloc/maintenance_cubit.dart';
 import 'package:WhatsUnity/features/maintenance/presentation/pages/maintenance_page.dart';
@@ -74,7 +75,7 @@ class HomePage extends StatelessWidget {
         final currentMyCompounds = (authState is Authenticated) ? authState.myCompounds : authCubit.myCompounds;
         final isEnabledMultiCompound = (authState is Authenticated) ? authState.enabledMultiCompound : authCubit.enabledMultiCompound;
 
-        return Scaffold(
+        final homeScaffold = Scaffold(
           backgroundColor: Colors.white,
           resizeToAvoidBottomInset: false,
           appBar: AppBar(
@@ -334,6 +335,14 @@ class HomePage extends StatelessWidget {
             ],
           ),
         );
+        if (currentSelectedCompoundId != null) {
+          return ChatScope(
+            compoundId: currentSelectedCompoundId!,
+            channelScopeId: 'COMPOUND_GENERAL',
+            child: homeScaffold,
+          );
+        }
+        return homeScaffold;
       },
     );
   }

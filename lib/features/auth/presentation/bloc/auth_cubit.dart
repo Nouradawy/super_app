@@ -232,6 +232,48 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  int? _coerceToInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  Map<String, dynamic> _parseMyCompoundsMap(dynamic raw) {
+    if (raw == null) return {'0': "Add New Community"};
+    if (raw is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(raw);
+    }
+    if (raw is Map) {
+      return raw.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return {'0': "Add New Community"};
+  }
+
+  Future<void> _cacheUserSnapshotOnSignOut() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final Map<String, dynamic> compounds = (state is Authenticated)
+        ? Map<String, dynamic>.from((state as Authenticated).myCompounds)
+        : Map<String, dynamic>.from(myCompounds);
+
+    final int? compoundId = (state is Authenticated)
+        ? (state as Authenticated).selectedCompoundId
+        : selectedCompoundId;
+
+    final payload = <String, dynamic>{
+      'email': user.email ?? '',
+      'selectedCompoundId': compoundId,
+      'myCompounds': compounds,
+    };
+
+    await CacheHelper.saveData(
+      key: CacheHelper.cachedUserDataKey(user.id),
+      value: jsonEncode(payload),
+    );
+  }
+
   Future<void> presetBeforeSignin() async {
     emit(AuthLoading(categories: state.categories, compoundsLogos: state.compoundsLogos));
     try {
@@ -245,29 +287,73 @@ class AuthCubit extends Cubit<AuthState> {
         currentLogos = await AssetHelper.loadCompoundLogos();
       }
 
-      // 1. Load cached data (similar to loadCachedData in Constants.dart)
-      final String? compounds = await CacheHelper.getData(key: "MyCompounds", type: "String");
-      Map<String, dynamic> localMyCompounds = {'0': "Add New Community"};
-      if (compounds != null) {
-        localMyCompounds = json.decode(compounds);
+      final currentUserAuth = supabase.auth.currentUser;
+      if (currentUserAuth == null) {
+        emit(Unauthenticated(
+          categories: currentCategories,
+          compoundsLogos: currentLogos,
+        ));
+        return;
       }
-      
-      final int? compoundIndex = await CacheHelper.getData(key: "compoundCurrentIndex", type: "int");
-      int? localSelectedCompoundId = compoundIndex;
+      final String userId = currentUserAuth.id;
 
-      // 2. Determine selectedCompoundId if null
-      if (localSelectedCompoundId == null) {
-        final currentUserId = (state is Authenticated) ? (state as Authenticated).user.id : (supabase.auth.currentUser?.id);
-        if (currentUserId != null) {
-          final compoundIdResponse = await supabase.from('user_apartments').select('compound_id').eq('user_id', currentUserId).maybeSingle();
-          if (compoundIdResponse != null) {
-            localSelectedCompoundId = compoundIdResponse['compound_id'];
+      Map<String, dynamic> localMyCompounds = {'0': "Add New Community"};
+      int? localSelectedCompoundId;
+
+      // 1) Prefer per-user snapshot from last sign-out
+      final String? cachedRaw = await CacheHelper.getData(
+        key: CacheHelper.cachedUserDataKey(userId),
+        type: "String",
+      ) as String?;
+      if (cachedRaw != null && cachedRaw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(cachedRaw);
+          if (decoded is Map) {
+            final m = Map<String, dynamic>.from(decoded);
+            localSelectedCompoundId = _coerceToInt(m['selectedCompoundId']);
+            final mc = m['myCompounds'];
+            if (mc != null) {
+              localMyCompounds = _parseMyCompoundsMap(mc);
+            }
           }
+        } catch (e) {
+          debugPrint('presetBeforeSignin: invalid cached user JSON, using fallback ($e)');
         }
       }
 
+      // 2) Fallback: Supabase user_apartments
+      if (localSelectedCompoundId == null) {
+        final compoundIdResponse = await supabase
+            .from('user_apartments')
+            .select('compound_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (compoundIdResponse != null) {
+          localSelectedCompoundId = _coerceToInt(compoundIdResponse['compound_id']);
+        }
+      }
+
+      // 3) If only default row(s), resolve compound label from loaded categories
+      if (localSelectedCompoundId != null && localMyCompounds.length <= 1) {
+        final compound = currentCategories.expand((cat) => cat.compounds).firstWhere(
+              (c) => c.id == localSelectedCompoundId,
+              orElse: () => throw Exception("Compound not found in categories"),
+            );
+        localMyCompounds = {
+          '0': "Add New Community",
+          localSelectedCompoundId.toString(): compound.name.toString(),
+        };
+        await CacheHelper.saveData(
+          key: CacheHelper.cachedUserDataKey(userId),
+          value: jsonEncode({
+            'email': currentUserAuth.email ?? '',
+            'selectedCompoundId': localSelectedCompoundId,
+            'myCompounds': localMyCompounds,
+          }),
+        );
+      }
+
       Roles? userRole;
-      final currentUserAuth = supabase.auth.currentUser;
       if (currentUserAuth != null) {
         final roleId = currentUserAuth.userMetadata?["role_id"];
         if (roleId != null && roleId > 0 && roleId <= Roles.values.length) {
@@ -281,18 +367,6 @@ class AuthCubit extends Cubit<AuthState> {
 
       if (localSelectedCompoundId != null) {
         selectedCompoundId = localSelectedCompoundId;
-        // 3. Ensure MyCompounds has the selected compound
-        if (localMyCompounds.length <= 1) {
-          final compound = currentCategories.expand((cat) => cat.compounds).firstWhere(
-                (compound) => compound.id == localSelectedCompoundId,
-                orElse: () => throw Exception("Compound not found in categories"),
-              );
-          localMyCompounds = {
-            '0': "Add New Community",
-            localSelectedCompoundId.toString(): compound.name.toString()
-          };
-          await CacheHelper.saveData(key: "MyCompounds", value: json.encode(localMyCompounds));
-        }
         myCompounds = localMyCompounds;
 
         // 4. Load members
@@ -403,12 +477,16 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signOut() async {
-    emit(AuthLoading());
+    emit(AuthLoading(categories: state.categories, compoundsLogos: state.compoundsLogos));
     try {
+      await _cacheUserSnapshotOnSignOut();
       await repository.signOut();
-      emit(Unauthenticated());
+      emit(Unauthenticated(
+        categories: state.categories,
+        compoundsLogos: state.compoundsLogos,
+      ));
     } catch (e) {
-      emit(AuthError(e.toString()));
+      emit(AuthError(e.toString(), categories: state.categories, compoundsLogos: state.compoundsLogos));
     }
   }
 

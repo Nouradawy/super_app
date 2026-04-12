@@ -29,9 +29,18 @@ class MainScreen extends StatelessWidget {
           builder: (context, states) {
             final cubit = AppCubit.get(context);
             final Roles? role = (authState is Authenticated) ? authState.role : null;
-            final List screens = [
+            // Only mount BuildingChat when the "Chats" tab is active. IndexedStack
+            // keeps all children in the tree — avoid mounting building chat until
+            // needed. Each chat surface uses its own [ChatScope] / [ChatCubit];
+            // SQLite rows are still keyed by Supabase channel_id.
+            final bool showBuildingChat =
+                role != Roles.manager && cubit.bottomNavIndex == 1;
+            final List<Widget> screens = [
               GatekeeperScreen(index: role == Roles.manager ? 0 : 1,),
-              if (role != Roles.manager) BuildingChat(),
+              if (role != Roles.manager)
+                showBuildingChat
+                    ? const BuildingChat()
+                    : const SizedBox.shrink(),
               ProfilePage(),
               if (role == Roles.admin) AdminDashboard(),
             ];
@@ -75,7 +84,7 @@ class MainScreen extends StatelessWidget {
                   ]),
               body: IndexedStack(
                 index: cubit.bottomNavIndex,
-                children: List<Widget>.from(screens),
+                children: screens,
               ),
             );
           }

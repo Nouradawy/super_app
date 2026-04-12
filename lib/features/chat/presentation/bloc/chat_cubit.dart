@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -88,11 +89,13 @@ class ChatCubit extends Cubit<ChatState> {
     _hasMore = true;
     emit(ChatLoading());
     try {
+      final pageRequested = _currentPage;
       final messages = await fetchMessagesUsecase(
         channelId: channelId,
         currentUserId: currentUserId,
         pageSize: _pageSize,
-        pageNum: _currentPage,
+        pageNum: pageRequested,
+        onRemoteSynced: (synced, pageNum) => _applyRemoteSyncedPage(synced, pageNum),
       );
       _messages = messages;
       _currentPage++;
@@ -118,11 +121,13 @@ class ChatCubit extends Cubit<ChatState> {
     if (!_hasMore || state is ChatLoading) return;
     
     try {
+      final pageRequested = _currentPage;
       final messages = await fetchMessagesUsecase(
         channelId: channelId,
         currentUserId: currentUserId,
         pageSize: _pageSize,
-        pageNum: _currentPage,
+        pageNum: pageRequested,
+        onRemoteSynced: (synced, pageNum) => _applyRemoteSyncedPage(synced, pageNum),
       );
       
       if (messages.isEmpty) {
@@ -179,6 +184,40 @@ class ChatCubit extends Cubit<ChatState> {
           isRecording: isRecording,
           isBrainStorming: isBrainStorming,
           micPadding: micPadding));
+    }
+  }
+
+  void _applyRemoteSyncedPage(List<types.Message> synced, int pageNum) {
+    if (isClosed) return;
+    if (synced.isEmpty) return;
+
+    if (pageNum == 0) {
+      _messages = List<types.Message>.from(synced);
+    } else {
+      final ids = _messages.map((m) => m.id).toSet();
+      for (final m in synced) {
+        if (!ids.contains(m.id)) {
+          _messages.add(m);
+          ids.add(m.id);
+        }
+      }
+    }
+    _messages.sort(
+      (a, b) => (a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)),
+    );
+
+    if (state is ChatMessagesLoaded) {
+      emit(
+        (state as ChatMessagesLoaded).copyWith(
+          messages: List<types.Message>.from(_messages),
+          hasMore: _hasMore,
+          isChatInputEmpty: isChatInputEmpty,
+          isRecording: isRecording,
+          isBrainStorming: isBrainStorming,
+          micPadding: micPadding,
+        ),
+      );
     }
   }
 

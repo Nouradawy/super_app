@@ -4,11 +4,13 @@ import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract class ChatRepository {
+  /// Offline-first: completes quickly with SQLite page; [onRemoteSynced] runs after Supabase merge.
   Future<List<types.Message>> fetchMessages({
     required int channelId,
     required String currentUserId,
     required int pageSize,
     required int pageNum,
+    void Function(List<types.Message> messages, int pageNum)? onRemoteSynced,
   });
 
   Future<void> sendTextMessage({

@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'package:WhatsUnity/features/auth/presentation/bloc/auth_cubit.dart';
 import 'package:WhatsUnity/features/auth/presentation/bloc/auth_state.dart';
+import 'package:WhatsUnity/features/chat/data/datasources/chat_local_data_source.dart';
 import 'package:WhatsUnity/features/chat/presentation/bloc/chat_details_cubit.dart';
 import 'package:WhatsUnity/core/config/supabase.dart';
 import 'package:WhatsUnity/core/config/Enums.dart';
@@ -63,7 +64,7 @@ class _VisibleMessage {
 
 class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   // Services
-  late final ChatCacheService _cacheService;
+  ChatCacheService? _cacheService;
   @override
   bool get wantKeepAlive => true;
   // State
@@ -111,7 +112,6 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _cacheService = ChatCacheService();
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _chatTextController.addListener(_handleTypingStatus);
@@ -146,6 +146,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _cacheService ??= ChatCacheService(context.read<ChatLocalDataSource>());
     // Safe place to read inherited widgets once (no listening)
     _appCubit ??= context.read<AppCubit>();
     // Attach once when cubit becomes available
@@ -160,7 +161,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     }
     _chatController.dispose();
     if (channelId != null) {
-      _cacheService.saveMessages(channelId!, _messages);
+      _cacheService?.saveMessages(channelId!, _messages);
     }
     _appCubit?.detachChatController();
     _chatTextController.removeListener(_handleTypingStatus);

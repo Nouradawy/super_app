@@ -72,7 +72,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return BlocListener<AuthCubit, AuthState>(
       listener: (context,state){
         if (state is Unauthenticated) {
-          context.read<AppCubit>().bottomNavIndex=0;
+          AppCubit.get(context).bottomNavIndex=0;
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => SignUp()),

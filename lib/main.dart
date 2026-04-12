@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase_auth show AuthState;
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+import 'core/services/database_helper.dart';
 import 'core/utils/BlocObserver.dart';
 import 'core/constants/Constants.dart';
 import 'core/config/Enums.dart';
@@ -16,18 +17,11 @@ import 'core/theme/lightTheme.dart';
 import 'features/auth/data/datasources/auth_remote_data_source.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/auth/presentation/bloc/auth_cubit.dart';
+import 'features/chat/data/datasources/chat_local_data_source.dart';
 import 'features/chat/data/datasources/chat_remote_data_source.dart';
 import 'features/chat/data/repositories/chat_repository_impl.dart';
-import 'features/chat/domain/usecases/delete_message.dart';
-import 'features/chat/domain/usecases/fetch_messages.dart';
-import 'features/chat/domain/usecases/mark_message_seen.dart';
-import 'features/chat/domain/usecases/resolve_user.dart';
-import 'features/chat/domain/usecases/send_file_message.dart';
-import 'features/chat/domain/usecases/send_voice_note.dart';
-import 'features/chat/domain/usecases/send_text_message.dart';
-import 'features/chat/domain/usecases/subscribe_to_channel.dart';
+import 'features/chat/domain/repositories/chat_repository.dart';
 import 'features/chat/presentation/bloc/presence_cubit.dart';
-import 'features/chat/presentation/bloc/chat_cubit.dart';
 import 'features/maintenance/data/datasources/maintenance_remote_data_source.dart';
 import 'features/maintenance/data/repositories/maintenance_repository_impl.dart';
 import 'features/maintenance/presentation/bloc/maintenance_cubit.dart';
@@ -72,7 +66,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
+    return RepositoryProvider<ChatLocalDataSource>(
+      create: (_) => ChatLocalDataSourceImpl(DatabaseHelper.instance),
+      child: RepositoryProvider<ChatRepository>(
+        create: (context) => ChatRepositoryImpl(
+          remoteDataSource: ChatRemoteDataSourceImpl(supabase),
+          localDataSource: context.read<ChatLocalDataSource>(),
+          supabase: supabase,
+        ),
+        child: MultiBlocProvider(
       providers: [
         BlocProvider(
           create: (context) {
@@ -108,24 +110,6 @@ class MyApp extends StatelessWidget {
             final authState = context.read<AuthCubit>().state;
             final members = (authState is Authenticated) ? authState.chatMembers : <ChatMember>[];
             return MessageReceiptsCubit(supabase, chatMembers: members);
-          },
-        ),
-        BlocProvider(
-          create: (context) {
-            final chatRepository = ChatRepositoryImpl(
-              ChatRemoteDataSourceImpl(supabase),
-              supabase,
-            );
-            return ChatCubit(
-              fetchMessagesUsecase: FetchMessages(chatRepository),
-              sendTextMessageUsecase: SendTextMessage(chatRepository),
-              sendFileMessageUsecase: SendFileMessage(chatRepository),
-              sendVoiceNoteUsecase: SendVoiceNote(chatRepository),
-              markMessageSeenUsecase: MarkMessageSeen(chatRepository),
-              deleteMessageUsecase: DeleteMessage(chatRepository),
-              resolveUserUsecase: ResolveUser(chatRepository),
-              subscribeToChannelUsecase: SubscribeToChannel(chatRepository),
-            );
           },
         ),
         BlocProvider(
@@ -203,6 +187,8 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
+    ),
+    ),
     );
   }
 }

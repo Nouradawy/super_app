@@ -1,15 +1,25 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'package:ntp/ntp.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../domain/repositories/chat_repository.dart';
+import '../datasources/chat_local_data_source.dart';
 import '../datasources/chat_remote_data_source.dart';
 import '../models/message_model.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
-  final ChatRemoteDataSource remoteDataSource;
-  final SupabaseClient _supabase;
+  ChatRepositoryImpl({
+    required this.remoteDataSource,
+    required this.localDataSource,
+    required SupabaseClient supabase,
+  }) : _supabase = supabase;
 
-  ChatRepositoryImpl(this.remoteDataSource, this._supabase);
+  final ChatRemoteDataSource remoteDataSource;
+  final ChatLocalDataSource localDataSource;
+  final SupabaseClient _supabase;
 
   @override
   Future<List<types.Message>> fetchMessages({
@@ -17,14 +27,60 @@ class ChatRepositoryImpl implements ChatRepository {
     required String currentUserId,
     required int pageSize,
     required int pageNum,
+    void Function(List<types.Message> messages, int pageNum)? onRemoteSynced,
   }) async {
-    final rawMessages = await remoteDataSource.fetchMessages(
+    var cached = <types.Message>[];
+    try {
+      final rows = await localDataSource.getMessagesByChannelWithPagination(
+        channelId: channelId,
+        limit: pageSize,
+        offset: pageNum * pageSize,
+      );
+      cached = rows.map(MessageModel.fromMap).toList();
+    } catch (e, st) {
+      debugPrint('fetchMessages local: $e\n$st');
+    }
+
+    unawaited(_syncRemoteThenNotify(
       channelId: channelId,
       currentUserId: currentUserId,
       pageSize: pageSize,
       pageNum: pageNum,
-    );
-    return rawMessages.map((m) => MessageModel.fromMap(m)).toList();
+      onRemoteSynced: onRemoteSynced,
+    ));
+
+    return cached;
+  }
+
+  Future<void> _syncRemoteThenNotify({
+    required int channelId,
+    required String currentUserId,
+    required int pageSize,
+    required int pageNum,
+    void Function(List<types.Message> messages, int pageNum)? onRemoteSynced,
+  }) async {
+    try {
+      final raw = await remoteDataSource.fetchMessages(
+        channelId: channelId,
+        currentUserId: currentUserId,
+        pageSize: pageSize,
+        pageNum: pageNum,
+      );
+      await localDataSource.insertMessages(raw);
+      if (onRemoteSynced != null) {
+        final rows = await localDataSource.getMessagesByChannelWithPagination(
+          channelId: channelId,
+          limit: pageSize,
+          offset: pageNum * pageSize,
+        );
+        onRemoteSynced(
+          rows.map(MessageModel.fromMap).toList(),
+          pageNum,
+        );
+      }
+    } catch (e, st) {
+      debugPrint('fetchMessages remote sync: $e\n$st');
+    }
   }
 
   @override
@@ -120,7 +176,7 @@ class ChatRepositoryImpl implements ChatRepository {
         imageSource: userData['avatar_url'],
       );
     } catch (error) {
-       return types.User(id: id, name: 'Unknown');
+      return types.User(id: id, name: 'Unknown');
     }
   }
 
@@ -133,9 +189,46 @@ class ChatRepositoryImpl implements ChatRepository {
   }) {
     return remoteDataSource.subscribeToChannel(
       channelId: channelId,
-      onInsert: (payload) => onInsert(MessageModel.fromMap(payload)),
-      onUpdate: (payload) => onUpdate(MessageModel.fromMap(payload)),
-      onDelete: onDelete != null ? (payload) => onDelete(MessageModel.fromMap(payload)) : null,
+      onInsert: (payload) {
+        final map = Map<String, dynamic>.from(payload);
+        unawaited(_persistLocal(map, 'insert'));
+        onInsert(MessageModel.fromMap(map));
+      },
+      onUpdate: (payload) {
+        final map = Map<String, dynamic>.from(payload);
+        unawaited(_persistLocal(map, 'update'));
+        onUpdate(MessageModel.fromMap(map));
+      },
+      onDelete: onDelete != null
+          ? (payload) {
+              final map = Map<String, dynamic>.from(payload);
+              final id = map['id']?.toString();
+              if (id != null) {
+                unawaited(localDataSource.deleteMessageById(id));
+              }
+              try {
+                onDelete(MessageModel.fromMap(map));
+              } catch (_) {
+                if (id != null) {
+                  onDelete(
+                    types.TextMessage(
+                      id: id,
+                      authorId: map['author_id']?.toString() ?? '',
+                      text: '',
+                    ),
+                  );
+                }
+              }
+            }
+          : null,
     );
+  }
+
+  Future<void> _persistLocal(Map<String, dynamic> map, String reason) async {
+    try {
+      await localDataSource.insertMessage(map);
+    } catch (e, st) {
+      debugPrint('local persist ($reason): $e\n$st');
+    }
   }
 }

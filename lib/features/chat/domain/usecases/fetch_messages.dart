@@ -13,12 +13,14 @@ class FetchMessages {
     required String currentUserId,
     required int pageSize,
     required int pageNum,
+    void Function(List<types.Message> messages, int pageNum)? onRemoteSynced,
   }) {
     return repository.fetchMessages(
       channelId: channelId,
       currentUserId: currentUserId,
       pageSize: pageSize,
       pageNum: pageNum,
+      onRemoteSynced: onRemoteSynced,
     );
   }
 }

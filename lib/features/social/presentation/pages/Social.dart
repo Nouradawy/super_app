@@ -52,6 +52,7 @@ class _SocialState extends State<Social> {
         final currentUserRole = authState.role;
         final currentMember = authState.currentUser;
         final members = authState.chatMembers;
+        final memberById = {for (final m in members) m.id.trim(): m};
         final selectedCompoundId = authState.selectedCompoundId;
 
         return Column(
@@ -112,19 +113,16 @@ class _SocialState extends State<Social> {
                                   final postIndex = index - 1;
                                   final post = posts[postIndex];
                                   final authorId = post.authorId;
-                                  final postUser = members.firstWhere(
-                                    (member) => member.id.trim() == authorId,
-                                    orElse:
-                                        () => ChatMember(
-                                          id: authorId,
-                                          displayName: 'Unknown',
-                                          building: 'null',
-                                          apartment: 'null',
-                                          userState: UserState.banned,
-                                          phoneNumber: '',
-                                          ownerType: null,
-                                        ),
-                                  );
+                                  final postUser = memberById[authorId.trim()] ??
+                                      ChatMember(
+                                        id: authorId,
+                                        displayName: 'Unknown',
+                                        building: 'null',
+                                        apartment: 'null',
+                                        userState: UserState.banned,
+                                        phoneNumber: '',
+                                        ownerType: null,
+                                      );
                                   return Column(
                                     crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [

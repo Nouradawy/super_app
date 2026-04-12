@@ -24,6 +24,7 @@ The app is built with **Flutter** and uses **Supabase** for authentication, Post
 - **Live updates** use the Supabase client’s **`RealtimeChannel`** with **`onPostgresChanges`** on the `messages` table, filtered by `channel_id`—so clients receive inserts, updates, and deletes through **Supabase Realtime**, not custom WebSockets.
 - The chat UI builds on **`flutter_chat_ui`** / **`flutter_chat_core`** with cubit-driven state ([`ChatCubit`](lib/features/chat/presentation/bloc/chat_cubit.dart), [`PresenceCubit`](lib/features/chat/presentation/bloc/presence_cubit.dart)).
 - Attachments and rich content often flow through **Google Drive** uploads ([`GoogleDriveService`](lib/core/services/GoogleDriveService.dart)) with complementary processing where configured.
+- **Local persistence:** chat history is cached in **SQLite** (`sqflite`) for fast reads, pagination, and an offline-first load path. SharedPreferences is no longer used for message lists. See [Chat persistence (SQLite)](#chat-persistence-sqlite) below.
 
 ### Security, cleaning, and maintenance reporting
 
@@ -44,7 +45,7 @@ The app is built with **Flutter** and uses **Supabase** for authentication, Post
 
 ### Social feed
 
-- Compound-scoped posts are loaded via [`SocialCubit`](lib/features/social/presentation/bloc/social_cubit.dart) and the social UI in [`lib/core/widgets/Social.dart`](lib/core/widgets/Social.dart), alongside the general compound chat tab.
+- Compound-scoped posts are loaded via [`SocialCubit`](lib/features/social/presentation/bloc/social_cubit.dart) and the social UI in [`Social.dart`](lib/features/social/presentation/pages/Social.dart), alongside the general compound chat tab.
 
 ---
 
@@ -58,7 +59,49 @@ The app is built with **Flutter** and uses **Supabase** for authentication, Post
 | **State management** | **Bloc** / **Cubit** (`flutter_bloc`, `bloc`); [`provider`](https://pub.dev/packages/provider) for narrow cases (e.g. auth readiness) |
 | **Chat UI** | `flutter_chat_ui`, `flutter_chat_core`, Flyer chat message packages |
 | **Media & device** | `image_picker`, `file_picker`, `permission_handler`, `audioplayers`, etc. |
-| **Other** | `dio` / `http`, `shared_preferences`, `flutter_dotenv`, Google Sign-In, Firebase Core (as wired in the project) |
+| **Other** | `dio` / `http`, `shared_preferences`, `sqflite`, `path`, `flutter_dotenv`, Google Sign-In, Firebase Core (as wired in the project) |
+
+---
+
+## Chat persistence (SQLite)
+
+Chat messages are stored on device in a **local SQLite database** (package: [`sqflite`](https://pub.dev/packages/sqflite), paths via [`path`](https://pub.dev/packages/path) and [`path_provider`](https://pub.dev/packages/path_provider)) to avoid large JSON blobs in SharedPreferences and to support **efficient querying**, **LIMIT/OFFSET pagination**, and an **offline-first** first paint.
+
+### Layout (clean architecture)
+
+| Piece | Location |
+|--------|----------|
+| DB singleton & schema | [`lib/core/services/database_helper.dart`](lib/core/services/database_helper.dart) |
+| Local data source (interface + impl) | [`lib/features/chat/data/datasources/chat_local_data_source.dart`](lib/features/chat/data/datasources/chat_local_data_source.dart) |
+| Map helpers (`types.Message` ↔ storage) | [`lib/features/chat/data/utils/chat_message_map_codec.dart`](lib/features/chat/data/utils/chat_message_map_codec.dart) |
+| Offline-first repository | [`lib/features/chat/data/repositories/chat_repository_impl.dart`](lib/features/chat/data/repositories/chat_repository_impl.dart) |
+| UI cache on dispose (batch upsert) | [`ChatCacheService`](lib/features/chat/presentation/widgets/chatWidget/GeneralChat/ChatCacheService.dart) |
+| DI: `ChatLocalDataSource` | [`RepositoryProvider`](lib/main.dart) in [`main.dart`](lib/main.dart) |
+
+### Schema (`messages` table)
+
+Columns mirror the Supabase row shape used by [`MessageModel.fromMap`](lib/features/chat/data/models/message_model.dart), including:
+
+- **`id`** (TEXT, primary key) — message UUID.
+- **`channel_id`** (INTEGER) — chat channel scope.
+- **`author_id`**, **`content`** (text body), **`uri`**, **`type`** (logical type, e.g. text / image / audio).
+- **`created_at`** (ISO string), **`created_at_ms`** (INTEGER) — sorting and pagination.
+- **`metadata`** (JSON string) — reactions, reply targets, waveform, etc.
+- **`sent_at`**, **`deleted_at`** — when present from the server.
+- **`is_synced`** (INTEGER 0/1) — reserved for a future **offline outbound queue** (unsynced drafts).
+- **`payload_json`** (TEXT) — full row JSON for round-tripping without losing fields.
+
+An index on `(channel_id, created_at_ms)` supports per-channel queries.
+
+### Offline-first fetch flow
+
+1. **`ChatRepository.fetchMessages`** reads the requested **page from SQLite** and returns it immediately to [`ChatCubit`](lib/features/chat/presentation/bloc/chat_cubit.dart).
+2. A **background** call loads the same page from **Supabase** (existing RPC `get_messages_with_pagnation`), **upserts** rows into SQLite, then invokes optional **`onRemoteSynced`** so the cubit can **merge** and re-emit [`ChatMessagesLoaded`](lib/features/chat/presentation/bloc/chat_state.dart).
+3. **Realtime** handlers (`subscribeToChannel`) **upsert** inserts/updates and **delete** removed rows in SQLite so the cache stays aligned with the server.
+
+### Migrating from older builds
+
+Older versions cached chat in **SharedPreferences** (`chat_messages_<channelId>`). That path is **not** read automatically; first launch after upgrade builds a fresh SQLite cache from network + realtime. Optionally, you can add a one-time migration that reads legacy strings and inserts them via `ChatLocalDataSource.insertMessages`.
 
 ---
 
@@ -75,13 +118,14 @@ The codebase follows a **feature-first** layout under [`lib/features/`](lib/feat
 
 Cross-cutting pieces live under [`lib/core/`](lib/core/) (config, theme, network, services). App-wide navigation concerns use [`AppCubit`](lib/Layout/Cubit/cubit.dart) in [`lib/Layout/Cubit/`](lib/Layout/Cubit/).
 
-**Pattern:** Presentation (Cubit/Bloc) → Repository (feature `data/repositories`) → Remote data source (Supabase calls). Domain use cases live under `features/<feature>/domain/usecases/` where extracted.
+**Pattern:** Presentation (Cubit/Bloc) → Repository (feature `data/repositories`) → Remote data source (Supabase calls). For chat, the repository also uses a **local data source** (SQLite) for caching and offline-first reads. Domain use cases live under `features/<feature>/domain/usecases/` where extracted.
 
 ```mermaid
 flowchart LR
   UI[Widgets / Pages] --> Cubit[Cubit / Bloc]
   Cubit --> Repo[Repository]
   Repo --> Remote[RemoteDataSource]
+  Repo --> Local[(SQLite / sqflite)]
   Remote --> Supabase[(Supabase Auth + DB + Realtime)]
 ```
 
