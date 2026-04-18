@@ -22,10 +22,55 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254.apps.googleusercontent.com</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>mailto</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photos to let you upload a profile picture and share images in chat.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>This app needs access to your media library to allow you to select and play audio files.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app requires microphone access to record voice notes.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -45,29 +90,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<key>LSApplicationQueriesSchemes</key>
-    <array>
-        <string>https</string>
-        <string>mailto</string>
-    </array>
-	<key>GIDClientID</key>
-	<string>979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254.apps.googleusercontent.com</string>
-
-	<key>NSMicrophoneUsageDescription</key>
-    <string>This app requires microphone access to record voice notes.</string>
-
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.979693285877-s6ks52e357o8c6lqdfkb8qi9f7i15254</string>
-			</array>
-		</dict>
-	</array>
 </dict>
 </plist>
-
