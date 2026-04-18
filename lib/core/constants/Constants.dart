@@ -937,19 +937,13 @@ String formatPostTime(DateTime createdAt) {
 
 class AssetHelper {
   static Future<List<String>> loadCompoundLogos() async {
-    // Load the asset manifest
-    final manifestContent =
-    await rootBundle.loadString('AssetManifest.json');
-
-    // Decode JSON
-    final Map<String, dynamic> manifestMap = json.decode(manifestContent);
-
-    // Filter keys that start with your folder path
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
     const folder = 'assets/compoundsLogo/';
-    final logos = manifestMap.keys
+    final logos = manifest
+        .listAssets()
         .where((String key) => key.startsWith(folder))
         .toList();
 
-    return logos; // List\<String\> of full asset paths
+    return logos;
   }
 }
