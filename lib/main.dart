@@ -181,7 +181,6 @@ class MyApp extends StatelessWidget {
                 return const AuthReadyGate();
               }
 
-              requestPermission();
               return SignUp();
             },
           ),

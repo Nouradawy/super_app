@@ -10,7 +10,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/auth/presentation/bloc/auth_cubit.dart';
@@ -26,41 +25,12 @@ import '../config/Enums.dart';
 
 final GoogleDriveService driveService = GoogleDriveService();
 List<Map<String,dynamic>> prevSignIn = [];
-bool _isRequestingPermissions = false;
 
 Future<List<String>> loadCachedData() async {
   return await AssetHelper.loadCompoundLogos();
 }
 
 // Removed presetBeforeSignin wrapper as it is now directly part of AuthCubit.
-
-Future<void> requestPermission() async {
-  if (_isRequestingPermissions) {
-    debugPrint('Permission request already in progress, skipping.');
-    return;
-  }
-
-  _isRequestingPermissions = true;
-  try {
-    final statuses = await [
-      Permission.camera,
-      Permission.photos,      // iOS
-      Permission.storage,     // Android legacy
-      Permission.microphone,
-      Permission.notification,
-    ].request();
-
-    // Handle denied/permanently denied if needed
-    for (final entry in statuses.entries) {
-      if (entry.value.isPermanentlyDenied) {
-        await openAppSettings();
-      }
-    }
-  } finally {
-    _isRequestingPermissions = false;
-  }
-}
-
 
 Widget getCompoundPicture(BuildContext context, int compoundId, double size) {
   final authState = context.watch<AuthCubit>().state;
