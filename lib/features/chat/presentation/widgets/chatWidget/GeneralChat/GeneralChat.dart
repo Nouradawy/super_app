@@ -219,6 +219,8 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
 
   Future<void> _handleSendPressed(String text) async {
+    // Composer never unfocuses on send; on iOS the keyboard stays up after the send icon.
+    FocusManager.instance.primaryFocus?.unfocus();
     if (channelId == null) return;
     await context.read<ChatCubit>().sendMessage(
       text: text,

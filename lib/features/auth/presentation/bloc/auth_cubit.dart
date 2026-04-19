@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 import '../../../../core/config/Enums.dart';
 import '../../../../core/config/supabase.dart';
 import '../../../../core/constants/Constants.dart';
@@ -37,6 +38,9 @@ class AuthCubit extends Cubit<AuthState> {
 
   AuthCubit({required this.repository}) : super(AuthInitial()) {
     repository.onAuthStateChange.listen((data) {
+      // Token refresh fires often and would rebuild the whole tree (e.g. MainScreen) for no UI change.
+      if (data.event == AuthChangeEvent.tokenRefreshed) return;
+
       final user = data.session?.user;
       if (user != null) {
         if (state is Authenticated) {
