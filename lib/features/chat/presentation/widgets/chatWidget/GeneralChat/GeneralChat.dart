@@ -91,6 +91,9 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   late final TextEditingController _chatTextController;
   late final types.InMemoryChatController _chatController;
   late final ReactionsController _reactionsController;
+  /// New [Chat] subtree each mount so flutter_chat_ui list internals (GlobalKeys) cannot
+  /// collide after sign-out / sign-in.
+  late final Key _chatSurfaceKey;
   AppCubit? _appCubit;
 
   // Realtime
@@ -132,6 +135,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   @override
   void initState() {
     super.initState();
+    _chatSurfaceKey = UniqueKey();
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _chatTextController.addListener(_handleTypingStatus);
@@ -153,10 +157,10 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     for (var timer in _pollingTimers.values) {
       timer.cancel();
     }
-    _chatController.dispose();
     if (channelId != null) {
       _cacheService?.saveMessages(channelId!, _chatController.messages);
     }
+    _chatController.dispose();
     _appCubit?.detachChatController();
     _chatTextController.removeListener(_handleTypingStatus);
     _chatTextController.dispose();
@@ -191,6 +195,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   }
 
   Future<void> _syncChatFromCubit(ChatMessagesLoaded loaded) async {
+    if (!mounted) return;
     for (final message in loaded.messages) {
       if (message is types.AudioMessage &&
           message.metadata?['status'] == 'processing') {
@@ -199,6 +204,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     }
 
     await _applyCubitMessagesToController(loaded.messages);
+    if (!mounted) return;
 
     final localIdsToRemove = <String>[];
     for (final message in loaded.messages) {
@@ -571,6 +577,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
       final response = await query.single();
 
+      if (!mounted) return;
 
       channelId = response['id'] as int?;
 
@@ -790,6 +797,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
         return !identical(previous.messages, current.messages);
       },
       listener: (context, state) {
+        if (!mounted) return;
         unawaited(_syncChatFromCubit(state as ChatMessagesLoaded));
       },
       child: BlocBuilder<ChatCubit, ChatState>(
@@ -951,6 +959,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
                                 child: NotificationListener<ScrollNotification>(
                                   onNotification: _onScrollNotification,
                                   child: Chat(
+                                    key: _chatSurfaceKey,
                                     chatController: _chatController,
                                     currentUserId: _userId,
                                     onMessageSend: (text) => _handleSendPressed(text),

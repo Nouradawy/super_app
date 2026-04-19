@@ -336,9 +336,16 @@ class HomePage extends StatelessWidget {
           ),
         );
         if (currentSelectedCompoundId != null) {
+          final uid = authState is Authenticated
+              ? authState.user.id
+              : (supabase.auth.currentUser?.id ?? '');
+          if (uid.isEmpty) {
+            return homeScaffold;
+          }
           return ChatScope(
             compoundId: currentSelectedCompoundId!,
             channelScopeId: 'COMPOUND_GENERAL',
+            userId: uid,
             child: homeScaffold,
           );
         }

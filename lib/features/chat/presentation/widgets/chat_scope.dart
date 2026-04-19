@@ -25,19 +25,22 @@ class ChatScope extends StatelessWidget {
     super.key,
     required this.compoundId,
     required this.channelScopeId,
+    required this.userId,
     required this.child,
   });
 
   final int compoundId;
   /// e.g. `COMPOUND_GENERAL` or `BUILDING_CHAT` (must match [GeneralChat] query).
   final String channelScopeId;
+  /// Signed-in user id — included in the provider key so each session gets a clean cubit.
+  final String userId;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final repo = context.read<ChatRepository>();
     return BlocProvider<ChatCubit>(
-      key: ValueKey('chat_${compoundId}_$channelScopeId'),
+      key: ValueKey('chat_${userId}_${compoundId}_$channelScopeId'),
       create: (_) => ChatCubit(
         fetchMessagesUsecase: FetchMessages(repo),
         sendTextMessageUsecase: SendTextMessage(repo),

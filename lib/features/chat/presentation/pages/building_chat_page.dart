@@ -42,6 +42,7 @@ class BuildingChat extends StatelessWidget {
     return ChatScope(
       compoundId: currentCompoundId,
       channelScopeId: 'BUILDING_CHAT',
+      userId: userId,
       child: Scaffold(
       body:Stack(
         children: [
