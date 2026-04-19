@@ -37,6 +37,9 @@ class SignUp extends StatelessWidget {
       listener: (context, state) {
         if (state is Authenticated) {
           context.read<AuthCubit>().presetBeforeSignin().then((_) {
+            // Root [MyApp] may already have swapped SignUp for [AuthReadyGate];
+            // this context is then unmounted and Navigator must not run.
+            if (!context.mounted) return;
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -46,6 +49,7 @@ class SignUp extends StatelessWidget {
           });
         }
         if (state is SignUpSuccess) {
+          if (!context.mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -53,7 +57,8 @@ class SignUp extends StatelessWidget {
           );
         }
         if (state is RegistrationSuccess) {
-           context.read<AuthCubit>().presetBeforeSignin().then((_) {
+          context.read<AuthCubit>().presetBeforeSignin().then((_) {
+            if (!context.mounted) return;
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
