@@ -29,17 +29,8 @@ class Social extends StatefulWidget {
 class _SocialState extends State<Social> {
   final TextEditingController postHead = TextEditingController();
   final List<String> moreMenu = ["Delete"];
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authState = context.read<AuthCubit>().state;
-      if (authState is Authenticated && authState.selectedCompoundId != null) {
-        context.read<SocialCubit>().getPosts(authState.selectedCompoundId!);
-      }
-    });
-  }
+  /// Avoids missing the first fetch when [selectedCompoundId] is not ready on the first frame after cold start.
+  int? _postsFetchedForCompoundId;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +45,14 @@ class _SocialState extends State<Social> {
         final members = authState.chatMembers;
         final memberById = {for (final m in members) m.id.trim(): m};
         final selectedCompoundId = authState.selectedCompoundId;
+
+        if (selectedCompoundId != null && selectedCompoundId != _postsFetchedForCompoundId) {
+          _postsFetchedForCompoundId = selectedCompoundId;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            context.read<SocialCubit>().getPosts(selectedCompoundId);
+          });
+        }
 
         return Column(
           children: [
