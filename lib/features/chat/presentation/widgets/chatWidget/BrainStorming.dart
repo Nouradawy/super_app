@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:WhatsUnity/core/theme/lightTheme.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -40,6 +39,8 @@ class _BrainStormingState extends State<BrainStorming> with WidgetsBindingObserv
     TextEditingController(),
   ];
   TextEditingController newComment = TextEditingController();
+  final ValueNotifier<bool> _commentSending = ValueNotifier<bool>(false);
+  bool _commentsOverlayOpen = false;
 
   List<XFile>? file;
 
@@ -80,6 +81,7 @@ class _BrainStormingState extends State<BrainStorming> with WidgetsBindingObserv
 
   @override
   void dispose() {
+    _commentSending.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -134,245 +136,239 @@ class _BrainStormingState extends State<BrainStorming> with WidgetsBindingObserv
           icon: Icon(Icons.add, color: HexColor("#121416")),
           backgroundColor: HexColor("#dce8f3"),
         ),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            // Reserve space for extended FAB + keyboard; main scroll fixes overflow in debug/release.
-            final bottomPad = _keyboardHeight + MediaQuery.paddingOf(context).bottom + 88;
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: bottomPad),
-              child: BlocBuilder<SocialCubit, SocialState>(
-                builder: (context, state) {
-                  final socialCubit = context.read<SocialCubit>();
-                  final brainStorms = socialCubit.brainStorms;
-                  final isSending = ValueNotifier<bool>(false);
+        body: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(bottom: _keyboardHeight),
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: BlocBuilder<SocialCubit, SocialState>(
+                  builder: (context, state) {
+                    final socialCubit = context.read<SocialCubit>();
+                    final brainStorms = socialCubit.brainStorms;
 
-                  if (state is SocialLoading && brainStorms.isEmpty) {
-                    return SizedBox(
-                      height: math.max(200, constraints.maxHeight - bottomPad),
-                      child: const Center(child: CircularProgressIndicator()),
-                    );
-                  }
+                    if (state is SocialLoading && brainStorms.isEmpty) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                  if (brainStorms.isEmpty) {
-                    return SizedBox(
-                      height: math.max(200, constraints.maxHeight - bottomPad),
-                      child: const Center(child: Text("No Brainstorms yet")),
-                    );
-                  }
+                    if (brainStorms.isEmpty) {
+                      return const Center(child: Text("No Brainstorms yet"));
+                    }
 
-                  final carouselHeight = math.min(
-                    constraints.maxHeight * 0.55,
-                    MediaQuery.sizeOf(context).height * 0.5,
-                  );
+                    return FutureBuilder<Map<String, String>>(
+                      future: fetchAvatarsForUserIds(context, brainStorms, socialCubit.currentCarouselIndex),
+                      builder: (context, snapshot) {
+                        final idToAvatar = snapshot.data ?? const <String, String>{};
 
-                  return Column(
-                    children: [
-                      FutureBuilder<Map<String, String>>(
-                        future: fetchAvatarsForUserIds(context, brainStorms, socialCubit.currentCarouselIndex),
-                        builder: (context, snapshot) {
-                          final idToAvatar = snapshot.data ?? const <String, String>{};
-
-                          return Stack(
-                            alignment: Alignment.center,
-                            clipBehavior: Clip.none,
-                            children: [
-                              CarouselSlider(
-                                items: brainStorms.map<Widget>((item) {
-                                  return KeyedSubtree(
-                                    key: ValueKey('poll-slide-${item.id}'),
-                                    child: SizedBox(
-                                      height: carouselHeight,
-                                      width: double.infinity,
-                                      child: SingleChildScrollView(
-                                        physics: const ClampingScrollPhysics(),
-                                        padding: const EdgeInsets.only(bottom: 8),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            if (item.image.isNotEmpty)
-                                              Builder(
-                                                builder: (context) {
-                                                  final List<Widget> imageWidgets = [];
-                                                  final maxW = MediaQuery.sizeOf(context).width;
-                                                  for (var image in item.image) {
-                                                    final uri = image['uri']?.toString() ?? '';
-                                                    final fid = extractDriveFileId(uri);
-                                                    if (fid != null) {
-                                                      imageWidgets.add(
-                                                        SizedBox(
-                                                          width: maxW,
-                                                          height: 220,
-                                                          child: DriveImageMessage(
-                                                            key: ValueKey('poll-image-${item.id}-$fid'),
-                                                            fileId: fid,
-                                                            driveService: driveService,
-                                                            isRounded: false,
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  }
-                                                  return Column(children: imageWidgets);
-                                                },
-                                              ),
-                                            Padding(
-                                              padding: const EdgeInsets.only(top: 18.0),
-                                              child: SizedBox(
-                                                width: MediaQuery.sizeOf(context).width * 0.88,
-                                                child: (item.options.length < 2)
-                                                    ? Center(
-                                                        child: Column(
-                                                          mainAxisAlignment: MainAxisAlignment.center,
-                                                          children: [
-                                                            Text(item.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                                            const SizedBox(height: 10),
-                                                            const Text("This poll does not have enough options to display.", style: TextStyle(color: Colors.grey)),
-                                                          ],
-                                                        ),
-                                                      )
-                                                    : FlutterPolls(
-                                            key: ValueKey('poll-widget-${item.id}'),
-                                            pollId: item.id,
-                                            createdBy: item.authorId,
-                                          allowToggleVote: true,
-                                          pollProgressbarHeight: 5,
-                                          hasVoted: _hasUserVoted(item.votes, userId),
-                                          userVotedOptionId:_userVotedOptionId(item.votes, userId),
-                                          userToVote: userId,
-                                          onVoted: (PollOption pollOption, int newTotalVotes) async{
-                                            try{
-                                              await socialCubit.voteBrainStorm(
-                                                pollId: item.id,
-                                                optionId: pollOption.id!,
-                                                userId: userId,
-                                                currentOptions: item.options,
-                                                currentVotes: item.votes,
-                                                channelId: widget.channelId,
-                                                compoundId: currentCompoundId,
-                                              );
-                                              return true;
-                                            } catch(error){
-                                              return false;
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CarouselSlider(
+                              items: brainStorms.map<Widget>((item) {
+                                return KeyedSubtree(
+                                  key: ValueKey('poll-slide-${item.id}'),
+                                  child: Column(
+                                    children: [
+                                      if (item.image.isNotEmpty)
+                                        Builder(
+                                          builder: (context) {
+                                            final List<Widget> imageWidgets = [];
+                                            for (var image in item.image) {
+                                              final uri = image['uri']?.toString() ?? '';
+                                              final fid = extractDriveFileId(uri);
+                                              if (fid != null) {
+                                                imageWidgets.add(
+                                                  SizedBox(
+                                                    width: MediaQuery.sizeOf(context).width,
+                                                    height: 250,
+                                                    child: DriveImageMessage(
+                                                      key: ValueKey('poll-image-${item.id}-$fid'),
+                                                      fileId: fid,
+                                                      driveService: driveService,
+                                                      isRounded: false,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
                                             }
-
+                                            return Column(children: imageWidgets);
                                           },
-                                          pollTitle: Text(item.title),
-                                          pollOptions: item.options.map<PollOption>((o) {
-                                            final m = Map<String, dynamic>.from(o as Map);
-                                            final votesRaw = m['votes'];
-                                            final votes = votesRaw is String
-                                                ? int.tryParse(votesRaw) ?? 0
-                                                : (votesRaw as num?)?.toInt() ?? 0;
-                                            final votesByOption = _normalizeVotes(item.votes);
-                                            final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ?? const <String>[];
-                                            final voterUrls = voterIds
-                                                .map((uid) => idToAvatar[uid])
-                                                .whereType<String>()
-                                                .toList();
-                                            return PollOption(
-                                              id: m['id'].toString(),
-                                              title: Text(m['title'].toString()),
-                                              votes: votes,
-                                              voterAvatars: voterUrls,
-                                            );
-                                          }).toList(),
+                                        ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 18.0),
+                                        child: SizedBox(
+                                          width: MediaQuery.sizeOf(context).width * 0.80,
+                                          child: (item.options.length < 2)
+                                              ? Center(
+                                                  child: Column(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Text(item.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                                      const SizedBox(height: 10),
+                                                      const Text("This poll does not have enough options to display.", style: TextStyle(color: Colors.grey)),
+                                                    ],
+                                                  ),
+                                                )
+                                              : FlutterPolls(
+                                                  key: ValueKey('poll-widget-${item.id}'),
+                                                  pollId: item.id,
+                                                  createdBy: item.authorId,
+                                                  allowToggleVote: true,
+                                                  pollProgressbarHeight: 5,
+                                                  hasVoted: _hasUserVoted(item.votes, userId),
+                                                  userVotedOptionId: _userVotedOptionId(item.votes, userId),
+                                                  userToVote: userId,
+                                                  onVoted: (PollOption pollOption, int newTotalVotes) async {
+                                                    try {
+                                                      await socialCubit.voteBrainStorm(
+                                                        pollId: item.id,
+                                                        optionId: pollOption.id!,
+                                                        userId: userId,
+                                                        currentOptions: item.options,
+                                                        currentVotes: item.votes,
+                                                        channelId: widget.channelId,
+                                                        compoundId: currentCompoundId,
+                                                      );
+                                                      return true;
+                                                    } catch (error) {
+                                                      return false;
+                                                    }
+                                                  },
+                                                  pollTitle: Text(item.title),
+                                                  pollOptions: item.options.map<PollOption>((o) {
+                                                    final m = Map<String, dynamic>.from(o as Map);
+                                                    final votesRaw = m['votes'];
+                                                    final votes = votesRaw is String
+                                                        ? int.tryParse(votesRaw) ?? 0
+                                                        : (votesRaw as num?)?.toInt() ?? 0;
+                                                    final votesByOption = _normalizeVotes(item.votes);
+                                                    final voterIds = votesByOption[m['id'].toString()]?.keys.map((e) => e.toString()).toList() ??
+                                                        const <String>[];
+                                                    final voterUrls = voterIds.map((uid) => idToAvatar[uid]).whereType<String>().toList();
+                                                    return PollOption(
+                                                      id: m['id'].toString(),
+                                                      title: Text(m['title'].toString()),
+                                                      votes: votes,
+                                                      voterAvatars: voterUrls,
+                                                    );
+                                                  }).toList(),
+                                                ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              carouselController: controller,
+                              options: CarouselOptions(
+                                viewportFraction: 1.0,
+                                enableInfiniteScroll: false,
+                                height: MediaQuery.sizeOf(context).height * 0.5,
+                                onPageChanged: (index, reason) {
+                                  socialCubit.changeCarouselIndex(index);
+                                },
+                                enlargeCenterPage: false,
                               ),
                             ),
-                          );
-                            }).toList(),
-                            carouselController: controller,
-                            options: CarouselOptions(
-                              viewportFraction: 1.0,
-                              enableInfiniteScroll: false,
-                              height: carouselHeight,
-                              onPageChanged: (index, reason) {
-                                socialCubit.changeCarouselIndex(index);
-                              },
-                              enlargeCenterPage: false,
-                            ),
-                          ),
-                          if(brainStorms.length >1) ...[
-                            // left arrow
-                            Positioned(
-                              left: 8,
-                              child: CircleAvatar(
-                                backgroundColor: Colors.black38,
-                                child: IconButton(
-                                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
-                                  onPressed: () => controller.previousPage(),
-                                  padding: EdgeInsets.zero,
-                                  splashRadius: 18,
-                                ),
-                              ),
-                            ),
-
-                            // right arrow
-                            Positioned(
-                              right: 8,
-                              child: CircleAvatar(
-                                backgroundColor: Colors.black38,
-                                child: IconButton(
-                                  icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-                                  onPressed: () => controller.nextPage(),
-                                  padding: EdgeInsets.zero,
-                                  splashRadius: 18,
-                                ),
-                              ),
-                            ),
-
-                            // dots (scroll horizontally when many polls — avoids horizontal overflow)
-                            Positioned(
-                              bottom: 8,
-                              left: 16,
-                              right: 16,
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: List.generate(brainStorms.length, (i) {
-                                      final active = i == socialCubit.currentCarouselIndex;
-                                      return AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                                        width: active ? 10 : 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: active ? Colors.indigo : Colors.indigoAccent,
-                                          borderRadius: BorderRadius.circular(3),
-                                        ),
-                                      );
-                                    }),
+                            if (brainStorms.length > 1) ...[
+                              Positioned(
+                                left: 8,
+                                child: CircleAvatar(
+                                  backgroundColor: Colors.black38,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
+                                    onPressed: () => controller.previousPage(),
+                                    padding: EdgeInsets.zero,
+                                    splashRadius: 18,
                                   ),
                                 ),
                               ),
-                            ),
+                              Positioned(
+                                right: 8,
+                                child: CircleAvatar(
+                                  backgroundColor: Colors.black38,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                                    onPressed: () => controller.nextPage(),
+                                    padding: EdgeInsets.zero,
+                                    splashRadius: 18,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 8,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: List.generate(brainStorms.length, (i) {
+                                    final active = i == socialCubit.currentCarouselIndex;
+                                    return AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                                      width: active ? 10 : 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: active ? Colors.indigo : Colors.indigoAccent,
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
-                      );
-                    },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              right: 12,
+              bottom: MediaQuery.paddingOf(context).bottom + 72,
+              child: FloatingActionButton.small(
+                heroTag: 'brainstorm_comments_toggle',
+                onPressed: () => setState(() => _commentsOverlayOpen = !_commentsOverlayOpen),
+                backgroundColor: HexColor("#dce8f3"),
+                child: Icon(
+                  _commentsOverlayOpen ? Icons.expand_more : Icons.chat_bubble_outline,
+                  color: HexColor("#121416"),
+                ),
+              ),
+            ),
+            if (_commentsOverlayOpen)
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: MediaQuery.paddingOf(context).bottom + 128,
+                child: Material(
+                  elevation: 12,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+                    ),
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom + 8),
+                      child: BlocBuilder<SocialCubit, SocialState>(
+                        builder: (context, st) {
+                          return commentsSectionBrainstorm(
+                            context: context,
+                            cubit: SocialCubit.get(context),
+                            newComment: newComment,
+                            isSending: _commentSending,
+                          );
+                        },
+                      ),
+                    ),
                   ),
-
-                  commentsSectionBrainstorm(
-                    context: context,
-                    cubit: SocialCubit.get(context),
-                    newComment: newComment,
-                    isSending: isSending,
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    ),
-  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

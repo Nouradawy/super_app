@@ -241,6 +241,7 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
               ),
+              if (authState is Authenticated)
               BlocBuilder<AppCubit ,AppCubitStates>(
                   builder: (context , appState){
                 final appCubit = AppCubit.get(context);
@@ -331,7 +332,10 @@ class HomePage extends StatelessWidget {
                   // This ensures that when the tab is NOT 1, the mic is physically removed
                   return const SizedBox.shrink();
                 }
-              })
+              },
+            )
+            else
+              const SizedBox.shrink(),
             ],
           ),
         );
