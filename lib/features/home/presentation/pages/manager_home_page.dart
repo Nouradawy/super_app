@@ -323,11 +323,21 @@ class ManagerHomepage extends StatelessWidget {
                                             firstCurve: Curves.easeInOut,
                                             secondCurve: Curves.easeInOut,
                                             sizeCurve: Curves.easeInOut,
-                                            firstChild: listTileReportHeader(context, index, isOpen, attachment),
+                                            firstChild: MaintenanceReportHeaderTile(
+                                              index: index,
+                                              isOpen: isOpen,
+                                              attachmentUrl: attachment,
+                                            ),
                                             secondChild: Column(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                listTileReportHeader(context, index, isOpen, attachment, isSecond: true, member: member),
+                                                MaintenanceReportHeaderTile(
+                                                  index: index,
+                                                  isOpen: isOpen,
+                                                  attachmentUrl: attachment,
+                                                  isSecond: true,
+                                                  member: member,
+                                                ),
                                                 const SizedBox(height: 8),
 
                                                 Divider(height: 1,color: Colors.grey.shade200,),
@@ -474,191 +484,103 @@ class ManagerHomepage extends StatelessWidget {
   }
 }
 
-Widget listTileReportHeader(BuildContext context , int index , bool isOpen , MaintenanceReportsAttachments? attachmentUrl ,
-    {bool isSecond = false , ChatMember? member}){
-  final managerCubit = ManagerCubit.get(context);
-  final maintenanceCubit = context.read<MaintenanceCubit>();
-  final report = managerCubit.maintenanceDataFiltered[index];
+class MaintenanceReportHeaderTile extends StatelessWidget {
+  final int index;
+  final bool isOpen;
+  final MaintenanceReportsAttachments? attachmentUrl;
+  final bool isSecond;
+  final ChatMember? member;
 
-  return ListTile(
-    onTap: () {
-      if(!isSecond) {
-        maintenanceCubit.getReportNotes(report.id!);
-      }
-      maintenanceCubit.expandReport(index);
-    },
-    leading: const CircleAvatar(
-      backgroundColor: Colors.orange,
-      foregroundColor: Colors.white,
-      child: Icon(Icons.hourglass_top),
-    ),
-    title: Row(
-      children: [
-        Expanded(
-          child: Text(
-            report.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-              color: HexColor("#121416"),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        PopupMenuButton<String>(
-          tooltip: '',
-          onSelected: (selectedValue) async {
-            if (report.id != null) {
-              final authState = context.read<AuthCubit>().state;
-              final currentSelectedCompoundId = (authState is Authenticated) ? authState.selectedCompoundId : null;
-              await maintenanceCubit.updateReportStatus(
-                reportId: report.id!,
-                status: selectedValue,
-                compoundId: currentSelectedCompoundId!,
-                type: managerCubit.currentMaintenanceType,
-              );
-              // After update, we need to refresh the filtered list in ManagerCubit
-              managerCubit.filterRequests(
-                reports: maintenanceCubit.reports,
-                type: managerCubit.currentMaintenanceType,
-                statusFilter: ManagerReportsFilter.values[managerCubit.filterIndex],
-              );
-            }
-          },
-          itemBuilder: (ctx) => ManagerReportsFilter.values
-              .map((f) => PopupMenuItem<String>(
-            value: f.value,
-            child: Text(f.value),
-          ))
-              .toList(),
-          child: Chip(
-            label: Text(
-              report.states,
+  const MaintenanceReportHeaderTile({
+    super.key,
+    required this.index,
+    required this.isOpen,
+    required this.attachmentUrl,
+    this.isSecond = false,
+    this.member,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final managerCubit = ManagerCubit.get(context);
+    final maintenanceCubit = context.read<MaintenanceCubit>();
+    final report = managerCubit.maintenanceDataFiltered[index];
+
+    return ListTile(
+      onTap: () {
+        if (!isSecond) {
+          maintenanceCubit.getReportNotes(report.id!);
+        }
+        maintenanceCubit.expandReport(index);
+      },
+      leading: const CircleAvatar(
+        backgroundColor: Colors.orange,
+        foregroundColor: Colors.white,
+        child: Icon(Icons.hourglass_top),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              report.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
-                color: Colors.white,
+                color: HexColor("#121416"),
               ),
             ),
-            backgroundColor: HexColor("#76b7f5"),
-            visualDensity: const VisualDensity(vertical: -4),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 0),
           ),
-        ),
-      ],
-    ),
-    subtitle: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "${context.loc.report} #${report.reportCode} - ${formatTimeStampToDate(report.createdAt!)}-${formatTimestampToAmPm(report.createdAt!)}",
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-            color: Colors.grey,
-          ),
-        ),
-
-        if(isSecond) ...[
-          const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 10,
-                    backgroundImage: member?.avatarUrl != null ? NetworkImage(member!.avatarUrl!) : null,
-                    child: member?.avatarUrl == null ? const Icon(Icons.person) : null,
-                  ),
-                  const SizedBox(width: 5),
-                  Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 5,
-                          children: [
-                            Text(member?.displayName ?? 'Unknown', style: context.txt.userNameCard),
-                          ],
-                        ),
-                        Text('Building ${member?.building ?? ""} • Apartment ${member?.apartment ?? ""}', style: context.txt.userNameCard.copyWith(fontWeight: FontWeight.w300 , fontSize: 11),)
-                      ]),
-                  const SizedBox(width: 17),
-
-                ],),
-              Row(
-                spacing: 7,
-                  children: [
-                    SizedBox(
-                      width: 60,
-                      child: MaterialButton(
-                        onPressed: member?.phoneNumber != null ? () => launchUrl(Uri.parse("tel:<${member!.phoneNumber.toString()}>")) : null,
-                        elevation: 0,
-                        color:Colors.greenAccent,
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-
-                        ),
-
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.phone , size: 17, color: Colors.white,),
-                            Text("CALL" , style:GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.2,
-                              color: Colors.black87,
-                            ),)
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                  width: 60,
-                  child: MaterialButton(
-                    onPressed: member?.phoneNumber != null ? () => openWhatsApp(member!.phoneNumber.toString() , "Hello" ,defaultCountryCode: "20") : null,
-                    elevation: 0,
-                    color:Colors.greenAccent,
-                    padding: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-
-                    ),
-
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const FaIcon(FontAwesomeIcons.whatsapp,size: 17 , color: Colors.white,),
-                        Text("WhatsApp" , style:GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                          color: Colors.black87,
-                        ),)
-                      ],
-                    ),
-                  ),
+          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            tooltip: '',
+            onSelected: (selectedValue) async {
+              if (report.id != null) {
+                final authState = context.read<AuthCubit>().state;
+                final currentSelectedCompoundId = (authState is Authenticated) ? authState.selectedCompoundId : null;
+                await maintenanceCubit.updateReportStatus(
+                  reportId: report.id!,
+                  status: selectedValue,
+                  compoundId: currentSelectedCompoundId!,
+                  type: managerCubit.currentMaintenanceType,
+                );
+                managerCubit.filterRequests(
+                  reports: maintenanceCubit.reports,
+                  type: managerCubit.currentMaintenanceType,
+                  statusFilter: ManagerReportsFilter.values[managerCubit.filterIndex],
+                );
+              }
+            },
+            itemBuilder: (ctx) => ManagerReportsFilter.values
+                .map((f) => PopupMenuItem<String>(value: f.value, child: Text(f.value)))
+                .toList(),
+            child: Chip(
+              label: Text(
+                report.states,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                  color: Colors.white,
                 ),
-              ]),
-            ],
+              ),
+              backgroundColor: HexColor("#76b7f5"),
+              visualDensity: const VisualDensity(vertical: -4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+            ),
           ),
-          const SizedBox(height: 8,),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            report.description,
+            "${context.loc.report} #${report.reportCode} - ${formatTimeStampToDate(report.createdAt!)}-${formatTimestampToAmPm(report.createdAt!)}",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -666,41 +588,119 @@ Widget listTileReportHeader(BuildContext context , int index , bool isOpen , Mai
               color: Colors.grey,
             ),
           ),
-          const SizedBox(height: 8),
-          if (attachmentUrl?.sourceUrl != null)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: attachmentUrl!.sourceUrl!
-                  .map((item) => SizedBox(
-                width: 80,
-                height: 80,
-                child: DriveImageMessage(
-                  userName:
-                  "${context.loc.report} #${report.reportCode} - ${formatTimeStampToDate(report.createdAt!)}-${formatTimestampToAmPm(report.createdAt!)}",
-                  isMaintenance: true,
-                  fileId: extractDriveFileId(item["uri"])!,
-                  driveService: driveService,
+          if (isSecond) ...[
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundImage: member?.avatarUrl != null ? NetworkImage(member!.avatarUrl!) : null,
+                      child: member?.avatarUrl == null ? const Icon(Icons.person) : null,
+                    ),
+                    const SizedBox(width: 5),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(member?.displayName ?? 'Unknown', style: context.txt.userNameCard),
+                        Text(
+                          'Building ${member?.building ?? ""} • Apartment ${member?.apartment ?? ""}',
+                          style: context.txt.userNameCard.copyWith(fontWeight: FontWeight.w300, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ))
-                  .toList(),
+                Row(
+                  spacing: 7,
+                  children: [
+                    SizedBox(
+                      width: 60,
+                      child: MaterialButton(
+                        onPressed: member?.phoneNumber != null ? () => launchUrl(Uri.parse("tel:<${member!.phoneNumber}>")) : null,
+                        elevation: 0,
+                        color: Colors.greenAccent,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.phone, size: 17, color: Colors.white),
+                            Text(
+                              "CALL",
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 60,
+                      child: MaterialButton(
+                        onPressed: member?.phoneNumber != null ? () => openWhatsApp(member!.phoneNumber, "Hello", defaultCountryCode: "20") : null,
+                        elevation: 0,
+                        color: Colors.greenAccent,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const FaIcon(FontAwesomeIcons.whatsapp, size: 17, color: Colors.white),
+                            Text(
+                              "WhatsApp",
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-        ]
-
-      ],
-    ),
-    trailing: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 500),
-      transitionBuilder: (child, animation) =>
-          RotationTransition(turns: animation, child: child),
-      child: Icon(
-        isOpen
-            ? Icons.keyboard_arrow_down_outlined
-            : Icons.arrow_forward_ios_rounded,
-        key: ValueKey<String>('arrow_${isOpen}_$index'),
-        color: Colors.grey,
-        size: 13,
+            const SizedBox(height: 8),
+            Text(
+              report.description,
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.2, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            if (attachmentUrl?.sourceUrl != null)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: attachmentUrl!.sourceUrl!
+                    .map(
+                      (item) => SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: DriveImageMessage(
+                          userName:
+                              "${context.loc.report} #${report.reportCode} - ${formatTimeStampToDate(report.createdAt!)}-${formatTimestampToAmPm(report.createdAt!)}",
+                          isMaintenance: true,
+                          fileId: extractDriveFileId(item["uri"])!,
+                          driveService: driveService,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+          ],
+        ],
       ),
-    ),
-  );
+      trailing: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        transitionBuilder: (child, animation) => RotationTransition(turns: animation, child: child),
+        child: Icon(
+          isOpen ? Icons.keyboard_arrow_down_outlined : Icons.arrow_forward_ios_rounded,
+          key: ValueKey<String>('arrow_${isOpen}_$index'),
+          color: Colors.grey,
+          size: 13,
+        ),
+      ),
+    );
+  }
 }
