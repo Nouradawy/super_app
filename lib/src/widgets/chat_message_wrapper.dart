@@ -72,11 +72,16 @@ class ChatMessageWrapper extends StatelessWidget {
     onMenuItemTapped?.call(item);
   }
 
+  // Stable prefix isolates our hero tags from any other widget that might
+  // accidentally use the bare messageId as a Hero tag or GlobalKey elsewhere.
+  String get _heroTag => 'chat_msg_hero_$messageId';
+
   void _showReactionsDialog(BuildContext context) {
     Navigator.of(context).push(
       HeroDialogRoute(
         builder: (context) => ReactionsDialogWidget(
           messageId: messageId,
+          heroTag: _heroTag,
           messageWidget: child,
           controller: controller,
           config: config,
@@ -96,7 +101,7 @@ class ChatMessageWrapper extends StatelessWidget {
       onDoubleTap:
           config.enableDoubleTap ? () => _showReactionsDialog(context) : null,
       child: Hero(
-        tag: messageId,
+        tag: _heroTag,
         child: child,
       ),
     );

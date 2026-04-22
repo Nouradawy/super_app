@@ -26,8 +26,12 @@ import 'package:hexcolor/hexcolor.dart';
 /// - The original message (displayed using a Hero animation)
 /// - A context menu with customizable options
 class ReactionsDialogWidget extends StatefulWidget {
-  /// Unique identifier for the hero animation.
+  /// Unique identifier for the message (used for data lookups).
   final String messageId;
+
+  /// Tag used for the Hero animation — must match the tag in [ChatMessageWrapper].
+  /// Defaults to [messageId] for backwards compatibility.
+  final String heroTag;
 
   /// The widget displaying the message content.
   final Widget messageWidget;
@@ -47,19 +51,18 @@ class ReactionsDialogWidget extends StatefulWidget {
   /// Alignment of the dialog components.
   final Alignment alignment;
 
-
-
   /// Creates a reactions dialog widget.
   const ReactionsDialogWidget({
     super.key,
     required this.messageId,
+    String? heroTag,
     required this.messageWidget,
     required this.controller,
     required this.config,
     required this.onReactionTap,
     required this.onMenuItemTap,
     this.alignment = Alignment.centerRight,
-  });
+  }) : heroTag = heroTag ?? messageId;
   @override
   State<ReactionsDialogWidget> createState() => _ReactionsDialogWidgetState();
 
@@ -90,7 +93,7 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
               ),
               const SizedBox(height: 10),
               MessageBubble(
-                id: widget.messageId,
+                id: widget.heroTag,
                 messageWidget: widget.messageWidget,
                 alignment: widget.alignment,
               ),

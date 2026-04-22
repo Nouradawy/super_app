@@ -109,6 +109,17 @@ class ReactionsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads reactions for multiple messages at once and fires [notifyListeners]
+  /// only a single time.
+  ///
+  /// Prefer this over calling [loadReactions] in a loop to avoid scheduling a
+  /// separate rebuild for every message, which can conflict with an in-progress
+  /// [SliverAnimatedList] animation and cause assertion errors.
+  void loadAllReactions(Map<String, List<Reaction>> allReactions) {
+    _messageReactions.addAll(allReactions);
+    notifyListeners();
+  }
+
   /// Returns an unmodifiable map of all reactions for persistence.
   Map<String, List<Reaction>> getAllReactions() {
     return Map.unmodifiable(_messageReactions);
