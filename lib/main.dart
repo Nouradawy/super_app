@@ -210,6 +210,7 @@ class AuthManager extends ChangeNotifier {
           }
           break;
         case AuthChangeEvent.signedOut:
+          debugPrint("signedout");
           status = AuthStatus.unauthenticated;
           notifyListeners();
           break;

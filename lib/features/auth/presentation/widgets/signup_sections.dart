@@ -168,45 +168,40 @@ Form apartmentInfo(
       spacing: 15,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // spacing: MediaQuery.sizeOf(context).width * 0.10,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 15),
-              child: MaterialButton(
-                padding: EdgeInsets.zero,
-                height: 50,
-                elevation: 0,
-                color: HexColor("#dae7f7"),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
-                onPressed: () => newCompound(context),
-                child: Container(
-                  width: MediaQuery.sizeOf(context).width * 0.80 / 2,
-                  alignment: AlignmentDirectional.centerStart,
-                  padding: const EdgeInsets.only(left: 20),
-                  child: Text(
-                    cubit.selectedCompoundId == null
-                        ? context.loc.signUpAddCompound
-                        : (cubit.myCompounds.isNotEmpty ? cubit.myCompounds.values.last.toString() : context.loc.signUpAddCompound),
-                  ),
+            MaterialButton(
+              padding: EdgeInsets.zero,
+              height: 50,
+              elevation: 0,
+              color: HexColor("#dae7f7"),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+              onPressed: () => newCompound(context),
+              child: Container(
+                width: MediaQuery.sizeOf(context).width * 0.80 / 2,
+                alignment: AlignmentDirectional.centerStart,
+                padding: const EdgeInsets.only(left: 20),
+                child: Text(
+                  cubit.selectedCompoundId == null
+                      ? context.loc.signUpAddCompound
+                      : (cubit.myCompounds.isNotEmpty ? cubit.myCompounds.values.last.toString() : context.loc.signUpAddCompound),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 28),
-              child: SegmentedButton<OwnerTypes>(
-                selected: <OwnerTypes>{cubit.ownerType},
-                onSelectionChanged: (Set<OwnerTypes> s) => cubit.changeOwnerType(s.first),
-                segments: <ButtonSegment<OwnerTypes>>[
-                  ButtonSegment<OwnerTypes>(value: OwnerTypes.owner, label: Text(context.loc.owner)),
-                  ButtonSegment<OwnerTypes>(value: OwnerTypes.rental, label: Text(context.loc.rental)),
-                ],
-              ),
+            SegmentedButton<OwnerTypes>(
+              selected: <OwnerTypes>{cubit.ownerType},
+              onSelectionChanged: (Set<OwnerTypes> s) => cubit.changeOwnerType(s.first),
+              segments: <ButtonSegment<OwnerTypes>>[
+                ButtonSegment<OwnerTypes>(value: OwnerTypes.owner, label: Text(context.loc.owner)),
+                ButtonSegment<OwnerTypes>(value: OwnerTypes.rental, label: Text(context.loc.rental)),
+              ],
             ),
           ],
         ),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          spacing: MediaQuery.of(context).size.width * 0.05,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          // spacing: MediaQuery.of(context).size.width * 0.05,
           children: [
             SizedBox(
               width: MediaQuery.of(context).size.width * 0.80 / 2,
@@ -518,7 +513,7 @@ Column submitButton(
                       data: {
                         "display_name": displayName.text,
                         "FullName": fullName.text,
-                        "role_id": cubit.roleName.index + 1,
+                        "role_id": cubit.roleName!.index + 1,
                         'compound_id': cubit.selectedCompoundId.toString(),
                         'building_num': cubit.roleName != Roles.manager ? buildingNum.text : '-1',
                         'apartment_num': cubit.roleName != Roles.manager ? apartmentNum.text : '-1',
@@ -604,7 +599,7 @@ Column signInProviders(
                 userName: userName.text,
                 ownerType: cubit.ownerType,
                 phoneNumber: phoneNumber.text,
-                roleId: cubit.roleName.index + 1,
+                roleId: cubit.roleName!.index + 1,
                 buildingName: cubit.roleName != Roles.manager ? buildingNum.text : '-1',
                 apartmentNum: cubit.roleName != Roles.manager ? apartmentNum.text : '-1',
                 compoundId: cubit.selectedCompoundId!,
@@ -631,31 +626,54 @@ Column signInProviders(
           ),
         ),
       ),
+      if (cubit.signupGoogleEmail != null)
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width * 0.075),
+          child: MaterialButton(
+            height: 40,
+            elevation: 0,
+            color: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: const BorderSide(color: Colors.black26, width: 1),
+            ),
+            onPressed: () async {
+              await cubit.cancelPendingGoogleRegistration();
+            },
+            child: const Text("Cancel Registration"),
+          ),
+        ),
     ],
   );
 }
 
-Row footer(BuildContext context) {
+Container footer(BuildContext context) {
   final cubit = context.read<AuthCubit>();
-  return Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Text.rich(
-        TextSpan(
-          style: context.txt.signSubtitle,
-          children: <TextSpan>[
-            TextSpan(
-              text: cubit.signInToggler ? context.loc.signUpQuestion : context.loc.haveAccountQuestion,
-            ),
-            TextSpan(
-              text: cubit.signInToggler ? " ${context.loc.signUpFooter}" : " ${context.loc.signIn}",
-              style: context.txt.signSubtitle.copyWith(color: Colors.blue, fontWeight: FontWeight.w800),
-              recognizer: TapGestureRecognizer()..onTap = cubit.toggleSignIn,
-            ),
-          ],
+  return Container(
+    color: Colors.grey.shade50,
+    width: MediaQuery.of(context).size.width,
+    height: 60,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: context.txt.signSubtitle,
+            children: <TextSpan>[
+              TextSpan(
+                text: cubit.signInToggler ? context.loc.signUpQuestion : context.loc.haveAccountQuestion,
+              ),
+              TextSpan(
+                text: cubit.signInToggler ? " ${context.loc.signUpFooter}" : " ${context.loc.signIn}",
+                style: context.txt.signSubtitle.copyWith(color: Colors.blue, fontWeight: FontWeight.w800),
+                recognizer: TapGestureRecognizer()..onTap = cubit.toggleSignIn,
+              ),
+            ],
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -800,9 +818,3 @@ class SignupProvidersSection extends StatelessWidget {
   }
 }
 
-class SignupFooterSection extends StatelessWidget {
-  const SignupFooterSection({super.key});
-
-  @override
-  Widget build(BuildContext context) => footer(context);
-}

@@ -19,11 +19,12 @@ class AuthCubit extends Cubit<AuthState> {
   // UI state moved from AppCubit
   bool isPassword = true;
   IconData suffixIcon = Icons.visibility_off;
-  bool signInToggler = false;
+  bool signInToggler = true;
   OwnerTypes ownerType = OwnerTypes.owner;
   String? signupGoogleEmail;
   String? signupGoogleUserName;
   bool signInGoogle = false;
+  int authSessionNonce = DateTime.now().microsecondsSinceEpoch;
 
   bool signingIn = false;
   List<XFile>? verFiles;
@@ -32,7 +33,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   List<Category> compoundSuggestions = [];
 
-  Roles roleName = Roles.user;
+  Roles? roleName;
   int? selectedCompoundId;
   Map<String, dynamic> myCompounds = {'0': "Add New Community"};
 
@@ -43,6 +44,7 @@ class AuthCubit extends Cubit<AuthState> {
 
       final user = data.session?.user;
       if (user != null) {
+        authSessionNonce = DateTime.now().microsecondsSinceEpoch;
         if (state is Authenticated) {
           emit((state as Authenticated).copyWith(user: user));
         } else {
@@ -55,6 +57,9 @@ class AuthCubit extends Cubit<AuthState> {
           ));
         }
       } else {
+        authSessionNonce = DateTime.now().microsecondsSinceEpoch;
+        // Always default auth UI to sign-in mode when user is unauthenticated.
+        signInToggler = true;
         emit(Unauthenticated(
           categories: state.categories,
           compoundsLogos: state.compoundsLogos,
@@ -65,6 +70,8 @@ class AuthCubit extends Cubit<AuthState> {
 
   bool enabledMultiCompound = false;
   GoogleSignInAccount? googleUser;
+  Future<void>? _presetBeforeSigninInFlight;
+  bool _isSigningOut = false;
 
   void togglePasswordVisibility() {
     isPassword = !isPassword;
@@ -279,6 +286,21 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> presetBeforeSignin() async {
+    final inFlight = _presetBeforeSigninInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = _presetBeforeSigninImpl();
+    _presetBeforeSigninInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_presetBeforeSigninInFlight, future)) {
+        _presetBeforeSigninInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _presetBeforeSigninImpl() async {
     emit(AuthLoading(categories: state.categories, compoundsLogos: state.compoundsLogos));
     try {
       List<Category> currentCategories = state.categories;
@@ -460,10 +482,12 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> signInWithGoogle({bool isSignin = false}) async {
     emit(AuthLoading());
     try {
-      signInGoogle = true;
+      // Keep this true only during "Google sign-up needs extra info" flow.
+      signInGoogle = !isSignin;
       final user = await repository.signInWithGoogle();
       if (user != null) {
         if (isSignin) {
+          signInGoogle = false;
           emit(Authenticated(user: user));
         } else {
           signupGoogleEmail = user.email;
@@ -481,10 +505,34 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signOut() async {
+    if (_isSigningOut) return;
+    _isSigningOut = true;
     emit(AuthLoading(categories: state.categories, compoundsLogos: state.compoundsLogos));
     try {
       await _cacheUserSnapshotOnSignOut();
       await repository.signOut();
+    } catch (e) {
+      emit(AuthError(e.toString(), categories: state.categories, compoundsLogos: state.compoundsLogos));
+    } finally {
+      _isSigningOut = false;
+    }
+  }
+
+  Future<void> cancelPendingGoogleRegistration() async {
+    emit(AuthLoading(categories: state.categories, compoundsLogos: state.compoundsLogos));
+    try {
+      await repository.signOut();
+      signInGoogle = false;
+      signInToggler = true;
+      signupGoogleEmail = null;
+      signupGoogleUserName = null;
+      roleName = Roles.user;
+      selectedCompoundId = null;
+      myCompounds = {'0': "Add New Community"};
+      ownerType = OwnerTypes.owner;
+      apartmentConflict = false;
+      verFiles = null;
+      signingIn = false;
       emit(Unauthenticated(
         categories: state.categories,
         compoundsLogos: state.compoundsLogos,
@@ -519,6 +567,10 @@ class AuthCubit extends Cubit<AuthState> {
       
       roleName = Roles.values[roleId - 1];
       selectedCompoundId = compoundId;
+      // Registration completed, no longer in pending Google sign-up mode.
+      signInGoogle = false;
+      signupGoogleEmail = null;
+      signupGoogleUserName = null;
       emit(RegistrationSuccess());
     } catch (e) {
       emit(AuthError(e.toString()));

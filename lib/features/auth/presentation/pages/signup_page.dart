@@ -28,6 +28,9 @@ class SignUp extends StatelessWidget {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is Authenticated) {
+          final cubit = context.read<AuthCubit>();
+          // During Google sign-up, stay on this page until completeRegistration succeeds.
+          if (cubit.signInGoogle) return;
           context.read<AuthCubit>().presetBeforeSignin().then((_) {
             // Root [MyApp] may already have swapped SignUp for [AuthReadyGate];
             // this context is then unmounted and Navigator must not run.
@@ -77,7 +80,9 @@ class SignUp extends StatelessWidget {
         }
       },
       builder: (BuildContext context, state) {
+
         final cubit = context.read<AuthCubit>();
+        debugPrint(cubit.signInToggler.toString());
         if (cubit.signupGoogleUserName != null && displayName.text.isEmpty) {
           displayName.text = cubit.signupGoogleUserName!;
         }
@@ -92,7 +97,6 @@ class SignUp extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   SizedBox(
-
                     width: double.infinity,
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
@@ -100,7 +104,7 @@ class SignUp extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           const SizedBox(height: 40),
-                          const SignupHeadingSection(),
+                          SignupHeadingSection(),
                           const SizedBox(height: 30),
                           SignupCredentialsFormSection(
                             email: email,
@@ -166,7 +170,7 @@ class SignUp extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const Positioned(bottom: 30, child: SignupFooterSection()),
+                  Positioned(bottom: 0, child: footer(context)),
                 ],
               ),
             ),

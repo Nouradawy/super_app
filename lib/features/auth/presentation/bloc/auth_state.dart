@@ -8,10 +8,12 @@ import 'package:WhatsUnity/features/chat/presentation/widgets/chatWidget/Details
 abstract class AuthState {
   final List<Category> categories;
   final List<String> compoundsLogos;
+  final int timestamp;
 
   AuthState({
     this.categories = const [],
     this.compoundsLogos = const [],
+    this.timestamp =0,
   });
 }
 
@@ -19,6 +21,7 @@ class AuthInitial extends AuthState {
   AuthInitial({
     super.categories,
     super.compoundsLogos,
+    super.timestamp,
   });
 }
 
@@ -26,6 +29,7 @@ class AuthLoading extends AuthState {
   AuthLoading({
     super.categories,
     super.compoundsLogos,
+    super.timestamp,
   });
 }
 
@@ -53,6 +57,7 @@ class Authenticated extends AuthState {
     this.googleUser,
     super.categories,
     super.compoundsLogos,
+    super.timestamp,
   });
 
   Authenticated copyWith({
@@ -67,6 +72,7 @@ class Authenticated extends AuthState {
     GoogleSignInAccount? googleUser,
     List<Category>? categories,
     List<String>? compoundsLogos,
+    int? timestamp,
   }) {
     return Authenticated(
       user: user ?? this.user,
@@ -80,6 +86,7 @@ class Authenticated extends AuthState {
       googleUser: googleUser ?? this.googleUser,
       categories: categories ?? this.categories,
       compoundsLogos: compoundsLogos ?? this.compoundsLogos,
+      timestamp: timestamp ?? this.timestamp,
     );
   }
 }
@@ -88,6 +95,7 @@ class Unauthenticated extends AuthState {
   Unauthenticated({
     super.categories,
     super.compoundsLogos,
+    super.timestamp
   });
 }
 

@@ -29,8 +29,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<User?> signInWithGoogle() async {
-    // 1. Sign out from Google
-    await driveService.signOut();
+
     final user = await googleDriveService.signIn();
     if (user == null) return null;
 
@@ -63,10 +62,11 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       // 2. Sign out from Supabase (via RemoteDataSource)
       await remoteDataSource.signOut();
-
+      await googleDriveService.signOut();
       // 3. Clear local cache
-      // await CacheHelper.removeData(key: "compoundCurrentIndex");
-      // Optional: await CacheHelper.removeData(key: "MyCompounds");
+
+      await CacheHelper.removeData("compoundCurrentIndex");
+      await CacheHelper.removeData("MyCompounds");
     } catch (e) {
       rethrow;
     }

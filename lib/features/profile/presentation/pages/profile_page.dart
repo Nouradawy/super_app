@@ -1,4 +1,3 @@
-import 'package:WhatsUnity/Layout/Cubit/cubit.dart';
 import 'package:WhatsUnity/core/theme/lightTheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,6 +5,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../Layout/Cubit/cubit.dart';
 import '../../../../core/config/Enums.dart';
 import '../../../../core/config/supabase.dart';
 import '../../../../core/constants/Constants.dart';
@@ -13,7 +13,6 @@ import '../../../../core/services/PolicyDialog.dart';
 import '../../../auth/presentation/bloc/auth_cubit.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../auth/presentation/pages/otp_screen.dart';
-import '../../../auth/presentation/pages/signup_page.dart';
 import '../bloc/profile_cubit.dart';
 import '../bloc/profile_state.dart';
 
@@ -69,23 +68,11 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
 
-    return BlocListener<AuthCubit, AuthState>(
-      listener: (context,state){
-        if (state is Unauthenticated) {
-          AppCubit.get(context).bottomNavIndex=0;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => SignUp()),
-                (Route<dynamic> route) => false,
-          );
-
-        }
-      },
-      child: BlocBuilder<AuthCubit, AuthState>(
-        builder: (context, authState) {
-          if (authState is Authenticated) {
-            _initializeControllers(authState);
-            return Scaffold(
+    return BlocBuilder<AuthCubit, AuthState>(
+      builder: (context, authState) {
+        if (authState is Authenticated) {
+          _initializeControllers(authState);
+          return Scaffold(
               appBar: AppBar(
                 backgroundColor: Colors.white,
                 title: Text("Profile", style: GoogleFonts.plusJakartaSans()),
@@ -110,7 +97,6 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
-    ),
     );
   }
 
