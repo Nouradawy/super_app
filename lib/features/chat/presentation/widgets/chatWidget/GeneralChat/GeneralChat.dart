@@ -1,6 +1,6 @@
 // GeneralChat.dart (Final Version with Placeholder and Polling Logic Restored)
 
-import 'dart:async'; // <<< Added for Timer
+import 'dart:async';
 import 'dart:io';
 
 import 'package:WhatsUnity/features/social/presentation/bloc/social_cubit.dart';
@@ -62,11 +62,42 @@ class _VisibleMessage {
   _VisibleMessage(this.index, this.fraction, this.createdAt);
 }
 
-class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClientMixin {
-  // Services
-  ChatCacheService? _cacheService;
+class _GeneralChatState extends State<GeneralChat>
+    with AutomaticKeepAliveClientMixin {
+  // Keep the widget alive while the TabBarView is in the tree so that
+  // switching away and back does not destroy/recreate the state, re-run
+  // _initializeChat(), or spin up duplicate Supabase subscriptions.
+  // The mixin only prevents deactivation *within* the TabBarView; when Social
+  // removes the TabBarView during sign-out (BlocBuilder returns
+  // CircularProgressIndicator) the entire subtree — including this widget — is
+  // still properly disposed by Flutter, so sign-out teardown is unaffected.
   @override
   bool get wantKeepAlive => true;
+  // Services
+  ChatCacheService? _cacheService;
+
+  // Dispose guard — set true before super.dispose() so any in-flight async
+  // work can bail out immediately without touching dead objects.
+  bool _disposed = false;
+
+  // Teardown guard — raised as soon as we detect a non-Authenticated auth
+  // state, stopping ALL _chatController mutations before the Chat widget's
+  // SliverAnimatedList is removed from the tree and its currentState → null.
+  // This MUST be raised via the AuthCubit stream subscription (see initState),
+  // not only in build(), because build() runs one frame after the emit whereas
+  // ChatCubit real-time events can fire in the same microtask as the emit.
+  bool _tearingDown = false;
+
+  // Direct subscription to AuthCubit so _tearingDown is raised the INSTANT
+  // the cubit emits — before the scheduler runs the next build frame.
+  StreamSubscription<AuthState>? _authStateSubscription;
+
+  // Serialise sync calls: only one _syncChatFromCubit at a time; if a newer
+  // cubit state arrives while one is in-flight, the older one is discarded.
+  int _syncVersion = 0;
+  bool _syncActive = false;
+  ChatMessagesLoaded? _pendingSync;
+
   // State
   bool _isInitializing = true;
   bool _isUserScrolling = false;
@@ -90,9 +121,13 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
   // Controllers
   late final TextEditingController _chatTextController;
   late final types.InMemoryChatController _chatController;
+  // Initialised in initState (not _initializeChat) so it is always ready before
+  // build() runs and, critically, is always disposed in dispose() even when
+  // _initializeChat exits early. Declaring it late final guarantees a single
+  // initialisation with no null-check overhead in build().
   late final ReactionsController _reactionsController;
-  /// New [Chat] subtree each mount so flutter_chat_ui list internals (GlobalKeys) cannot
-  /// collide after sign-out / sign-in.
+  /// New [Chat] subtree each mount so flutter_chat_ui list internals (GlobalKeys)
+  /// cannot collide after sign-out / sign-in.
   late final Key _chatSurfaceKey;
   AppCubit? _appCubit;
 
@@ -124,12 +159,36 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   /// Merges server-backed cubit messages with controller-only rows (e.g. upload placeholders).
   Future<void> _applyCubitMessagesToController(List<types.Message> cubitMessages) async {
-    final cubitIds = cubitMessages.map((m) => m.id).toSet();
+    if (_disposed || _tearingDown) return;
+
+    // Deduplicate cubitMessages by ID (last-wins) — Supabase realtime can deliver
+    // the same message twice when a subscription reconnects, and
+    // InMemoryChatController.setMessages() asserts unique IDs which would crash.
+    final seen = <String>{};
+    final deduped = cubitMessages.reversed
+        .where((m) => seen.add(m.id))
+        .toList()
+        .reversed
+        .toList();
+
+    final cubitIds = deduped.map((m) => m.id).toSet();
     final onlyOnDevice = _chatController.messages
         .where((m) => !cubitIds.contains(m.id))
         .toList();
-    final merged = _sortedAsc([...cubitMessages, ...onlyOnDevice]);
-    await _chatController.setMessages(merged);
+    final merged = _sortedAsc([...deduped, ...onlyOnDevice]);
+    try {
+      await _chatController.setMessages(merged);
+    } catch (e) {
+      // ChatAnimatedList / SliverAnimatedList can throw an assertion error
+      // ("child == null || indexOf(child) > index") when setMessages triggers
+      // a removeItem/insertItem on a list that is mid-animation from a previous
+      // call, or when the widget is being deactivated.  Catching here is safe:
+      // the controller's internal message list has already been updated; the
+      // next sync emission will reconcile the visual state automatically.
+      debugPrint('GeneralChat._applyCubitMessagesToController: '
+          'setMessages threw during animated-list operation — '
+          'will recover on next sync. ($e)');
+    }
   }
 
   @override
@@ -139,6 +198,27 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     _chatController = types.InMemoryChatController();
     _chatTextController = TextEditingController();
     _chatTextController.addListener(_handleTypingStatus);
+
+    // Initialise ReactionsController here — before the first build — so it is
+    // never null and is always paired with a matching dispose() call below.
+    // GeneralChat is only inserted while the user is Authenticated (Social.dart
+    // guards on authState), so context.read is safe in initState.
+    final authState = context.read<AuthCubit>().state;
+    final initUserId = (authState is Authenticated) ? authState.user.id : '';
+    _userId = initUserId;
+    _reactionsController = ReactionsController(currentUserId: initUserId);
+
+    // Subscribe to AuthCubit directly so _tearingDown is raised the SAME
+    // instant the cubit emits a non-Authenticated state — before the Flutter
+    // scheduler calls build().  Without this, ChatCubit's Supabase realtime
+    // events can fire in the same microtask as the auth-state change and reach
+    // _chatController.setMessages() while _tearingDown is still false,
+    // triggering the SliverAnimatedList "child == null || indexOf > index"
+    // assertion one full frame before build() ever gets a chance to set the flag.
+    _authStateSubscription = context.read<AuthCubit>().stream.listen((s) {
+      if (s is! Authenticated) _raiseTeardownGuard();
+    });
+
     _initializeChat();
   }
 
@@ -154,14 +234,36 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   @override
   void dispose() {
+    // Raise both guards FIRST so every in-flight async continuation bails out
+    // before it can touch _chatController or _reactionsController.
+    _disposed = true;
+    _tearingDown = true;
+    _syncVersion++;
+    _pendingSync = null;
+
+    // Cancel the auth-state subscription before any other teardown so the
+    // listener cannot fire after _chatController has been disposed.
+    _authStateSubscription?.cancel();
+    _authStateSubscription = null;
+
     for (var timer in _pollingTimers.values) {
       timer.cancel();
     }
+    _pollingTimers.clear();
+
     if (channelId != null) {
       _cacheService?.saveMessages(channelId!, _chatController.messages);
     }
+
     _chatController.dispose();
     _appCubit?.detachChatController();
+
+    // CRITICAL: dispose the ReactionsController so it removes any OverlayEntry
+    // widgets (and their GlobalKeys) it registered. Failing to do this leaves
+    // stale GlobalKeys in the global overlay that collide with the keys created
+    // by the ReactionsController of the next session's GeneralChat.
+    _reactionsController.dispose();
+
     _chatTextController.removeListener(_handleTypingStatus);
     _chatTextController.dispose();
     _scrollIdleTimer?.cancel();
@@ -194,8 +296,46 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     return false; // allow other listeners
   }
 
+  /// Raises the teardown guard and cancels every pending controller mutation.
+  /// Called by build() the first time it sees a non-Authenticated auth state.
+  void _raiseTeardownGuard() {
+    if (_tearingDown) return;
+    _tearingDown = true;
+    _syncVersion++;      // invalidate any in-flight _syncChatFromCubit
+    _pendingSync = null; // drop queued work so _drainSyncQueue exits cleanly
+  }
+
+  /// Enqueues a sync from the cubit. Only one sync runs at a time; if a newer
+  /// state arrives while one is in-flight, the older one is replaced so only
+  /// the latest data is ever committed to the SliverAnimatedList.
+  void _enqueueSyncFromCubit(ChatMessagesLoaded loaded) {
+    // Hard gate: never touch _chatController once we are tearing down.
+    // The Chat widget may have already been removed from the tree, meaning
+    // its SliverAnimatedList GlobalKey.currentState is null.
+    if (_disposed || _tearingDown) return;
+    _pendingSync = loaded;
+    if (!_syncActive) {
+      _drainSyncQueue();
+    }
+  }
+
+  Future<void> _drainSyncQueue() async {
+    _syncActive = true;
+    while (_pendingSync != null && !_disposed && !_tearingDown) {
+      final loaded = _pendingSync!;
+      _pendingSync = null;
+      await _syncChatFromCubit(loaded);
+    }
+    _syncActive = false;
+  }
+
   Future<void> _syncChatFromCubit(ChatMessagesLoaded loaded) async {
-    if (!mounted) return;
+    if (_disposed || _tearingDown || !mounted) return;
+
+    // Capture version at entry; any dispose() or _raiseTeardownGuard() call
+    // will have incremented _syncVersion, causing stale continuations to bail.
+    final version = _syncVersion;
+
     for (final message in loaded.messages) {
       if (message is types.AudioMessage &&
           message.metadata?['status'] == 'processing') {
@@ -204,7 +344,9 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     }
 
     await _applyCubitMessagesToController(loaded.messages);
-    if (!mounted) return;
+
+    // After every await: bail out if torn down or a newer sync has superseded us.
+    if (_disposed || _tearingDown || !mounted || _syncVersion != version) return;
 
     final localIdsToRemove = <String>[];
     for (final message in loaded.messages) {
@@ -215,6 +357,7 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     }
 
     for (final id in localIdsToRemove) {
+      if (_disposed || _tearingDown || !mounted || _syncVersion != version) return;
       try {
         final messageToRemove =
             _chatController.messages.firstWhere((m) => m.id == id);
@@ -549,10 +692,11 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
     }
 
     final userId = authState.user.id;
-    setState(() {
-      _userId = userId;
-      _reactionsController = ReactionsController(currentUserId: _userId);
-    });
+    // _userId and _reactionsController were already set in initState.
+    // Update _userId in case the auth state resolved to a different value
+    // (token refresh edge-case) — no setState needed here, _isInitializing
+    // being true means we're still behind the loading spinner.
+    _userId = userId;
     try {
       if (widget.channelName != 'COMPOUND_GENERAL') {
         await _waitForCurrentUserMember(userId, authState.chatMembers);
@@ -782,11 +926,30 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
 
   @override
   Widget build(BuildContext context) {
+    // Required by AutomaticKeepAliveClientMixin — must be the first call.
     super.build(context);
     final authState = context.watch<AuthCubit>().state;
+
     if (authState is! Authenticated) {
-      return const Center(child: CircularProgressIndicator());
+      // The auth session is ending (sign-out, token expiry, etc.).
+      // Raise the teardown guard NOW, before Flutter removes the Chat widget
+      // from the tree.  Once Chat is gone, its SliverAnimatedList
+      // GlobalKey.currentState becomes null; any _chatController mutation
+      // after that point crashes with:
+      //   "Null check operator used on a null value"
+      //   "_childElements.containsKey(index) is not true"
+      // _raiseTeardownGuard() increments _syncVersion and clears _pendingSync
+      // so every in-flight / queued async operation exits on its next check.
+      _raiseTeardownGuard();
+      // Return an empty box — do NOT show a spinner because CircularProgressIndicator
+      // still triggers a frame that can race against the dying animated list.
+      return const SizedBox.shrink();
     }
+
+    // Auth is healthy — reset the teardown flag in case we recovered from a
+    // transient non-authenticated state (e.g. token refresh blip).
+    _tearingDown = false;
+
     final currentUserMember = authState.chatMembers.firstWhere((member) => member.id.trim() == authState.user.id, orElse: () => ChatMember(id: authState.user.id, displayName: "Unknown", building: "Unknown", apartment: "Unknown", userState: UserState.approved, phoneNumber: "", ownerType: OwnerTypes.owner));
 
 
@@ -797,8 +960,8 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
         return !identical(previous.messages, current.messages);
       },
       listener: (context, state) {
-        if (!mounted) return;
-        unawaited(_syncChatFromCubit(state as ChatMessagesLoaded));
+        if (_disposed || _tearingDown || !mounted) return;
+        _enqueueSyncFromCubit(state as ChatMessagesLoaded);
       },
       child: BlocBuilder<ChatCubit, ChatState>(
         buildWhen: (previous, current) {
@@ -808,8 +971,20 @@ class _GeneralChatState extends State<GeneralChat> with AutomaticKeepAliveClient
           return previous.runtimeType != current.runtimeType;
         },
         builder: (context, state) {
+          // Hard guard: BlocBuilder<ChatCubit> has its own State and can be
+          // called by Flutter independently of _GeneralChatState.build().
+          // If auth is gone or we are disposed, never build Chat or
+          // ChatAnimatedList — doing so with a dead _chatController or a
+          // cleared message list is what triggers:
+          //   "_childElements.containsKey(index): is not true"
+          //   "Null check operator used on a null value"  (line 1130)
+          if (_tearingDown || _disposed) return const SizedBox.shrink();
+
           return BlocBuilder<SocialCubit, SocialState>(
             builder: (context, socialState) {
+              // Same guard for SocialCubit's independent rebuild path.
+              if (_tearingDown || _disposed) return const SizedBox.shrink();
+
               final chatCubit = context.read<ChatCubit>();
               final bool isBrainStormingLocal = (state is ChatMessagesLoaded)
                   ? state.isBrainStorming

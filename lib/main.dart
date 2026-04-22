@@ -178,7 +178,15 @@ class MyApp extends StatelessWidget {
               if (authManager.status == AuthStatus.authenticated &&
                   authCubit.signupGoogleEmail == null &&
                   authCubit.signInGoogle == false) {
-                return const AuthReadyGate();
+                // ValueKey(authSessionNonce) guarantees that every new login
+                // session gets a brand-new _AuthReadyGateState (and therefore a
+                // fresh MainScreen / Social / GeneralChat subtree), even when the
+                // same user signs out and immediately signs back in.  Without this
+                // key Flutter can reuse the existing element and its stale
+                // controllers survive into the new session.
+                return AuthReadyGate(
+                  key: ValueKey(authCubit.authSessionNonce),
+                );
               }
 
               return SignUp();

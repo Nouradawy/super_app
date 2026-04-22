@@ -156,6 +156,7 @@ class GoogleDriveService {
 
           return directDownloadLink;
         }
+      return null;
     } catch (e) {
       print('Error uploading to Google Drive: $e');
       return null;
@@ -164,33 +165,43 @@ class GoogleDriveService {
 
   // downloadFile remains mostly the same but uses the user's auth
   Future<Uint8List?> downloadFile(String fileId) async {
-    // 1. Check the cache first (this is good practice and remains unchanged).
+    if (fileId.isEmpty) return null;
+
+    // 1. In-memory cache — instant hit for already-downloaded images.
     if (_imageCache.containsKey(fileId)) {
       return _imageCache[fileId];
     }
+
     try {
       // 2. Construct the direct public download URL.
       final downloadUrl = 'https://drive.google.com/uc?export=download&id=$fileId';
       final uri = Uri.parse(downloadUrl);
 
-      // 3. Use a standard, unauthenticated http client to fetch the file.
-      //    We are NOT using getAuthenticatedClient() here.
-      final response = await http.get(uri);
+      // 3. Unauthenticated GET with a 15-second timeout so a slow / hung
+      //    Google Drive response never blocks the UI indefinitely.
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
+        // Reject HTML responses — Google Drive returns a warning/confirmation
+        // page (instead of raw bytes) for files that need virus-scan consent.
+        final contentType = response.headers['content-type'] ?? '';
+        if (contentType.contains('text/html')) {
+          print('Drive returned HTML for $fileId (virus-scan gate or bad ID)');
+          return null;
+        }
+
         final downloadedData = response.bodyBytes;
-
-        // 4. Save the newly downloaded data to the cache.
         _imageCache[fileId] = downloadedData;
-
         return downloadedData;
       } else {
-        // Handle cases where the download fails (e.g., file not found).
         print('Error downloading file: Status code ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('Error downloading from Google Drive: $e');
+      // Covers TimeoutException and any network error.
+      print('Error downloading from Google Drive ($fileId): $e');
       return null;
     }
   }

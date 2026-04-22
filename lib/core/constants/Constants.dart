@@ -18,6 +18,7 @@ import '../../features/chat/presentation/widgets/chatWidget/Details/ChatMember.d
 import '../../features/chat/presentation/widgets/chatWidget/MessageWidget.dart';
 import '../../features/social/domain/entities/brainstorm.dart';
 import '../../features/social/presentation/bloc/social_cubit.dart';
+import '../services/DriveImageWidget.dart';
 import '../services/GoogleDriveService.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 
@@ -92,24 +93,22 @@ class DriveImageMessage extends StatefulWidget {
   State<DriveImageMessage> createState() => _DriveImageMessageState();
 }
 class _DriveImageMessageState extends State<DriveImageMessage> {
-  // This Future will be created only once.
+  // Created once in initState. Uses the disk-backed cache so images survive
+  // app restarts and are never re-downloaded after the first fetch.
   late final Future<Uint8List?> _downloadFuture;
 
   @override
   void initState() {
     super.initState();
-    // Call the download method here in initState, so it only runs once.
-    _downloadFuture = widget.driveService.downloadFile(widget.fileId);
+    // getCachedOrDownloadImage checks the temp-dir disk cache first, then
+    // falls back to driveService.downloadFile() (which has its own in-memory
+    // cache + a 15 s timeout).  This means even after a hot-restart the image
+    // loads from disk instead of hitting the network again.
+    _downloadFuture = getCachedOrDownloadImage(
+      widget.fileId,
+      () => widget.driveService.downloadFile(widget.fileId),
+    );
   }
-
-  // @override
-  // void didUpdateWidget(covariant DriveImageMessage oldWidget) {
-  //   super.didUpdateWidget(oldWidget);
-  //   if (oldWidget.fileId != widget.fileId) {
-  //     // Only refetch if the file actually changed
-  //     _downloadFuture = widget.driveService.downloadFile(widget.fileId);
-  //   }
-  // }
 
   @override
   Widget build(BuildContext context) {
