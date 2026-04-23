@@ -52,12 +52,29 @@ class MessageModel {
 
     final metadata = normalizeMeta(map['metadata']);
 
-    metadata['deletedAt'] = deletedAt?.toIso8601String();
-    metadata['failedAt'] = failedAt?.toIso8601String();
-    metadata['sentAt'] = sentAt?.toIso8601String();
-    metadata['deliveredAt'] = deliveredAt?.toIso8601String();
+    // Only promote top-level column values into metadata when the key is
+    // explicitly present in the incoming map.  If the key is absent (e.g. when
+    // the map was produced by ChatMessageMapCodec.messageToMap, which does not
+    // include every column), we must NOT overwrite the existing metadata value
+    // with null — that would silently erase soft-delete markers, reply links,
+    // and other data that survived the previous round-trip through storage.
+    if (map.containsKey('deleted_at')) {
+      metadata['deletedAt'] = deletedAt?.toIso8601String();
+    }
+    if (map.containsKey('failed_at')) {
+      metadata['failedAt'] = failedAt?.toIso8601String();
+    }
+    if (map.containsKey('sent_at')) {
+      metadata['sentAt'] = sentAt?.toIso8601String();
+    }
+    if (map.containsKey('delivered_at')) {
+      metadata['deliveredAt'] = deliveredAt?.toIso8601String();
+    }
+    if (map.containsKey('updated_at')) {
+      metadata['updatedAt'] = updatedAt?.toIso8601String();
+    }
+    // isSeen is a boolean flag; always set it (defaults to false when missing).
     metadata['isSeen'] = isSeen;
-    metadata['updatedAt'] = updatedAt?.toIso8601String();
 
     if (createdAt != null) {
       metadata['createdAtMs'] = createdAt.toUtc().millisecondsSinceEpoch;

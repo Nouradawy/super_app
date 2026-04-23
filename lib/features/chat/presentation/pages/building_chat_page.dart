@@ -39,30 +39,48 @@ class BuildingChat extends StatelessWidget {
       return const Center(child: Text("No community selected"));
     }
 
+    // The ValueKey forces Flutter to fully destroy and recreate GeneralChat
+    // (and its SocialCubit) whenever the user or compound changes, preventing
+    // stale widget state from carrying over between sessions or communities.
+    final chatKey = ValueKey('${userId}_${currentCompoundId}_building_chat');
+
     return ChatScope(
       compoundId: currentCompoundId,
       channelScopeId: 'BUILDING_CHAT',
       userId: userId,
       child: Scaffold(
-      body:Stack(
-        children: [
-          BlocProvider(
-              create: (context) =>SocialCubit(
-                  repository: SocialRepositoryImpl(remoteDataSource: SocialRemoteDataSourceImpl(client: supabase),
-                    driveService: driveService,
-                  )
+        body: Stack(
+          children: [
+            BlocProvider(
+              key: chatKey,
+              create: (context) => SocialCubit(
+                repository: SocialRepositoryImpl(
+                  remoteDataSource: SocialRemoteDataSourceImpl(client: supabase),
+                  driveService: driveService,
+                ),
               ),
-              child: GeneralChat(compoundId: currentCompoundId, channelName: 'BUILDING_CHAT')),
-          BlocBuilder<ChatCubit,ChatState>(
-              builder: (context,state){
+              child: GeneralChat(
+                key: chatKey,
+                compoundId: currentCompoundId,
+                channelName: 'BUILDING_CHAT',
+              ),
+            ),
+            BlocBuilder<ChatCubit, ChatState>(
+              builder: (context, state) {
                 final chatCubit = context.read<ChatCubit>();
-                
-                final bool isChatInputEmpty = (state is ChatMessagesLoaded) ? state.isChatInputEmpty : chatCubit.isChatInputEmpty;
-                final bool isBrainStormingLocal = (state is ChatMessagesLoaded) ? state.isBrainStorming : chatCubit.isBrainStorming;
-                final int? channelIdLocal = (state is ChatMessagesLoaded) ? state.channelId : chatCubit.channelId;
+
+                final bool isChatInputEmpty = (state is ChatMessagesLoaded)
+                    ? state.isChatInputEmpty
+                    : chatCubit.isChatInputEmpty;
+                final bool isBrainStorming = (state is ChatMessagesLoaded)
+                    ? state.isBrainStorming
+                    : chatCubit.isBrainStorming;
+                final int? channelId = (state is ChatMessagesLoaded)
+                    ? state.channelId
+                    : chatCubit.channelId;
                 final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
 
-                if(isChatInputEmpty && isBrainStormingLocal == false && channelIdLocal != null) {
+                if (isChatInputEmpty && !isBrainStorming && channelId != null) {
                   return Positioned(
                     bottom: keyboardBottom,
                     right: 0,
@@ -77,18 +95,18 @@ class BuildingChat extends StatelessWidget {
                             chatCubit.toggleRecording();
                           }
                         },
-                        // This is called when the user finishes recording
                         sendRequestFunction: (soundFile, duration) async {
-                          debugPrint("attempting to save");
                           final parts = duration.split(':');
                           final minutes = int.tryParse(parts[0]) ?? 0;
                           final seconds = int.tryParse(parts[1]) ?? 0;
-                          final parsedDuration = Duration(minutes: minutes, seconds: seconds);
+                          final parsedDuration =
+                              Duration(minutes: minutes, seconds: seconds);
 
-                          final amplitudesToUpload = chatCubit.recordedAmplitudes;
+                          final amplitudesToUpload =
+                              chatCubit.recordedAmplitudes;
 
-                          // 1. Upload to Google Drive (legacy logic repurposed for Clean Arch)
-                          final fileName = 'voice_note_${const Uuid().v4()}.m4a';
+                          final fileName =
+                              'voice_note_${const Uuid().v4()}.m4a';
                           final driveLink = await driveService.uploadFile(
                             soundFile,
                             fileName,
@@ -96,28 +114,21 @@ class BuildingChat extends StatelessWidget {
                           );
 
                           if (driveLink != null) {
-                            // 2. Upload to Gumlet
-                            final gumletUrl = await uploadVoiceNoteGumlet(driveLink);
+                            final gumletUrl =
+                                await uploadVoiceNoteGumlet(driveLink);
 
-                            if (gumletUrl != null) {
-                              // 3. Use ChatCubit to send the message
-                              if (context.mounted) {
-                                context.read<ChatCubit>().sendVoiceNote(
-                                  uri: gumletUrl,
-                                  duration: parsedDuration,
-                                  waveform: amplitudesToUpload,
-                                  channelId: channelIdLocal!,
-                                  userId: userId,
-                                );
-                              }
+                            if (gumletUrl != null && context.mounted) {
+                              context.read<ChatCubit>().sendVoiceNote(
+                                    uri: gumletUrl,
+                                    duration: parsedDuration,
+                                    waveform: amplitudesToUpload,
+                                    channelId: channelId,
+                                    userId: userId,
+                                  );
                             }
                           }
                         },
-
                         fullRecordPackageHeight: 80,
-
-                        // Customize the appearance to match your app
-
                         backGroundColor: types.ChatColors
                             .light()
                             .surfaceContainerHigh
@@ -126,7 +137,6 @@ class BuildingChat extends StatelessWidget {
                         initialButtonHight: 40,
                         finalButtonWidth: 60,
                         finalButtonHight: 60,
-
                         encode: AudioEncoderType.AAC,
                         waveformBuilder: (amplitudes) {
                           chatCubit.recordedAmplitudes = amplitudes;
@@ -134,25 +144,19 @@ class BuildingChat extends StatelessWidget {
                             painter: AudioWaveformPainter(
                               amplitudes: amplitudes,
                               waveColor: Colors.black,
-
                             ),
                           );
                         },
-
-                        // You can add more customizations here
-                        // lockButton: const Icon(Icons.lock, color: Colors.white),
-                        // slideToCancelText: "Slide to Cancel",
-                        // etc.
                       ),
                     ),
                   );
-                } else {
-                  return const SizedBox.shrink();
                 }
-              })
-        ],
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }

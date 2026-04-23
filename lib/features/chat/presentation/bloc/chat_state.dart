@@ -41,17 +41,38 @@ class ChatMessagesLoaded extends ChatState {
   final bool isRecording;
   final bool isChatInputEmpty;
 
-  const ChatMessagesLoaded({
+  /// Monotonically increasing version so BLoC never deduplicates two
+  /// successive message-list emissions via Equatable deep-equality.
+  /// Without this, an `_addOrUpdateMessage` that replaces a message with
+  /// an identical-content copy (same metadata Map but different identity)
+  /// can be silently swallowed by BLoC, leaving the UI stale.
+  final int _version;
+
+  /// Auto-incremented by [copyWith] and the unnamed constructor so that
+  /// every instance is unique in Equatable terms.
+  static int _nextVersion = 0;
+
+  ChatMessagesLoaded({
     required this.messages,
     this.hasMore = true,
     this.channelId,
     this.isBrainStorming = false,
     this.isRecording = false,
     this.isChatInputEmpty = true,
-  });
+  }) : _version = _nextVersion++;
+
+  ChatMessagesLoaded._withVersion({
+    required this.messages,
+    required this.hasMore,
+    required this.channelId,
+    required this.isBrainStorming,
+    required this.isRecording,
+    required this.isChatInputEmpty,
+    required int version,
+  }) : _version = version;
 
   @override
-  List<Object?> get props => [messages, hasMore, channelId, isBrainStorming, isRecording, isChatInputEmpty];
+  List<Object?> get props => [_version, hasMore, channelId, isBrainStorming, isRecording, isChatInputEmpty];
 
   ChatMessagesLoaded copyWith({
     List<types.Message>? messages,
@@ -61,13 +82,14 @@ class ChatMessagesLoaded extends ChatState {
     bool? isRecording,
     bool? isChatInputEmpty,
   }) {
-    return ChatMessagesLoaded(
+    return ChatMessagesLoaded._withVersion(
       messages: messages ?? this.messages,
       hasMore: hasMore ?? this.hasMore,
       channelId: channelId ?? this.channelId,
       isBrainStorming: isBrainStorming ?? this.isBrainStorming,
       isRecording: isRecording ?? this.isRecording,
       isChatInputEmpty: isChatInputEmpty ?? this.isChatInputEmpty,
+      version: _nextVersion++,
     );
   }
 }

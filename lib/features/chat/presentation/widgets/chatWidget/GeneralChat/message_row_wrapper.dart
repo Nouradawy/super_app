@@ -38,6 +38,10 @@ class MessageRowWrapper extends StatelessWidget {
   final List<ChatMember> chatMembers;
   final Roles? userRole;
 
+  /// Prefix for keys that must be unique across multiple GeneralChat instances
+  /// coexisting in an IndexedStack (e.g. `'COMPOUND_GENERAL'` vs `'BUILDING_CHAT'`).
+  final String channelName;
+
   // NEW: notify parent about visibility for sticky header computation
   final void Function(String messageId, int index, double visibleFraction, DateTime? createdAt) onVisibilityForHeader;
   final bool isUserScrolling;
@@ -63,6 +67,7 @@ class MessageRowWrapper extends StatelessWidget {
     required this.isUserScrolling,
     required this.chatMembers,
     required this.userRole,
+    required this.channelName,
     this.uploadProgress
   });
 
@@ -470,36 +475,31 @@ class MessageRowWrapper extends StatelessWidget {
           }
         }
       },
-       onReactionAdded: (String emoji) async{
-         if (message.metadata == null || message.metadata!['reactions'] == null ||message.metadata!['reactions'].isEmpty ) {
-           await _updateMessageReactions(
-             emoji: emoji,
-             isAdding: true,
-             currentUserId: currentUserId,
-           );
-         } else {
-           message.metadata!["reactions"].forEach((localEmoji,usersRaw){
-             if (localEmoji == null || usersRaw is! Map) return;
-             usersRaw.forEach((uid,val) async {
-               final isTrue = val == true || val ==1 || val == 'true';
-               if(!isTrue){
-                 await _updateMessageReactions(
-                   emoji: emoji,
-                   isAdding: false,
-                   currentUserId: currentUserId,
-                 );
-               } else {
-                 await _updateMessageReactions(
-                   emoji: emoji,
-                   replaceEmoji: localEmoji,
-                   isAdding: true,
-                   currentUserId: currentUserId,
-                 );
-               }
-             });
-           });
+       onReactionAdded: (String emoji) async {
+         // At the point this callback fires, `message.metadata` still holds the
+         // state BEFORE the new reaction — making it the reliable place to check
+         // whether the current user already had a different emoji on this message.
+         String? reactionToReplace;
+         final existingReactions = message.metadata?['reactions'];
+         if (existingReactions is Map) {
+           for (final entry in existingReactions.entries) {
+             final existingEmoji = entry.key?.toString();
+             final usersRaw = entry.value;
+             // Skip the emoji the user just picked (same-emoji = toggle-off,
+             // which the package handles by calling onReactionRemoved instead).
+             if (existingEmoji == null || existingEmoji == emoji) continue;
+             if (usersRaw is Map && usersRaw.containsKey(currentUserId)) {
+               reactionToReplace = existingEmoji;
+               break;
+             }
+           }
          }
-
+         await _updateMessageReactions(
+           emoji: emoji,
+           isAdding: true,
+           replaceEmoji: reactionToReplace,
+           currentUserId: currentUserId,
+         );
        },
        onReactionRemoved: (String emoji) async{
          await _updateMessageReactions(
@@ -530,7 +530,7 @@ class MessageRowWrapper extends StatelessWidget {
     ];
 
     return VisibilityDetector(
-      key: Key(message.id),
+      key: Key('${channelName}_${message.id}'),
       onVisibilityChanged: (VisibilityInfo info) {
         // Inform parent about visibility for sticky header
         onVisibilityForHeader(message.id, index, info.visibleFraction, createdAt);

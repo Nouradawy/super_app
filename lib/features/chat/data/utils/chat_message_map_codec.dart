@@ -15,6 +15,12 @@ class ChatMessageMapCodec {
       meta['createdAtMs'] = createdAtMs;
     }
 
+    // Preserve the reply-to id in metadata so it survives round-trips through
+    // local storage (fromMap reads replyToMessageId from metadata['reply_to']).
+    if (msg.replyToMessageId != null) {
+      meta['reply_to'] = msg.replyToMessageId;
+    }
+
     return {
       'author_id': msg.authorId,
       'created_at': createdAtIso,
@@ -28,6 +34,14 @@ class ChatMessageMapCodec {
               : (msg is types.AudioMessage ? msg.source : null)),
       'text': msg is types.TextMessage ? msg.text : null,
       'type': meta['type'],
+      // Re-expose temporal fields as top-level columns so that _normalizeRow
+      // can include them in payload_json and fromMap.containsKey() guards work
+      // correctly on every subsequent load from local storage.
+      'deleted_at': meta['deletedAt'],
+      'sent_at': meta['sentAt'],
+      'failed_at': meta['failedAt'],
+      'delivered_at': meta['deliveredAt'],
+      'updated_at': meta['updatedAt'],
     };
   }
 

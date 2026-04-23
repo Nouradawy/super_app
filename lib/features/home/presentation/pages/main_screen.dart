@@ -1,13 +1,10 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:WhatsUnity/Layout/Cubit/states.dart';
 
 import '../../../../Layout/Cubit/cubit.dart';
 import '../../../../Layout/Cubit/states.dart';
 import '../../../../core/config/Enums.dart';
-import '../../../../core/config/supabase.dart';
 import '../../../admin/presentation/pages/AdminDashboard/AdminDashboard.dart';
 import '../../../auth/presentation/bloc/auth_cubit.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
@@ -26,21 +23,26 @@ class MainScreen extends StatelessWidget {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, authState) {
         return BlocBuilder<AppCubit, AppCubitStates>(
+          // Only rebuild when something that affects the screens list or nav bar
+          // selection actually changes. TabBarIndexStates and ProfileUpdateState
+          // must NOT trigger a rebuild here — they cause the IndexedStack to
+          // momentarily re-evaluate all screens, which can destroy GeneralChat
+          // mid-animation and trigger the SliverAnimatedList assertion.
+          buildWhen: (prev, curr) =>
+              curr is BottomNavIndexChangeStates || curr is AppCubitInitialStates,
           builder: (context, states) {
             final cubit = AppCubit.get(context);
             final Roles? role = (authState is Authenticated) ? authState.role : null;
-            // Only mount BuildingChat when the "Chats" tab is active. IndexedStack
-            // keeps all children in the tree — avoid mounting building chat until
-            // needed. Each chat surface uses its own [ChatScope] / [ChatCubit];
-            // SQLite rows are still keyed by Supabase channel_id.
-            final bool showBuildingChat =
-                role != Roles.manager && cubit.bottomNavIndex == 1;
+
+            // ALWAYS mount BuildingChat — never swap it with SizedBox.shrink().
+            // IndexedStack keeps every child alive in the tree and only paints
+            // the one at [index]. Swapping BuildingChat ↔ SizedBox on every tab
+            // switch destroyed/recreated GeneralChat on each transition, which:
+            //   1. Fired the SliverAnimatedList assertion during disposal.
+            //   2. Corrupted the IndexedStack render frame and blanked tabs 2/3.
             final List<Widget> screens = [
-              GatekeeperScreen(index: role == Roles.manager ? 0 : 1,),
-              if (role != Roles.manager)
-                showBuildingChat
-                    ? const BuildingChat()
-                    : const SizedBox.shrink(),
+              GatekeeperScreen(index: role == Roles.manager ? 0 : 1),
+              if (role != Roles.manager) const BuildingChat(),
               ProfilePage(),
               if (role == Roles.admin) AdminDashboard(),
             ];

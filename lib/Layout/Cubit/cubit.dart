@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_chat_core/flutter_chat_core.dart' as types;
 import 'states.dart';
 import '../../core/config/Enums.dart';
 import '../../features/chat/presentation/widgets/chatWidget/Details/ChatMember.dart';
@@ -11,7 +10,6 @@ class AppCubit extends Cubit<AppCubitStates> {
 
   int bottomNavIndex = 0;
   int tabBarIndex = 0;
-  types.InMemoryChatController? chatController;
 
   void onProfileUpdated(ChatMember member) {
     emit(ProfileUpdateState());
@@ -39,13 +37,5 @@ class AppCubit extends Cubit<AppCubitStates> {
   void bottomNavIndexChange(int index) {
     bottomNavIndex = index;
     emit(BottomNavIndexChangeStates());
-  }
-
-  void attachChatController(types.InMemoryChatController controller) {
-    chatController = controller;
-  }
-
-  void detachChatController() {
-    chatController = null;
   }
 }
