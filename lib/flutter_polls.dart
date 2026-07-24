@@ -4,6 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
+class VoterDetails {
+  final String id;
+  final String? name;
+  final String? avatarUrl;
+  final DateTime? votedAt;
+
+  const VoterDetails({
+    required this.id,
+    this.name,
+    this.avatarUrl,
+    this.votedAt,
+  });
+}
+
 // FlutterPolls widget.
 // This widget is used to display a poll.
 // It can be used in any way and also in a [ListView] or [Column].
@@ -26,13 +40,14 @@ class FlutterPolls extends HookWidget {
     this.userToVote,
     this.pollStartDate,
     this.pollEnded = false,
+    this.expiresAt,
     this.pollProgressbarHeight = 36,
     this.pollOptionsWidth,
     this.pollOptionsBorderRadius,
     this.pollOptionsFillColor,
     this.pollOptionsSplashColor = Colors.grey,
     this.pollOptionsBorder,
-    this.votedPollOptionsBorder = null,
+    this.votedPollOptionsBorder,
     this.votedPollOptionsRadius,
     this.votedBackgroundColor = const Color(0xffEEF0EB),
     this.votedProgressColor = const Color(0xff84D2F6),
@@ -41,186 +56,306 @@ class FlutterPolls extends HookWidget {
     this.votedCheckmark,
     this.votedPercentageTextStyle,
     this.votedAnimationDuration = 1000,
+    this.voteAnimation = false,
     this.allowToggleVote = false,
+    this.showPercentage = true,
   }) : _isloading = false;
 
   /// The id of the poll.
-  /// This id is used to identify the poll.
-  /// It is also used to check if a user has already voted in this poll.
   final String? pollId;
 
   /// Checks if a user has already voted in this poll.
-  /// If this is set to true, the user can't vote in this poll.
-  /// Default value is false.
-  /// [userVotedOptionId] must also be provided if this is set to true.
   final bool hasVoted;
 
+  final bool voteAnimation;
+
   /// Allows toggling/unvoting when the user already voted.
-  /// Default: false. Set to true if you want taps to still call `onVoted`
-  /// when `hasVoted` is true, enabling your backend handler to toggle/unvote.
   final bool allowToggleVote;
 
-  /// Checks if the [onVoted] execution is completed or not
-  /// it is true, if the [onVoted] exection is ongoing and
-  /// false, if completed
+  /// Always render percentage indicator on each option (even before poll end).
+  final bool showPercentage;
+
   final bool _isloading;
 
   /// If a user has already voted in this poll.
-  /// It is ignored if [hasVoted] is set to false or not set at all.
   final String? userVotedOptionId;
 
-  /// An asynchronous callback for HTTP call feature
-  /// Called when the user votes for an option.
-  /// The index of the option that the user voted for is passed as an argument.
-  /// If the user has already voted, this callback is not called.
-  /// If the user has not voted, this callback is called.
-  /// If the callback returns true, the tapped [PollOption] is considered as voted.
-  /// Else Nothing happens,
+  /// Callback when user votes.
   final Future<bool> Function(PollOption pollOption, int newTotalVotes) onVoted;
 
-  /// The title of the poll. Can be any widget with a bounded size.
+  /// The title of the poll.
   final Widget pollTitle;
 
-  /// Data format for the poll options.
-  /// Must be a list of [PollOptionData] objects.
-  /// The list must have at least two elements.
-  /// The first element is the option that is selected by default.
-  /// The second element is the option that is selected by default.
-  /// The rest of the elements are the options that are available.
-  /// The list can have any number of elements.
-  ///
-  /// Poll options are displayed in the order they are in the list.
-  /// example:
-  ///
-  /// pollOptions = [
-  ///
-  ///  PollOption(id: 1, title: Text('Option 1'), votes: 2),
-  ///
-  ///  PollOption(id: 2, title: Text('Option 2'), votes: 5),
-  ///
-  ///  PollOption(id: 3, title: Text('Option 3'), votes: 9),
-  ///
-  ///  PollOption(id: 4, title: Text('Option 4'), votes: 2),
-  ///
-  /// ]
-  ///
-  /// The [id] of each poll option is used to identify the option when the user votes.
-  /// The [title] of each poll option is displayed to the user.
-  /// [title] can be any widget with a bounded size.
-  /// The [votes] of each poll option is the number of votes that the option has received.
+  /// Poll options list.
   final List<PollOption> pollOptions;
 
-  /// The height between the title and the options.
-  /// The default value is 10.
   final double? heightBetweenTitleAndOptions;
-
-  /// The height between the options.
-  /// The default value is 0.
   final double? heightBetweenOptions;
 
-  /// Votes text. Can be "Votes", "Votos", "Ibo" or whatever language.
-  /// If not specified, "Votes" is used.
   final String? votesText;
-
-  /// [votesTextStyle] is the text style of the votes text.
-  /// If not specified, the default text style is used.
-  /// Styles for [totalVotes] and [votesTextStyle].
   final TextStyle? votesTextStyle;
-
-  /// [metaWidget] is displayed at the bottom of the poll.
-  /// It can be any widget with an unbounded size.
-  /// If not specified, no meta widget is displayed.
-  /// example:
-  /// metaWidget = Text('Created by: $createdBy')
   final Widget? metaWidget;
-
-  /// Who started the poll.
   final String? createdBy;
-
-  /// Current user about to vote.
   final String? userToVote;
-
-  /// The date the poll was created.
   final DateTime? pollStartDate;
-
-  /// If poll is closed.
+  final DateTime? expiresAt;
   final bool pollEnded;
 
-  /// Height of a [PollOption].
-  /// The height is the same for all options.
-  /// Defaults to 36.
   final double? pollProgressbarHeight;
-
-  /// Width of a [PollOption].
-  /// The width is the same for all options.
-  /// If not specified, the width is set to the width of the poll.
-  /// If the poll is not wide enough, the width is set to the width of the poll.
-  /// If the poll is too wide, the width is set to the width of the poll.
   final double? pollOptionsWidth;
-
-  /// Border radius of a [PollOption].
-  /// The border radius is the same for all options.
-  /// Defaults to 0.
   final BorderRadius? pollOptionsBorderRadius;
-
-  /// Border of a [PollOption].
-  /// The border is the same for all options.
-  /// Defaults to null.
-  /// If null, the border is not drawn.
   final BoxBorder? pollOptionsBorder;
-
-  /// Border of a [PollOption] when the user has voted.
-  /// The border is the same for all options.
-  /// Defaults to null.
-  /// If null, the border is not drawn.
   final BoxBorder? votedPollOptionsBorder;
-
-  /// Color of a [PollOption].
-  /// The color is the same for all options.
-  /// Defaults to [Colors.blue].
   final Color? pollOptionsFillColor;
-
-  /// Splashes a [PollOption] when the user taps it.
-  /// Defaults to [Colors.grey].
   final Color? pollOptionsSplashColor;
-
-  /// Radius of the border of a [PollOption] when the user has voted.
-  /// Defaults to Radius.circular(8).
   final Radius? votedPollOptionsRadius;
-
-  /// Color of the background of a [PollOption] when the user has voted.
-  /// Defaults to [const Color(0xffEEF0EB)].
   final Color? votedBackgroundColor;
-
-  /// Color of the progress bar of a [PollOption] when the user has voted.
-  /// Defaults to [const Color(0xff84D2F6)].
   final Color? votedProgressColor;
-
-  /// Color of the leading progress bar of a [PollOption] when the user has voted.
-  /// Defaults to [const Color(0xff0496FF)].
   final Color? leadingVotedProgessColor;
-
-  /// Color of the background of a [PollOption] when the user clicks to vote and its still in progress.
-  /// Defaults to [const Color(0xffEEF0EB)].
   final Color? voteInProgressColor;
-
-  /// Widget for the checkmark of a [PollOption] when the user has voted.
-  /// Defaults to [Icons.check_circle_outline_rounded].
   final Widget? votedCheckmark;
-
-  /// TextStyle of the percentage of a [PollOption] when the user has voted.
   final TextStyle? votedPercentageTextStyle;
-
-  /// Animation duration of the progress bar of the [PollOption]'s when the user has voted.
-  /// Defaults to 1000 milliseconds.
-  /// If the animation duration is too short, the progress bar will not animate.
-  /// If you don't want the progress bar to animate, set this to 0.
   final int votedAnimationDuration;
-
-  /// Loading animation widget for [PollOption] when [onVoted] callback is invoked
-  /// Defaults to [CircularProgressIndicator]
-  /// Visible until the [onVoted] execution is completed,
   final Widget? loadingWidget;
+
+  void _showVotersBottomSheet(BuildContext context, PollOption option) {
+    final List<VoterDetails> voterList = option.voters.isNotEmpty
+        ? option.voters
+        : option.voterAvatars
+            .map((url) => VoterDetails(id: '', avatarUrl: url))
+            .toList();
+
+    if (voterList.isEmpty) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E2028) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Voters Details',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              'Option: ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? Colors.white60 : Colors.black54,
+                              ),
+                            ),
+                            Flexible(
+                              child: DefaultTextStyle(
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                                child: option.title,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(
+                      Icons.close,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: voterList.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final voter = voterList[index];
+                    final String name = (voter.name != null && voter.name!.trim().isNotEmpty)
+                        ? voter.name!
+                        : 'Community Member';
+                    final avatarUrl = voter.avatarUrl;
+
+                    ImageProvider provider;
+                    if (avatarUrl == null || avatarUrl == 'null' || avatarUrl.isEmpty) {
+                      provider = const AssetImage('assets/defaultUser.webp');
+                    } else if (avatarUrl.startsWith('assets/')) {
+                      provider = AssetImage(avatarUrl);
+                    } else {
+                      provider = NetworkImage(avatarUrl);
+                    }
+
+                    String formattedDate = '';
+                    if (voter.votedAt != null) {
+                      final dt = voter.votedAt!.toLocal();
+                      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                      final period = dt.hour >= 12 ? 'PM' : 'AM';
+                      final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      final monthStr = monthNames[dt.month - 1];
+                      final minStr = dt.minute.toString().padLeft(2, '0');
+                      formattedDate = '$monthStr ${dt.day}, ${dt.year} • $hour:$minStr $period';
+                    }
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2A2D3A) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.grey.shade300,
+                            backgroundImage: provider,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                if (formattedDate.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    formattedDate,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark ? Colors.white54 : Colors.black45,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStackedAvatars(BuildContext context, PollOption option) {
+    final List<VoterDetails> voterList = option.voters.isNotEmpty
+        ? option.voters
+        : option.voterAvatars
+            .map((url) => VoterDetails(id: '', avatarUrl: url))
+            .toList();
+
+    if (voterList.isEmpty) return const SizedBox.shrink();
+
+    const maxVisible = 3;
+    final visibleVoters = voterList.take(maxVisible).toList();
+    final remainingCount = voterList.length - visibleVoters.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? const Color(0xFF1E2028) : Colors.white;
+
+    return InkWell(
+      onTap: () => _showVotersBottomSheet(context, option),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 24,
+              width: (visibleVoters.length * 16.0) + 8,
+              child: Stack(
+                children: List.generate(visibleVoters.length, (i) {
+                  final avatarUrl = visibleVoters[i].avatarUrl;
+                  ImageProvider provider;
+                  if (avatarUrl == null || avatarUrl == 'null' || avatarUrl.isEmpty) {
+                    provider = const AssetImage('assets/defaultUser.webp');
+                  } else if (avatarUrl.startsWith('assets/')) {
+                    provider = AssetImage(avatarUrl);
+                  } else {
+                    provider = NetworkImage(avatarUrl);
+                  }
+
+                  return Positioned(
+                    left: i * 14.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: borderColor, width: 1.5),
+                      ),
+                      child: CircleAvatar(
+                        radius: 10,
+                        backgroundColor: Colors.grey.shade300,
+                        backgroundImage: provider,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            if (remainingCount > 0)
+              Container(
+                margin: const EdgeInsets.only(left: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.indigo.shade900 : Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.indigoAccent : Colors.indigo.shade200,
+                    width: 0.8,
+                  ),
+                ),
+                child: Text(
+                  '+$remainingCount',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.indigo.shade200 : Colors.indigo.shade700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,23 +366,22 @@ class FlutterPolls extends HookWidget {
       hasVoted == false
           ? null
           : pollOptions.cast<PollOption?>().firstWhere(
-            (pollOption) => pollOption?.id == userVotedOptionId,
-        orElse: () => null,
-      ),
+                (pollOption) => pollOption?.id == userVotedOptionId,
+                orElse: () => null,
+              ),
     );
 
     final int displayedTotalVotes = pollOptions.fold(
       0,
-          (acc, option) => acc + option.votes,
+      (acc, option) => acc + option.votes,
     );
-    
 
-    // showResults is true when we should display non-interactive results
-    // If allowToggleVote == true we still show the interactive UI so taps are allowed.
-    final bool showResults = (userHasVoted.value || hasPollEnded.value) && !allowToggleVote;
+    final isExpired = expiresAt != null && DateTime.now().isAfter(expiresAt!);
+    final bool effectivePollEnded = hasPollEnded.value || isExpired;
 
     return Column(
       key: ValueKey(pollId),
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pollTitle,
         SizedBox(height: heightBetweenTitleAndOptions),
@@ -258,122 +392,156 @@ class FlutterPolls extends HookWidget {
             (pollOption) {
               if (hasVoted && userVotedOptionId == null) {
                 throw ('>>>Flutter Polls: User has voted but [userVotedOptionId] is null.<<<');
-              } else {
-                return Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: pollOption.title),
-                        if (pollOption.voterAvatars.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          ...List.generate(
-                            pollOption.voterAvatars.length.clamp(0, 2),
-                                (i) => Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: CircleAvatar(
-                                radius: 10,
-                                backgroundColor: Colors.grey.shade200,
-                                backgroundImage: pollOption.voterAvatars[i] == "null"? const AssetImage("assets/defaultUser.webp") as ImageProvider :NetworkImage(pollOption.voterAvatars[i]),
-                              ),
-                            ),
+              }
+
+              final double percentage = displayedTotalVotes == 0
+                  ? 0.0
+                  : ((pollOption.votes / displayedTotalVotes) * 100);
+              final String percentageStr = '${percentage.round()}%';
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: pollOption.title),
+                      if (showPercentage) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: votedOption.value?.id == pollOption.id
+                                ? leadingVotedProgessColor?.withValues(alpha: 0.15) ?? Colors.blue.withValues(alpha: 0.15)
+                                : Colors.grey.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                        ],
-                        Checkbox(
-                          value: votedOption.value?.id == pollOption.id,
-                          shape: const CircleBorder(),
-                          onChanged: (isLoading.value || (hasPollEnded.value && !allowToggleVote))
-                              ? null
-                              : (bool? _) async {
-                            if (isLoading.value || (hasPollEnded.value && !allowToggleVote)) return;
-
-                            final bool previouslyVoted = userHasVoted.value;
-                            final PollOption? previousVotedOption = votedOption.value;
-                            final bool isUnvoteAction =
-                                previouslyVoted && previousVotedOption?.id == pollOption.id;
-
-                            // Optimistic selection for visual feedback
-                            votedOption.value = pollOption;
-
-                            isLoading.value = true;
-                            final bool success = await onVoted(
-                              pollOption,
-                              displayedTotalVotes,
-                            );
-                            isLoading.value = false;
-
-                            if (success) {
-                              if (isUnvoteAction) {
-                                if (pollOption.votes > 0) pollOption.votes--;
-                                userHasVoted.value = false;
-                                votedOption.value = null;
-                              } else if (previouslyVoted &&
-                                  previousVotedOption != null &&
-                                  previousVotedOption.id != pollOption.id) {
-                                if (previousVotedOption.votes > 0) previousVotedOption.votes--;
-                                pollOption.votes++;
-                                userHasVoted.value = true;
-                                votedOption.value = pollOption;
-                              } else {
-                                pollOption.votes++;
-                                userHasVoted.value = true;
-                              }
-                            } else {
-                              // Revert on failure
-                              votedOption.value = previousVotedOption;
-                              userHasVoted.value = previouslyVoted;
-                            }
-                          },
-                          activeColor: leadingVotedProgessColor,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                          child: Text(
+                            percentageStr,
+                            style: votedPercentageTextStyle ??
+                                TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: votedOption.value?.id == pollOption.id
+                                      ? leadingVotedProgessColor
+                                      : Colors.grey.shade700,
+                                ),
+                          ),
                         ),
                       ],
-                    ),
-                    Container(
-                      key: UniqueKey(),
-                      margin: EdgeInsets.only(
-                        bottom: heightBetweenOptions ?? 8,
+                      const SizedBox(width: 6),
+                      _buildStackedAvatars(context, pollOption),
+                      Checkbox(
+                        value: votedOption.value?.id == pollOption.id,
+                        shape: const CircleBorder(),
+                        onChanged: (isLoading.value || (effectivePollEnded && !allowToggleVote))
+                            ? null
+                            : (bool? _) async {
+                                if (isLoading.value || (effectivePollEnded && !allowToggleVote)) return;
+
+                                final bool previouslyVoted = userHasVoted.value;
+                                final PollOption? previousVotedOption = votedOption.value;
+                                final bool isUnvoteAction =
+                                    previouslyVoted && previousVotedOption?.id == pollOption.id;
+
+                                // Optimistic selection for visual feedback
+                                votedOption.value = isUnvoteAction ? null : pollOption;
+
+                                isLoading.value = true;
+                                final bool success = await onVoted(
+                                  pollOption,
+                                  displayedTotalVotes,
+                                );
+                                isLoading.value = false;
+
+                                if (success) {
+                                  if (isUnvoteAction) {
+                                    if (pollOption.votes > 0) pollOption.votes--;
+                                    userHasVoted.value = false;
+                                    votedOption.value = null;
+                                  } else if (previouslyVoted &&
+                                      previousVotedOption != null &&
+                                      previousVotedOption.id != pollOption.id) {
+                                    if (previousVotedOption.votes > 0) previousVotedOption.votes--;
+                                    pollOption.votes++;
+                                    userHasVoted.value = true;
+                                    votedOption.value = pollOption;
+                                  } else {
+                                    pollOption.votes++;
+                                    userHasVoted.value = true;
+                                  }
+                                } else {
+                                  // Revert on failure
+                                  votedOption.value = previousVotedOption;
+                                  userHasVoted.value = previouslyVoted;
+                                }
+                              },
+                        activeColor: leadingVotedProgessColor,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
                       ),
-                      decoration: votedPollOptionsBorder != null
-                          ? BoxDecoration(
-                        border: votedPollOptionsBorder,
-                        borderRadius: BorderRadius.all(
-                          votedPollOptionsRadius ??
-                              const Radius.circular(8),
-                        ),
-                      )
-                          : null,
-                      child: LinearPercentIndicator(
-                        width: pollOptionsWidth,
-                        lineHeight: pollProgressbarHeight!,
-                        barRadius: votedPollOptionsRadius ??
-                            const Radius.circular(8),
-                        padding: EdgeInsets.zero,
-                        percent: displayedTotalVotes == 0
-                            ? 0
-                            : (pollOption.votes / displayedTotalVotes)
-                            .clamp(0.0, 1.0),
-                        animation: true,
-                        animationDuration: votedAnimationDuration,
-                        backgroundColor: votedBackgroundColor,
-                        progressColor: votedOption.value?.id == pollOption.id ? leadingVotedProgessColor : votedProgressColor,
-                      ),
+                    ],
+                  ),
+                  Container(
+                    key: UniqueKey(),
+                    margin: EdgeInsets.only(
+                      bottom: heightBetweenOptions ?? 8,
                     ),
-                  ],);
-              }
+                    decoration: votedPollOptionsBorder != null
+                        ? BoxDecoration(
+                            border: votedPollOptionsBorder,
+                            borderRadius: BorderRadius.all(
+                              votedPollOptionsRadius ?? const Radius.circular(8),
+                            ),
+                          )
+                        : null,
+                    child: LinearPercentIndicator(
+                      width: pollOptionsWidth,
+                      lineHeight: pollProgressbarHeight!,
+                      barRadius: votedPollOptionsRadius ?? const Radius.circular(8),
+                      padding: EdgeInsets.zero,
+                      percent: displayedTotalVotes == 0
+                          ? 0
+                          : (pollOption.votes / displayedTotalVotes).clamp(0.0, 1.0),
+                      animation: voteAnimation,
+                      animationDuration: votedAnimationDuration,
+                      backgroundColor: votedBackgroundColor,
+                      progressColor: votedOption.value?.id == pollOption.id
+                          ? leadingVotedProgessColor
+                          : votedProgressColor,
+                    ),
+                  ),
+                ],
+              );
             },
           ),
         const SizedBox(height: 4),
         Row(
           children: [
             Text(
-              '${displayedTotalVotes} $votesText',
+              '$displayedTotalVotes $votesText',
               style: votesTextStyle ??
                   const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
             ),
+            if (expiresAt != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                '•',
+                style: TextStyle(color: Colors.grey.shade400),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                effectivePollEnded
+                    ? 'Poll Closed'
+                    : 'Ends ${_formatTimeRemaining(expiresAt!)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: effectivePollEnded ? Colors.red.shade400 : Colors.indigo.shade400,
+                ),
+              ),
+            ],
             Expanded(
               child: metaWidget ?? Container(),
             ),
@@ -381,6 +549,15 @@ class FlutterPolls extends HookWidget {
         ),
       ],
     );
+  }
+
+  String _formatTimeRemaining(DateTime end) {
+    final diff = end.difference(DateTime.now());
+    if (diff.isNegative) return 'Closed';
+    if (diff.inDays > 0) return 'in ${diff.inDays}d';
+    if (diff.inHours > 0) return 'in ${diff.inHours}h';
+    if (diff.inMinutes > 0) return 'in ${diff.inMinutes}m';
+    return 'in <1m';
   }
 }
 
@@ -390,10 +567,14 @@ class PollOption {
     required this.title,
     required this.votes,
     this.voterAvatars = const [],
+    this.voters = const [],
   });
 
   final String? id;
   final Widget title;
   int votes;
   final List<String> voterAvatars;
+  final List<VoterDetails> voters;
 }
+
+
