@@ -11,7 +11,7 @@ import 'package:WhatsUnity/features/chat/presentation/bloc/message_receipts_stat
 import 'package:WhatsUnity/features/auth/presentation/bloc/auth_cubit.dart';
 import 'package:WhatsUnity/features/auth/presentation/bloc/auth_state.dart';
 import 'package:WhatsUnity/features/chat/presentation/widgets/chatWidget/Details/ChatMember.dart';
-import 'package:WhatsUnity/core/config/supabase.dart';
+import 'package:WhatsUnity/features/chat/data/datasources/chat_remote_data_source.dart';
 import 'package:WhatsUnity/core/theme/lightTheme.dart';
 import 'package:WhatsUnity/features/admin/presentation/bloc/report_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -242,7 +242,10 @@ Widget _showSeenUsersSheet(BuildContext context, String messageId) {
   final chatMembers = (authState is Authenticated) ? authState.chatMembers : <ChatMember>[];
 
   return BlocProvider(
-    create: (_) => MessageReceiptsCubit(supabase, chatMembers: chatMembers)..fetchSeenUsers(messageId),
+    create: (_) => MessageReceiptsCubit(
+      context.read<ChatRemoteDataSource>(),
+      chatMembers: chatMembers,
+    )..fetchSeenUsers(messageId),
     child: BlocBuilder<MessageReceiptsCubit, MessageReceiptsState>(
       builder: (context, state) {
         if (state is MessageReceiptsLoading) {
@@ -401,31 +404,28 @@ class _YourContextMenuWidgetState extends State<YourContextMenuWidget> {
   // 3) fetch seen users
   Future<List<Map<String, dynamic>>> _loadSeenUsers(String messageId) async {
     try {
-      final receipts = await supabase
-          .from('message_receipts')
-          .select('user_id, seen_at')
-          .eq('message_id', messageId)
-          .not('seen_at', 'is', null)
-          .order('seen_at', ascending: false);
+      final receipts = await context
+          .read<ChatRemoteDataSource>()
+          .remote_listSeenReceiptsForMessage(messageId);
 
       if (receipts.isEmpty) return [];
 
-      final userIds = receipts.map<String>((r) => r['user_id'] as String).toList();
-      final profiles = await supabase
-          .from('profiles')
-          .select('id, display_name, avatar_url')
-          .inFilter('id', userIds);
-
-      final profileById = {for (final p in profiles) p['id'] as String: p};
+      final authState = context.read<AuthCubit>().state;
+      final chatMembers =
+          (authState is Authenticated) ? authState.chatMembers : <ChatMember>[];
+      final memberById = <String, ChatMember>{
+        for (final member in chatMembers) member.id.trim(): member,
+      };
 
       return receipts.map<Map<String, dynamic>>((r) {
-        final id = r['user_id'] as String;
-        final p = profileById[id] ?? {};
+        final id = (r['user_id']?.toString() ?? '').trim();
+        final member = memberById[id];
+        final seenAt = DateTime.tryParse(r['seen_at']?.toString() ?? '');
         return {
           'id': id,
-          'name': (p['display_name'] ?? 'Unknown') as String,
-          'avatarUrl': p['avatar_url'] as String?,
-          'seenAt': DateTime.tryParse(r['seen_at']?.toString() ?? ''),
+          'name': member?.displayName ?? 'Unknown',
+          'avatarUrl': member?.avatarUrl,
+          'seenAt': seenAt,
         };
       }).toList();
     } catch (_) {
