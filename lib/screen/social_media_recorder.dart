@@ -275,12 +275,20 @@ class _SocialMediaRecorder extends State<SocialMediaRecorder> {
                 child: Container(
                   decoration: BoxDecoration(
                       borderRadius: soundRecordNotifier.isShow
+<<<<<<< HEAD
                           ? BorderRadius.circular(16)
+=======
+                          ? BorderRadius.circular(12)
+>>>>>>> a2228513ec6ca88dcc26f688fa7239465652f638
                           : widget.radius != null && !soundRecordNotifier.isShow
                               ? widget.radius
                               : BorderRadius.circular(0),
                       color: soundRecordNotifier.isShow
+<<<<<<< HEAD
                           ? widget.backGroundColor ?? Theme.of(context).scaffoldBackgroundColor
+=======
+                          ? widget.backGroundColor
+>>>>>>> a2228513ec6ca88dcc26f688fa7239465652f638
                           : Colors.transparent),
                   child: Stack(
 
