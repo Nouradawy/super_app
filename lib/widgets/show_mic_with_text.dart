@@ -21,6 +21,7 @@ class ShowMicWithText extends StatelessWidget {
   final double finalButtonHight;
   final double finalButtonWidth;
   final Color? micBackgroundColor;
+  final bool isDark;
   final Widget Function(List<double> amplitudes)? waveformBuilder;
 
 
@@ -41,19 +42,13 @@ class ShowMicWithText extends StatelessWidget {
     required this.finalButtonHight,
     required this.finalButtonWidth,
     this.micBackgroundColor,
+    this.isDark =false,
     this.waveformBuilder,
   }) : super(key: key);
-  final colorizeColors = [
-    Colors.black,
-    Colors.grey.shade200,
-    Colors.black,
-  ];
-  final colorizeTextStyle = const TextStyle(
-    fontSize: 14.0,
-    fontFamily: 'Horizon',
-  );
+
   @override
   Widget build(BuildContext context) {
+    // ── EXACT ORIGINAL mic button structure — DO NOT MODIFY ──
     return Transform.translate(
       offset: Offset(-10, 5),
       child: Row(
@@ -87,7 +82,7 @@ class ShowMicWithText extends StatelessWidget {
                             Icon(
                               Icons.mic,
                               size: 25,
-                              color: Colors.white
+                              color: Colors.black
 
                             ),
                       ),
@@ -97,55 +92,82 @@ class ShowMicWithText extends StatelessWidget {
               ),
             ],
           ),
+          // ── Enhanced recording overlay content ──
           if (shouldShowText)
             Expanded(
+              child: Directionality(
+                textDirection: TextDirection.ltr,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                  Center(
-                widthFactor:3.5,
-                    child: DefaultTextStyle(
-                      overflow: TextOverflow.clip,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 14.0,
+                    // Waveform — padding adjusted: more at beginning (right/mic), less at end (left/counter)
+                    if (waveformBuilder != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 14.0, left: 4.0),
+                        child: ValueListenableBuilder<List<double>>(
+                          valueListenable: soundRecorderState.waveformNotifier,
+                          builder: (context, amplitudes, child) {
+                            return SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.55,
+                              height: 32,
+                              child: waveformBuilder!(amplitudes),
+                            );
+                          },
+                        ),
                       ),
-                      child: AnimatedTextKit(
-                        animatedTexts: [
-                          ColorizeAnimatedText(
-                            slideToCancelText ?? "",
-                            textStyle: slideToCancelTextStyle ?? colorizeTextStyle,
-                            colors: colorizeColors,
+                    const SizedBox(height: 4),
+                    // Slide to cancel hint — animated shimmer text aligned to the right near mic button
+                    Padding(
+                      padding: const EdgeInsets.only(right: 14.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chevron_left_rounded,
+                            size: 16,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          ),
+                          DefaultTextStyle(
+                            style: const TextStyle(fontSize: 11.0),
+                            child: AnimatedTextKit(
+                              animatedTexts: [
+                                ColorizeAnimatedText(
+                                  slideToCancelText ?? "Slide to cancel",
+                                  textStyle: slideToCancelTextStyle ??
+                                      TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : Colors.black,
+                                      ),
+                                  colors: isDark
+                                      ? [
+                                          Colors.grey.shade600,
+                                          Colors.grey.shade200,
+                                          Colors.white,
+                                          Colors.grey.shade200,
+                                          Colors.grey.shade600,
+                                        ]
+                                      : [
+                                          Colors.grey.shade500,
+                                          Colors.grey.shade900,
+                                          Colors.black,
+                                          Colors.grey.shade900,
+                                          Colors.grey.shade500,
+                                        ],
+                                ),
+                              ],
+                              isRepeatingAnimation: true,
+                              onTap: () {},
+                            ),
                           ),
                         ],
-                        isRepeatingAnimation: true,
-                        onTap: () {},
                       ),
                     ),
-                  ),
-
-                  if (waveformBuilder != null)
-                    Padding(
-                      padding:EdgeInsetsGeometry.only(right: 12),
-                      child:ValueListenableBuilder<List<double>>(
-                        // 1. Listen to the dedicated notifier from your state object.
-                        valueListenable: soundRecorderState.waveformNotifier,
-
-                        // 2. This builder will now be the ONLY part that
-                        //    rebuilds at high frequency.
-                        builder: (context, amplitudes, child) {
-                          return SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.6,
-                            height: 50,
-                            // 3. Call your waveformBuilder with the new data.
-                            child: waveformBuilder!(amplitudes),
-                          );
-                        },
-                      ),)
-
-                ],)
-
+                  ],
+                ),
+              ),
             ),
         ],
       ),

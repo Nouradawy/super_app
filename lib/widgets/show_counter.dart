@@ -20,35 +20,75 @@ class ShowCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: fullRecordPackageHeight,
-      child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                soundRecorderState.second.toString().padLeft(2, '0'),
-                style: counterTextStyle ??
-                    const TextStyle(fontSize: 13),
-              ),
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-              const Text(" : ",style:TextStyle(fontSize: 13)),
-              Text(
-                soundRecorderState.minute.toString().padLeft(2, '0'),
-                style: counterTextStyle ??
-                    const TextStyle(color: Colors.black ,fontSize: 13),
-              ),
-              AnimatedOpacity(
-                duration: const Duration(seconds: 1),
-                opacity: soundRecorderState.second % 2 == 0 ? 1 : 0,
-                child: const Icon(
-                  Icons.mic,
-                  color: Colors.red,
-                ),
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark 
+                  ? Colors.white.withOpacity(0.08) 
+                  : Colors.black.withOpacity(0.06),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark 
+                    ? Colors.black.withOpacity(0.25)
+                    : Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-
-
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Pulsing red recording dot
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 500),
+                opacity: soundRecorderState.second % 2 == 0 ? 1 : 0.3,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.6),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Timer text
+              Text(
+                "${soundRecorderState.minute.toString().padLeft(2, '0')}:${soundRecorderState.second.toString().padLeft(2, '0')}",
+                style: counterTextStyle ??
+                    TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.0,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

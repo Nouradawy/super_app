@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -58,6 +59,9 @@ class SoundRecordNotifier extends ChangeNotifier {
   /// to know if pressed the button
   late bool buttonPressed;
 
+  /// Blocks double-invoke when pointer-up and drag-end both call [finishRecording].
+  bool _recordingFinishHandled = false;
+
   /// used to update space when dragg the button to left
   late double edge;
   late bool loopActive;
@@ -111,11 +115,8 @@ class SoundRecordNotifier extends ChangeNotifier {
     });
   }
 
-
-
   /// used to reset all value to initial value when end the record
   resetEdgePadding() async {
-
     _amplitudeSubscription?.cancel();
     amplitudes.clear();
 
@@ -164,19 +165,28 @@ class SoundRecordNotifier extends ChangeNotifier {
 
   /// used to get the current store path
   Future<String> getFilePath() async {
+    if (kIsWeb) {
+      final now = DateTime.now();
+      final convertedDateTime =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}_${_counter++}';
+      final storagePath = 'recording_$convertedDateTime${_getSoundExtention()}';
+      mPath = storagePath;
+      return storagePath;
+    }
+
     String _sdPath = "";
     Directory tempDir = await getTemporaryDirectory();
-    _sdPath = initialStorePathRecord.isEmpty ? tempDir.path : initialStorePathRecord;
+    _sdPath =
+        initialStorePathRecord.isEmpty ? tempDir.path : initialStorePathRecord;
     var d = Directory(_sdPath);
     if (!d.existsSync()) {
       d.createSync(recursive: true);
     }
-    DateTime now = DateTime.now();
-    String convertedDateTime =
-        "${_counter.toString()}${now.year.toString()}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}-${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-    // print("the current data is $convertedDateTime");
-    _counter++;
-    String storagePath = _sdPath + "/" + convertedDateTime + _getSoundExtention();
+    final now = DateTime.now();
+    // Avoid prefixing _counter onto year (was producing names like "02026-04-24-…").
+    final convertedDateTime =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}_${_counter++}';
+    final storagePath = '$_sdPath/$convertedDateTime${_getSoundExtention()}';
     mPath = storagePath;
     return storagePath;
   }
@@ -255,7 +265,8 @@ class SoundRecordNotifier extends ChangeNotifier {
     if (maxRecordTime != null) {
       if (_localCounterForMaxRecordTime >= maxRecordTime!) {
         loopActive = false;
-        finishRecording();
+        await finishRecording();
+        return;
       }
       _localCounterForMaxRecordTime++;
     }
@@ -273,22 +284,24 @@ class SoundRecordNotifier extends ChangeNotifier {
 
   /// this function to start record voice
   record(Function()? startRecord) async {
-
     if (!_isAcceptedPermission) {
-
       _isAcceptedPermission = true;
     } else {
       buttonPressed = true;
+      _recordingFinishHandled = false;
       String recordFilePath = await getFilePath();
       if (_timer != null) {
         _timer?.cancel();
       }
 
-      ///TODO:Adjust EncoderHERE
       _timer = Timer(const Duration(milliseconds: 400), () {
-        recordMp3.start(const RecordConfig(
-          noiseSuppress: true,
-        ), path: recordFilePath);
+        recordMp3.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            noiseSuppress: true,
+          ),
+          path: recordFilePath,
+        );
         List<double> currentAmplitudes = [];
         _amplitudeSubscription = recordMp3
             .onAmplitudeChanged(const Duration(milliseconds: 50))
@@ -300,7 +313,6 @@ class SoundRecordNotifier extends ChangeNotifier {
           // This updates the ValueNotifier with a new list
           waveformNotifier.value = List.from(currentAmplitudes);
         });
-
       });
 
       if (startRecord != null) {
@@ -313,16 +325,44 @@ class SoundRecordNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  finishRecording() {
+  /// Stops the encoder and finalizes the container **before** [sendRequestFunction].
+  /// Uploading [mPath] while still recording yields an invalid .m4a and Gumlet rejects it.
+  Future<void> finishRecording() async {
     if (buttonPressed && !isPaused) {
-      if (second > 1 || minute > 0) {
-        String path = mPath;
-        String _time = minute.toString() + ":" + second.toString();
-        sendRequestFunction(File.fromUri(Uri(path: path)), _time);
-        stopRecording!(_time);
+      if (second > 0 || minute > 0) {
+        if (_recordingFinishHandled) return;
+        _recordingFinishHandled = true;
+
+        final time = '$minute:$second';
+        var path = mPath;
+
+        try {
+          _amplitudeSubscription?.cancel();
+          _amplitudeSubscription = null;
+
+          if (await recordMp3.isRecording()) {
+            final stoppedPath = await recordMp3.stop();
+            if (stoppedPath != null && stoppedPath.isNotEmpty) {
+              path = stoppedPath;
+            }
+          }
+
+          if (path.isNotEmpty &&
+              (kIsWeb || await File(path).exists())) {
+            sendRequestFunction(File(path), time);
+          }
+          stopRecording?.call(time);
+        } catch (e, st) {
+          if (kDebugMode) {
+            debugPrint(
+              'social_media_recorder: finishRecording failed: $e\n$st',
+            );
+          }
+          _recordingFinishHandled = false;
+        }
       }
     }
-    resetEdgePadding();
+    await resetEdgePadding();
   }
 
   pauseRecording() async {
@@ -357,15 +397,8 @@ class SoundRecordNotifier extends ChangeNotifier {
 
   /// to check permission
   voidInitialSound() async {
-    // if (Platform.isIOS) _isAcceptedPermission = true;
-
     startRecord = false;
-    final status = await Permission.microphone.status;
-    if (status.isGranted) {
-      final result = await Permission.storage.request();
-      if (result.isGranted) {
-        _isAcceptedPermission = true;
-      }
-    }
+    final micPermission = await Permission.microphone.request();
+    _isAcceptedPermission = micPermission.isGranted;
   }
 }
