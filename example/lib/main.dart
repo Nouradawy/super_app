@@ -95,6 +95,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     );
                     return ChatMessageWrapper(
                       messageId: message.id,
+                      channelId: 'example_channel',
+                      messageCreatedAtIso:
+                          DateTime.utc(2025, 6, index + 1, 12).toIso8601String(),
                       controller: _controller,
                       config: config,
                       onReactionAdded: (reaction) {

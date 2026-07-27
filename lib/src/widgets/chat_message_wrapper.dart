@@ -5,9 +5,15 @@ import 'package:flutter_chat_reactions/src/models/chat_reactions_config.dart';
 import 'package:flutter_chat_reactions/src/models/menu_item.dart';
 import 'package:flutter_chat_reactions/src/utilities/hero_dialog_route.dart';
 import 'package:flutter_chat_reactions/src/widgets/context_menu_widget.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:WhatsUnity/features/admin/presentation/bloc/report_cubit.dart';
 
 class ChatMessageWrapper extends StatelessWidget {
   final String messageId;
+  /// Appwrite `channels` document id — required for read receipts / watermark queries.
+  final String channelId;
+  /// Message `$createdAt` as UTC ISO (matches watermark comparisons).
+  final String messageCreatedAtIso;
   final Widget child;
   final ReactionsController controller;
   final ChatReactionsConfig config;
@@ -19,6 +25,8 @@ class ChatMessageWrapper extends StatelessWidget {
   const ChatMessageWrapper({
     super.key,
     required this.messageId,
+    required this.channelId,
+    required this.messageCreatedAtIso,
     required this.child,
     required this.controller,
     this.config = const ChatReactionsConfig(),
@@ -77,17 +85,23 @@ class ChatMessageWrapper extends StatelessWidget {
   String get _heroTag => 'chat_msg_hero_$messageId';
 
   void _showReactionsDialog(BuildContext context) {
+    final reportCubit = ReportCubit.get(context);
     Navigator.of(context).push(
       HeroDialogRoute(
-        builder: (context) => ReactionsDialogWidget(
-          messageId: messageId,
-          heroTag: _heroTag,
-          messageWidget: child,
-          controller: controller,
-          config: config,
-          onReactionTap: (reaction) => _handleReactionTap(context, reaction),
-          onMenuItemTap: _handleMenuItemTap,
-          alignment: alignment,
+        builder: (context) => BlocProvider.value(
+          value: reportCubit,
+          child: ReactionsDialogWidget(
+            messageId: messageId,
+            channelId: channelId,
+            messageCreatedAtIso: messageCreatedAtIso,
+            heroTag: _heroTag,
+            messageWidget: child,
+            controller: controller,
+            config: config,
+            onReactionTap: (reaction) => _handleReactionTap(context, reaction),
+            onMenuItemTap: _handleMenuItemTap,
+            alignment: alignment,
+          ),
         ),
       ),
     );

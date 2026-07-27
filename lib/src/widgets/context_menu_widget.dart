@@ -8,12 +8,13 @@ import 'package:flutter_chat_reactions/src/widgets/rections_row.dart';
 import 'package:WhatsUnity/core/config/Enums.dart';
 import 'package:WhatsUnity/features/chat/presentation/bloc/message_receipts_cubit.dart';
 import 'package:WhatsUnity/features/chat/presentation/bloc/message_receipts_state.dart';
-import 'package:WhatsUnity/features/auth/presentation/bloc/auth_cubit.dart';
-import 'package:WhatsUnity/features/auth/presentation/bloc/auth_state.dart';
-import 'package:WhatsUnity/features/chat/presentation/widgets/chatWidget/Details/ChatMember.dart';
-import 'package:WhatsUnity/features/chat/data/datasources/chat_remote_data_source.dart';
+import 'package:WhatsUnity/features/auth/presentation/cubits/session_cubit.dart';
+import 'package:WhatsUnity/features/auth/presentation/cubits/session_state.dart';
+import 'package:WhatsUnity/features/chat/data/models/chat_member_model.dart';
+import 'package:WhatsUnity/core/di/app_services.dart';
 import 'package:WhatsUnity/core/theme/lightTheme.dart';
 import 'package:WhatsUnity/features/admin/presentation/bloc/report_cubit.dart';
+import 'package:WhatsUnity/core/widgets/report_user_dialog.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hexcolor/hexcolor.dart';
@@ -28,6 +29,8 @@ import 'package:hexcolor/hexcolor.dart';
 class ReactionsDialogWidget extends StatefulWidget {
   /// Unique identifier for the message (used for data lookups).
   final String messageId;
+  final String? channelId;
+  final String? messageCreatedAtIso;
 
   /// Tag used for the Hero animation — must match the tag in [ChatMessageWrapper].
   /// Defaults to [messageId] for backwards compatibility.
@@ -55,6 +58,8 @@ class ReactionsDialogWidget extends StatefulWidget {
   const ReactionsDialogWidget({
     super.key,
     required this.messageId,
+    this.channelId,
+    this.messageCreatedAtIso,
     String? heroTag,
     required this.messageWidget,
     required this.controller,
@@ -97,114 +102,15 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
                 messageWidget: widget.messageWidget,
                 alignment: widget.alignment,
               ),
-              YourContextMenuWidget(messageId:widget.messageId),
               if (widget.config.showContextMenu) ...[
                 const SizedBox(height: 10),
-                _isReport == false?
-                ContextMenuWidget(
-                  menuItems: widget.config.menuItems,
-                  alignment: widget.alignment,
-                  onMenuItemTap: (item, _) => _handleMenuItemTap(context, item),
-                ) : Material(
-                    clipBehavior: Clip.antiAlias,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: BlocProvider.value(
-                      value: ReportCubit.get(context),
-                      child:Container(
-                        padding:EdgeInsets.symmetric(horizontal: 15),
-                        width: MediaQuery.sizeOf(context).width*0.85,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 15),
-                            DropdownMenu<ReportAUserType>(
-                              width: MediaQuery.sizeOf(context).width * 0.7,
-                              inputDecorationTheme: InputDecorationTheme(
-                                fillColor: HexColor("#f0f2f5"),
-                                filled: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
-                                ),
-                                labelStyle: GoogleFonts.plusJakartaSans(
-                                  color: HexColor("#111518"),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                constraints: const BoxConstraints(maxHeight: 50),
-                              ),
-                              menuStyle:  MenuStyle(
-                                backgroundColor:WidgetStateProperty.all(Colors.white),
-                                fixedSize: WidgetStateProperty.all<Size>(
-                                  Size(MediaQuery.sizeOf(context).width * 0.65, double.infinity),
-                                ),
-                              ),
-                              onSelected: (value){
-                                setState(() {
-                                  ReportCubit.get(context).issueType.text = value?.name ?? 'other';
-                                });
-
-                              },
-                              label: Text(context.loc.maintenanceIssueSelect),
-                              dropdownMenuEntries:
-                              ReportAUserType.values.map<DropdownMenuEntry<ReportAUserType>>(
-                                    (ReportAUserType category) {
-                                  return DropdownMenuEntry<ReportAUserType>(
-                                    value: category,
-                                    label: category.name.toUpperCase(),
-                                  );
-                                },
-                              ).toList(),
-                            ),
-                            const SizedBox(height: 15),
-                            Container(
-                              height: MediaQuery.sizeOf(context).height * 0.15,
-                              width: MediaQuery.sizeOf(context).width * 0.8,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: HexColor("#f0f2f5"),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: TextFormField(
-                                keyboardType: TextInputType.multiline,
-                                controller: ReportCubit.get(context).reportDescription,
-                                minLines: 5,
-                                maxLines: 10,
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  labelText: context.loc.issueDescription,
-                                  labelStyle: GoogleFonts.plusJakartaSans(
-                                    color: HexColor("#60768a"),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    letterSpacing: 0.2,
-                                  ),
-                                  alignLabelWithHint: true,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 15),
-                            Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: MaterialButton(
-                                onPressed: (){
-                                  ReportCubit.get(context).fileReportToUser();
-                                  Navigator.of(context).pop();
-                                },
-                                child: Text("File Report"),
-                              ),
-                            ),
-
-                          ],
-                        ),
-                      ),
-                    )
-                ),
-
+                if (_isReport == false)
+                  ContextMenuWidget(
+                    menuItems: widget.config.menuItems,
+                    alignment: widget.alignment,
+                    onMenuItemTap: (item, _) => _handleMenuItemTap(context, item),
+                  ),
               ],
-
             ],
           ),
         ),
@@ -219,14 +125,25 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
 
   void _handleMenuItemTap(BuildContext context, MenuItem item) {
     if (item.label == 'Report') {
-      setState(() => _isReport = true);
-      widget.onMenuItemTap(item);
+      Navigator.of(context).pop(); // pop context menu
+      showDialog(
+        context: context,
+        builder: (dialogContext) {
+            final rCubit = ReportCubit.get(context);
+            rCubit.reportType = 'message';
+            rCubit.messageId = widget.messageId;
+            return ReportUserDialog(
+              reportCubit: rCubit,
+              onSuccess: () => widget.onMenuItemTap(item),
+            );
+        },
+      );
       return;
     }
     if (item.label == 'Info') {
       showModalBottomSheet(
         context: context,
-        builder: (c) => _showSeenUsersSheet(context, widget.messageId),
+        builder: (c) => _showSeenUsersSheet(context, widget.messageId, widget.channelId, widget.messageCreatedAtIso),
       );
       return;
     }
@@ -237,15 +154,12 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
 
 }
 
-Widget _showSeenUsersSheet(BuildContext context, String messageId) {
-  final authState = context.read<AuthCubit>().state;
-  final chatMembers = (authState is Authenticated) ? authState.chatMembers : <ChatMember>[];
+Widget _showSeenUsersSheet(BuildContext context, String messageId, String? channelId, String? createdAtIso) {
+  final authState = context.read<SessionCubit>().state;
+  final chatMembers = (authState is Authenticated) ? (authState as Authenticated).chatMembers : <ChatMember>[];
 
   return BlocProvider(
-    create: (_) => MessageReceiptsCubit(
-      context.read<ChatRemoteDataSource>(),
-      chatMembers: chatMembers,
-    )..fetchSeenUsers(messageId),
+    create: (_) => MessageReceiptsCubit(AppServices.chatRepository, chatMembers: chatMembers)..fetchSeenUsers(channelId: channelId ?? '', messageCreatedAtIso: createdAtIso ?? ''),
     child: BlocBuilder<MessageReceiptsCubit, MessageReceiptsState>(
       builder: (context, state) {
         if (state is MessageReceiptsLoading) {
@@ -374,133 +288,4 @@ class ContextMenuWidget extends StatelessWidget {
 }
 
 
-class YourContextMenuWidget extends StatefulWidget {
-  final String messageId;
-  const YourContextMenuWidget({super.key, required this.messageId});
-
-  @override
-  State<YourContextMenuWidget> createState() => _YourContextMenuWidgetState();
-}
-
-class _YourContextMenuWidgetState extends State<YourContextMenuWidget> {
-  Future<List<Map<String, dynamic>>>? _seenFuture; // 2) field
-
-  @override
-  void initState() {
-    super.initState();
-    _seenFuture = _loadSeenUsers(widget.messageId); // 2) init
-  }
-
-  @override
-  void didUpdateWidget(covariant YourContextMenuWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.messageId != widget.messageId) {
-      setState(() {
-        _seenFuture = _loadSeenUsers(widget.messageId);
-      });
-    }
-  }
-
-  // 3) fetch seen users
-  Future<List<Map<String, dynamic>>> _loadSeenUsers(String messageId) async {
-    try {
-      final receipts = await context
-          .read<ChatRemoteDataSource>()
-          .remote_listSeenReceiptsForMessage(messageId);
-
-      if (receipts.isEmpty) return [];
-
-      final authState = context.read<AuthCubit>().state;
-      final chatMembers =
-          (authState is Authenticated) ? authState.chatMembers : <ChatMember>[];
-      final memberById = <String, ChatMember>{
-        for (final member in chatMembers) member.id.trim(): member,
-      };
-
-      return receipts.map<Map<String, dynamic>>((r) {
-        final id = (r['user_id']?.toString() ?? '').trim();
-        final member = memberById[id];
-        final seenAt = DateTime.tryParse(r['seen_at']?.toString() ?? '');
-        return {
-          'id': id,
-          'name': member?.displayName ?? 'Unknown',
-          'avatarUrl': member?.avatarUrl,
-          'seenAt': seenAt,
-        };
-      }).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // 4) render section
-  Widget _buildSeenBySection() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _seenFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
-        final data = snapshot.data ?? [];
-        if (data.isEmpty) return const SizedBox.shrink();
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Divider(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                child: Text('Seen by', style: Theme.of(context).textTheme.labelMedium),
-              ),
-            ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 180),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                itemCount: data.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (context, i) {
-                  final u = data[i];
-                  final avatarUrl = u['avatarUrl'] as String?;
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 14,
-                        backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
-                        child: (avatarUrl == null || avatarUrl.isEmpty)
-                            ? Text(
-                          (u['name'] as String).isNotEmpty ? (u['name'] as String)[0].toUpperCase() : '?',
-                          style: const TextStyle(fontSize: 12),
-                        )
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(u['name'] as String, overflow: TextOverflow.ellipsis)),
-                      if (u['seenAt'] is DateTime)
-                        Text(
-                          (u['seenAt'] as DateTime).toLocal().toIso8601String().substring(11, 16),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: _buildSeenBySection(),
-    );
-  }
-}
 

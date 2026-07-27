@@ -24,6 +24,7 @@ class ChatReactionsConfig {
       emojiPickerBuilder;
   final Widget Function(String, bool)? customReactionBuilder;
   final Widget Function(MenuItem, VoidCallback)? customMenuItemBuilder;
+  final String? targetUsername;
 
   const ChatReactionsConfig({
     this.availableReactions = const ['👍', '❤️', '😂', '😮', '😢', '😠', '➕'],
@@ -50,6 +51,7 @@ class ChatReactionsConfig {
     this.emojiPickerBuilder = _defaultEmojiPickerBuilder,
     this.customReactionBuilder,
     this.customMenuItemBuilder,
+    this.targetUsername,
   });
 
   ChatReactionsConfig copyWith({
@@ -75,6 +77,7 @@ class ChatReactionsConfig {
         emojiPickerBuilder,
     Widget Function(String, bool)? customReactionBuilder,
     Widget Function(MenuItem, VoidCallback)? customMenuItemBuilder,
+    String? targetUsername,
   }) {
     return ChatReactionsConfig(
       availableReactions: availableReactions ?? this.availableReactions,
@@ -102,6 +105,7 @@ class ChatReactionsConfig {
           customReactionBuilder ?? this.customReactionBuilder,
       customMenuItemBuilder:
           customMenuItemBuilder ?? this.customMenuItemBuilder,
+      targetUsername: targetUsername ?? this.targetUsername,
     );
   }
 }
