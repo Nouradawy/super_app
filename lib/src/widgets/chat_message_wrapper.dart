@@ -82,7 +82,7 @@ class ChatMessageWrapper extends StatelessWidget {
 
   // Stable prefix isolates our hero tags from any other widget that might
   // accidentally use the bare messageId as a Hero tag or GlobalKey elsewhere.
-  String get _heroTag => 'chat_msg_hero_$messageId';
+  String get _heroTag => 'chat_msg_hero_${channelId}_$messageId';
 
   void _showReactionsDialog(BuildContext context) {
     final reportCubit = ReportCubit.get(context);
