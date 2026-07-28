@@ -1,8 +1,28 @@
-library flutter_polls;
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
+
+ImageProvider _resolveAvatarProvider(String? avatarUrl) {
+  if (avatarUrl == null || avatarUrl == 'null' || avatarUrl.trim().isEmpty) {
+    return const AssetImage('assets/defaultUser.webp');
+  }
+  final clean = avatarUrl.trim();
+  if (clean.startsWith('assets/')) {
+    return AssetImage(clean);
+  }
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return NetworkImage(clean);
+  }
+  final filePath = clean.startsWith('file://') ? clean.substring(7) : clean;
+  try {
+    final file = File(filePath);
+    if (file.existsSync()) {
+      return FileImage(file);
+    }
+  } catch (_) {}
+  return const AssetImage('assets/defaultUser.webp');
+}
 
 class VoterDetails {
   final String id;
@@ -59,6 +79,9 @@ class FlutterPolls extends HookWidget {
     this.voteAnimation = false,
     this.allowToggleVote = false,
     this.showPercentage = true,
+    this.isAnonymous = false,
+    this.disableVoterDetails = false,
+    this.onTotalVotesTap,
   }) : _isloading = false;
 
   /// The id of the poll.
@@ -75,10 +98,16 @@ class FlutterPolls extends HookWidget {
   /// Always render percentage indicator on each option (even before poll end).
   final bool showPercentage;
 
+  final bool isAnonymous;
+  final bool disableVoterDetails;
+
   final bool _isloading;
 
   /// If a user has already voted in this poll.
   final String? userVotedOptionId;
+
+  /// Callback when the total votes text is tapped.
+  final Future<void> Function()? onTotalVotesTap;
 
   /// Callback when user votes.
   final Future<bool> Function(PollOption pollOption, int newTotalVotes) onVoted;
@@ -203,14 +232,7 @@ class FlutterPolls extends HookWidget {
                         : 'Community Member';
                     final avatarUrl = voter.avatarUrl;
 
-                    ImageProvider provider;
-                    if (avatarUrl == null || avatarUrl == 'null' || avatarUrl.isEmpty) {
-                      provider = const AssetImage('assets/defaultUser.webp');
-                    } else if (avatarUrl.startsWith('assets/')) {
-                      provider = AssetImage(avatarUrl);
-                    } else {
-                      provider = NetworkImage(avatarUrl);
-                    }
+                    final ImageProvider provider = _resolveAvatarProvider(avatarUrl);
 
                     String formattedDate = '';
                     if (voter.votedAt != null) {
@@ -275,6 +297,172 @@ class FlutterPolls extends HookWidget {
     );
   }
 
+  void _showAllVotersBottomSheet(BuildContext context) {
+    if (isAnonymous) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E2028) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Voters Details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(
+                      Icons.close,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: pollOptions.length,
+                  itemBuilder: (context, optIdx) {
+                    final option = pollOptions[optIdx];
+                    final List<VoterDetails> voterList = option.voters.isNotEmpty
+                        ? option.voters
+                        : option.voterAvatars
+                            .map((url) => VoterDetails(id: '', avatarUrl: url))
+                            .toList();
+
+                    if (voterList.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Option: ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                              Flexible(
+                                child: DefaultTextStyle(
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white70 : Colors.black87,
+                                  ),
+                                  child: option.title,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: voterList.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final voter = voterList[index];
+                              final String name = (voter.name != null && voter.name!.trim().isNotEmpty)
+                                  ? voter.name!
+                                  : 'Community Member';
+                              final avatarUrl = voter.avatarUrl;
+
+                              String formattedDate = '';
+                              if (voter.votedAt != null) {
+                                final dt = voter.votedAt!.toLocal();
+                                final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                                final period = dt.hour >= 12 ? 'PM' : 'AM';
+                                final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                final monthStr = monthNames[dt.month - 1];
+                                final minStr = dt.minute.toString().padLeft(2, '0');
+                                formattedDate = '$monthStr ${dt.day}, ${dt.year} • $hour:$minStr $period';
+                              }
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF2A2D3A) : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Builder(builder: (context) {
+                                      final bool hasValidUrl = avatarUrl != null &&
+                                          avatarUrl != 'null' &&
+                                          avatarUrl.isNotEmpty;
+                                      return CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: Colors.grey.shade300,
+                                        backgroundImage: _resolveAvatarProvider(avatarUrl),
+                                      );
+                                    }),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? Colors.white : Colors.black87,
+                                            ),
+                                          ),
+                                          if (formattedDate.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              formattedDate,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isDark ? Colors.white54 : Colors.black45,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildStackedAvatars(BuildContext context, PollOption option) {
     final List<VoterDetails> voterList = option.voters.isNotEmpty
         ? option.voters
@@ -304,14 +492,7 @@ class FlutterPolls extends HookWidget {
               child: Stack(
                 children: List.generate(visibleVoters.length, (i) {
                   final avatarUrl = visibleVoters[i].avatarUrl;
-                  ImageProvider provider;
-                  if (avatarUrl == null || avatarUrl == 'null' || avatarUrl.isEmpty) {
-                    provider = const AssetImage('assets/defaultUser.webp');
-                  } else if (avatarUrl.startsWith('assets/')) {
-                    provider = AssetImage(avatarUrl);
-                  } else {
-                    provider = NetworkImage(avatarUrl);
-                  }
+                  final ImageProvider provider = _resolveAvatarProvider(avatarUrl);
 
                   return Positioned(
                     left: i * 14.0,
@@ -513,39 +694,41 @@ class FlutterPolls extends HookWidget {
               );
             },
           ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(
-              '$displayedTotalVotes $votesText',
-              style: votesTextStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-            if (expiresAt != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                '•',
-                style: TextStyle(color: Colors.grey.shade400),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                effectivePollEnded
-                    ? 'Poll Closed'
-                    : 'Ends ${_formatTimeRemaining(expiresAt!)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: effectivePollEnded ? Colors.red.shade400 : Colors.indigo.shade400,
+        const SizedBox(height: 8),
+        Center(
+          child: InkWell(
+            onTap: disableVoterDetails
+                ? null
+                : () async {
+                    if (onTotalVotesTap != null) {
+                      await onTotalVotesTap!();
+                    }
+                    if (context.mounted) {
+                      _showAllVotersBottomSheet(context);
+                    }
+                  },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: (disableVoterDetails ? Colors.grey : (leadingVotedProgessColor ?? const Color(0xff0496FF))).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: (disableVoterDetails ? Colors.grey : (leadingVotedProgessColor ?? const Color(0xff0496FF))).withValues(alpha: 0.3),
+                  width: 1,
                 ),
               ),
-            ],
-            Expanded(
-              child: metaWidget ?? Container(),
+              child: Text(
+                'View Votes',
+                style: votesTextStyle ??
+                    TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: disableVoterDetails ? Colors.grey : (leadingVotedProgessColor ?? const Color(0xff0496FF)),
+                    ),
+              ),
             ),
-          ],
+          ),
         ),
       ],
     );
@@ -575,6 +758,25 @@ class PollOption {
   int votes;
   final List<String> voterAvatars;
   final List<VoterDetails> voters;
+}
+
+String _getInitials(String name) {
+  if (name.trim().isEmpty) return '?';
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.length > 1) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  if (name.length > 1) {
+    return name.substring(0, 2).toUpperCase();
+  }
+  return name[0].toUpperCase();
+}
+
+Color _colorFromName(String name) {
+  if (name.trim().isEmpty) return Colors.grey;
+  final int hash = name.hashCode;
+  final double hue = (hash % 360).toDouble();
+  return HSVColor.fromAHSV(1.0, hue, 0.6, 0.8).toColor();
 }
 
 
