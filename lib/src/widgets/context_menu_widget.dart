@@ -5,19 +5,6 @@ import 'package:flutter_chat_reactions/src/models/chat_reactions_config.dart';
 import 'package:flutter_chat_reactions/src/models/menu_item.dart';
 import 'package:flutter_chat_reactions/src/widgets/message_bubble.dart';
 import 'package:flutter_chat_reactions/src/widgets/rections_row.dart';
-import 'package:WhatsUnity/core/config/Enums.dart';
-import 'package:WhatsUnity/features/chat/presentation/bloc/message_receipts_cubit.dart';
-import 'package:WhatsUnity/features/chat/presentation/bloc/message_receipts_state.dart';
-import 'package:WhatsUnity/features/auth/presentation/cubits/session_cubit.dart';
-import 'package:WhatsUnity/features/auth/presentation/cubits/session_state.dart';
-import 'package:WhatsUnity/features/chat/data/models/chat_member_model.dart';
-import 'package:WhatsUnity/core/di/app_services.dart';
-import 'package:WhatsUnity/core/theme/lightTheme.dart';
-import 'package:WhatsUnity/features/admin/presentation/bloc/report_cubit.dart';
-import 'package:WhatsUnity/core/widgets/report_user_dialog.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:hexcolor/hexcolor.dart';
 
 
 /// A dialog widget that displays reactions and context menu options for a message.
@@ -75,8 +62,6 @@ class ReactionsDialogWidget extends StatefulWidget {
   }
 
 class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
-  /// Render Report dialog component.
-  bool _isReport = false;
 
   @override
   Widget build(BuildContext context) {
@@ -104,12 +89,11 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
               ),
               if (widget.config.showContextMenu) ...[
                 const SizedBox(height: 10),
-                if (_isReport == false)
-                  ContextMenuWidget(
-                    menuItems: widget.config.menuItems,
-                    alignment: widget.alignment,
-                    onMenuItemTap: (item, _) => _handleMenuItemTap(context, item),
-                  ),
+                ContextMenuWidget(
+                  menuItems: widget.config.menuItems,
+                  alignment: widget.alignment,
+                  onMenuItemTap: (item, _) => _handleMenuItemTap(context, item),
+                ),
               ],
             ],
           ),
@@ -124,29 +108,6 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
   }
 
   void _handleMenuItemTap(BuildContext context, MenuItem item) {
-    if (item.label == 'Report') {
-      Navigator.of(context).pop(); // pop context menu
-      showDialog(
-        context: context,
-        builder: (dialogContext) {
-            final rCubit = ReportCubit.get(context);
-            rCubit.reportType = 'message';
-            rCubit.messageId = widget.messageId;
-            return ReportUserDialog(
-              reportCubit: rCubit,
-              onSuccess: () => widget.onMenuItemTap(item),
-            );
-        },
-      );
-      return;
-    }
-    if (item.label == 'Info') {
-      showModalBottomSheet(
-        context: context,
-        builder: (c) => _showSeenUsersSheet(context, widget.messageId, widget.channelId, widget.messageCreatedAtIso),
-      );
-      return;
-    }
     Navigator.of(context).pop();
     widget.onMenuItemTap(item);
   }
@@ -154,62 +115,6 @@ class _ReactionsDialogWidgetState extends State<ReactionsDialogWidget> {
 
 }
 
-Widget _showSeenUsersSheet(BuildContext context, String messageId, String? channelId, String? createdAtIso) {
-  final authState = context.read<SessionCubit>().state;
-  final chatMembers = (authState is Authenticated) ? (authState as Authenticated).chatMembers : <ChatMember>[];
-
-  return BlocProvider(
-    create: (_) => MessageReceiptsCubit(AppServices.chatRepository, chatMembers: chatMembers)..fetchSeenUsers(channelId: channelId ?? '', messageCreatedAtIso: createdAtIso ?? ''),
-    child: BlocBuilder<MessageReceiptsCubit, MessageReceiptsState>(
-      builder: (context, state) {
-        if (state is MessageReceiptsLoading) {
-          return const SizedBox(
-            height: 200,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (state is MessageReceiptsError) {
-          return SizedBox(
-            height: 200,
-            child: Center(child: Text('Error: ${state.message}')),
-          );
-        }
-        if (state is MessageReceiptsLoaded) {
-          final seen = state.seenUsers;
-          if (seen.isEmpty) {
-            return const SizedBox(
-              height: 120,
-              child: Center(child: Text('No viewers')),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: seen.length,
-            itemBuilder: (c, i) {
-              final su = seen[i];
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: su.member.avatarUrl != null
-                      ? NetworkImage(su.member.avatarUrl!)
-                      : null,
-                  child: su.member.avatarUrl == null
-                      ? Text(su.member.displayName.isNotEmpty ? su.member.displayName[0] : '?')
-                      : null,
-                ),
-                title: Text(su.member.displayName),
-                subtitle: Text(
-                  su.seenAt.toLocal().toString(),
-                  style: const TextStyle(fontSize: 12),
-                ),
-              );
-            },
-          );
-        }
-        return const SizedBox.shrink();
-      },
-    ),
-  );
-}
 
 class ContextMenuWidget extends StatelessWidget {
   final List<MenuItem> menuItems;
