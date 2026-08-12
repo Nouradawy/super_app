@@ -552,6 +552,22 @@ class FlutterPolls extends HookWidget {
               ),
     );
 
+    final pollStateSignature = pollOptions
+        .map((option) => '${option.id}:${option.votes}')
+        .join(',');
+
+    useEffect(() {
+      hasPollEnded.value = pollEnded;
+      userHasVoted.value = hasVoted;
+      votedOption.value = hasVoted == false
+          ? null
+          : pollOptions.cast<PollOption?>().firstWhere(
+                (pollOption) => pollOption?.id == userVotedOptionId,
+                orElse: () => null,
+              );
+      return null;
+    }, [pollEnded, hasVoted, userVotedOptionId, pollStateSignature]);
+
     final int displayedTotalVotes = pollOptions.fold(
       0,
       (acc, option) => acc + option.votes,
@@ -662,7 +678,6 @@ class FlutterPolls extends HookWidget {
                     ],
                   ),
                   Container(
-                    key: UniqueKey(),
                     margin: EdgeInsets.only(
                       bottom: heightBetweenOptions ?? 8,
                     ),
@@ -684,6 +699,9 @@ class FlutterPolls extends HookWidget {
                           : (pollOption.votes / displayedTotalVotes).clamp(0.0, 1.0),
                       animation: voteAnimation,
                       animationDuration: votedAnimationDuration,
+                      animateFromLastPercent: true,
+                      animateToInitialPercent: false,
+                      addAutomaticKeepAlive: true,
                       backgroundColor: votedBackgroundColor,
                       progressColor: votedOption.value?.id == pollOption.id
                           ? leadingVotedProgessColor
