@@ -38,6 +38,15 @@ class ReactionsController extends ChangeNotifier {
     return reactions.any((r) => r.emoji == emoji && r.userId == currentUserId);
   }
 
+  /// Returns the emoji the current user has reacted with for [messageId], if any.
+  String? getUserReaction(String messageId) {
+    final reactions = getReactions(messageId);
+    for (final r in reactions) {
+      if (r.userId == currentUserId) return r.emoji;
+    }
+    return null;
+  }
+
   /// Adds a reaction with the given [emoji] to a [messageId].
   ///
   /// An optional [userName] can be provided.
