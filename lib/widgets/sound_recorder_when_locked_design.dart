@@ -169,11 +169,13 @@ class SoundRecorderWhenLockedDesign extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.send_rounded, 
-                        color: Colors.white, 
-                        size: 22,
-                        textDirection: TextDirection.ltr,
+                      child: Transform.flip(
+                        flipX: Directionality.of(context) == TextDirection.rtl,
+                        child: const Icon(
+                          Icons.send_rounded, 
+                          color: Colors.white, 
+                          size: 22,
+                        ),
                       ),
                     ),
                   ),

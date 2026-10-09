@@ -120,10 +120,12 @@ class SoundRecordNotifier extends ChangeNotifier {
     _amplitudeSubscription?.cancel();
     amplitudes.clear();
 
-    if (_initWidth == -33) {
+    try {
       RenderBox box = key.currentContext?.findRenderObject() as RenderBox;
       Offset position = box.localToGlobal(Offset.zero);
       _initWidth = position.dx;
+    } catch (e) {
+      _initWidth = 0;
     }
     _localCounterForMaxRecordTime = 0;
     isLocked = false;
@@ -226,28 +228,31 @@ class SoundRecordNotifier extends ChangeNotifier {
       try {
         RenderBox box = key.currentContext?.findRenderObject() as RenderBox;
         Offset position = box.localToGlobal(Offset.zero);
-        if (position.dx <= MediaQuery.of(context).size.width * 0.6) {
+        final isRtl = Directionality.of(context) == TextDirection.rtl;
+        final screenWidth = MediaQuery.of(context).size.width;
+
+        bool shouldCancel = false;
+        if (isRtl) {
+          shouldCancel = position.dx >= screenWidth * 0.4;
+        } else {
+          shouldCancel = position.dx <= screenWidth * 0.6;
+        }
+
+        if (shouldCancel) {
           String _time = minute.toString() + ":" + second.toString();
           if (stopRecording != null) stopRecording!(_time);
           resetEdgePadding();
-        } else if (x.dx >= MediaQuery.of(context).size.width) {
+        } else if (x.dx >= screenWidth && !isRtl) {
           edge = 0;
+        } else if (x.dx <= 0 && isRtl) {
           edge = 0;
         } else {
-          edge = (_initWidth - x.dx) > 0 ? (_initWidth - x.dx) : 0;
-
-          // if (x.dx <= MediaQuery.of(context).size.width * 0.5) {}
-          // if (last < x.dx) {
-          //   edge = edge -= x.dx / 200;
-          //   if (edge < 0) {
-          //     edge = 0;
-          //   }
-          // } else if (last > x.dx) {
-          //   edge = edge += x.dx / 200;
-          // }
-          // last = x.dx;
+          if (isRtl) {
+             edge = (x.dx - _initWidth) > 0 ? (x.dx - _initWidth) : 0;
+          } else {
+             edge = (_initWidth - x.dx) > 0 ? (_initWidth - x.dx) : 0;
+          }
         }
-        // ignore: empty_catches
       } catch (e) {}
       notifyListeners();
     }

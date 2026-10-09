@@ -187,7 +187,7 @@ class _SocialMediaRecorder extends State<SocialMediaRecorder> {
         child: Consumer<SoundRecordNotifier>(
           builder: (context, value, _) {
             return Directionality(
-                textDirection: TextDirection.rtl, child: makeBody(value));
+                textDirection: Directionality.of(context), child: makeBody(value));
           },
         ));
   }
@@ -271,7 +271,7 @@ class _SocialMediaRecorder extends State<SocialMediaRecorder> {
           children: [
             Center(
               child: Padding(
-                padding: EdgeInsets.only(right: state.edge),
+                padding: EdgeInsetsDirectional.only(end: state.edge),
                 child: Container(
                   decoration: BoxDecoration(
                       borderRadius: soundRecordNotifier.isShow
@@ -307,8 +307,9 @@ class _SocialMediaRecorder extends State<SocialMediaRecorder> {
                         ),
                       ),
                       if (soundRecordNotifier.isShow)
-                        Positioned(
-                          left: 10,
+                        Positioned.directional(
+                          textDirection: Directionality.of(context),
+                          start: 10,
                           top: soundRecordNotifier.isShow ? 6 : 0,
                           bottom: soundRecordNotifier.isShow ? 0 : 13,
                           child: ShowCounter(
@@ -325,11 +326,14 @@ class _SocialMediaRecorder extends State<SocialMediaRecorder> {
                 ),
               ),
             ),
-            SizedBox(
-              width: 60,
-              child: LockRecord(
-                soundRecorderState: state,
-                lockIcon: widget.lockButton,
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: SizedBox(
+                width: 60,
+                child: LockRecord(
+                  soundRecorderState: state,
+                  lockIcon: widget.lockButton,
+                ),
               ),
             )
           ],

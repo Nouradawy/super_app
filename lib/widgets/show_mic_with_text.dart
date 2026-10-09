@@ -50,53 +50,17 @@ class ShowMicWithText extends StatelessWidget {
   Widget build(BuildContext context) {
     // ── EXACT ORIGINAL mic button structure — DO NOT MODIFY ──
     return Transform.translate(
-      offset: Offset(-10, 5),
+      offset: Offset(Directionality.of(context) == TextDirection.rtl ? 10 : -10, 5),
       child: Row(
         mainAxisAlignment: !soundRecorderState.buttonPressed
             ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
+            : MainAxisAlignment.end,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Transform.scale(
-                key: soundRecorderState.key,
-                scale: soundRecorderState.buttonPressed ? 1.3 : 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(600),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeIn,
-                    width: soundRecorderState.buttonPressed
-                        ? finalButtonWidth
-                        : initialButtonWidth,
-                    height: soundRecorderState.buttonPressed
-                        ? finalButtonHight
-                        : initialButtonWidth,
-                    child: Container(
-                      color: micBackgroundColor ?? Colors.green,
-                      child: Padding(
-                        padding: const EdgeInsets.all(0.0),
-                        child: recordIcon ??
-                            Icon(
-                              Icons.mic,
-                              size: 25,
-                              color: Colors.black
-
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
           // ── Enhanced recording overlay content ──
           if (shouldShowText)
             Expanded(
               child: Directionality(
-                textDirection: TextDirection.ltr,
+                textDirection: Directionality.of(context),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -104,7 +68,7 @@ class ShowMicWithText extends StatelessWidget {
                     // Waveform — padding adjusted: more at beginning (right/mic), less at end (left/counter)
                     if (waveformBuilder != null)
                       Padding(
-                        padding: const EdgeInsets.only(right: 14.0, left: 4.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 14.0),
                         child: ValueListenableBuilder<List<double>>(
                           valueListenable: soundRecorderState.waveformNotifier,
                           builder: (context, amplitudes, child) {
@@ -119,13 +83,15 @@ class ShowMicWithText extends StatelessWidget {
                     const SizedBox(height: 4),
                     // Slide to cancel hint — animated shimmer text aligned to the right near mic button
                     Padding(
-                      padding: const EdgeInsets.only(right: 14.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 14.0),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.chevron_left_rounded,
+                            Directionality.of(context) == TextDirection.rtl
+                                ? Icons.chevron_right_rounded
+                                : Icons.chevron_left_rounded,
                             size: 16,
                             color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                           ),
@@ -169,6 +135,41 @@ class ShowMicWithText extends StatelessWidget {
                 ),
               ),
             ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Transform.scale(
+                key: soundRecorderState.key,
+                scale: soundRecorderState.buttonPressed ? 1.3 : 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(600),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeIn,
+                    width: soundRecorderState.buttonPressed
+                        ? finalButtonWidth
+                        : initialButtonWidth,
+                    height: soundRecorderState.buttonPressed
+                        ? finalButtonHight
+                        : initialButtonWidth,
+                    child: Container(
+                      color: micBackgroundColor ?? Colors.green,
+                      child: Padding(
+                        padding: const EdgeInsets.all(0.0),
+                        child: recordIcon ??
+                            Icon(
+                              Icons.mic,
+                              size: 25,
+                              color: Colors.black
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
