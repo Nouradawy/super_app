@@ -27,7 +27,7 @@ class ChatReactionsConfig {
   final String? targetUsername;
 
   const ChatReactionsConfig({
-    this.availableReactions = const ['👍', '❤️', '😂', '😮', '😢', '😠', '➕'],
+    this.availableReactions = const ['👍', '❤', '😂', '😱', '😢', '😡', '➕'],
     this.menuItems = const [
       MenuItem(label: 'Reply', icon: Icons.reply),
       MenuItem(label: 'Copy', icon: Icons.copy),

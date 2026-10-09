@@ -56,18 +56,21 @@ class ChatMessageWrapper extends StatelessWidget {
   }
 
   void _addReaction(String reaction) {
-    controller.addReaction(messageId, reaction);
-    onReactionAdded?.call(reaction);
+    final norm = ReactionsController.normalizeEmoji(reaction);
+    controller.addReaction(messageId, norm);
+    onReactionAdded?.call(norm);
   }
 
   void _toggleReaction(String reaction) {
-    final wasReacted = controller.hasUserReacted(messageId, reaction);
-    controller.toggleReaction(messageId, reaction);
+    final norm = ReactionsController.normalizeEmoji(reaction);
+    final currentReaction = controller.getUserReaction(messageId);
+    final wasReacted = currentReaction == norm || controller.hasUserReacted(messageId, norm);
+    controller.toggleReaction(messageId, norm);
 
     if (wasReacted) {
-      onReactionRemoved?.call(reaction);
+      onReactionRemoved?.call(norm);
     } else {
-      onReactionAdded?.call(reaction);
+      onReactionAdded?.call(norm);
     }
   }
 

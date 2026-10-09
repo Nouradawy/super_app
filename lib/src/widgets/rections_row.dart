@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_chat_reactions/src/controllers/reactions_controller.dart';
 import 'package:flutter_chat_reactions/src/widgets/reactions_button.dart';
 
 class ReactionsRow extends StatelessWidget {
@@ -67,7 +68,9 @@ class ReactionsRow extends StatelessWidget {
                     reaction: reactions[i],
                     index: i,
                     size: reactionSize,
-                    isSelected: selectedReaction == reactions[i],
+                    isSelected: selectedReaction != null &&
+                        ReactionsController.normalizeEmoji(selectedReaction!) ==
+                            ReactionsController.normalizeEmoji(reactions[i]),
                     onTap: onReactionTap,
                   ),
               ],
